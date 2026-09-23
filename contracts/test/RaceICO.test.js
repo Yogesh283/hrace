@@ -253,7 +253,7 @@ describe('RaceCommunityEngine ICO stake + final rates', function () {
         await icoStatus.setIcoCompleted(true);
         await engine.connect(buyer).participate(USDT_50, LOCK_FLEX);
         const flexStake = await engine.stakeAt(buyer.address, (await engine.stakeCount(buyer.address)) - 1n);
-        expect(flexStake.dailyRateBps).to.equal(50n);
+        expect(flexStake.dailyRateBps).to.equal(35n);
         expect(flexStake.lockPeriod).to.equal(LOCK_FLEX);
     });
 

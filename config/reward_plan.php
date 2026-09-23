@@ -20,7 +20,7 @@ return [
         | Stake unlock fee remains stake_withdraw_fee_percent (10%).
         */
         'duration_tiers' => [
-            ['days' => 0, 'label' => 'Flexible', 'daily_reward_percent' => 0.50],
+            ['days' => 0, 'label' => 'Flexible', 'daily_reward_percent' => 0.35],
             ['days' => 180, 'label' => '180 Days', 'daily_reward_percent' => 0.50],
             ['days' => 365, 'label' => '365 Days', 'daily_reward_percent' => 0.70],
             ['days' => 730, 'label' => '730 Days', 'daily_reward_percent' => 0.90],

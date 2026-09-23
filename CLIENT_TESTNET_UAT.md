@@ -124,7 +124,7 @@ RACE principal stays **in Engine**, not free in buyer wallet.
 ## 17. Expected results (business rules — unchanged)
 
 - Referral: 3% / 1% / 1% / 0.5% / 0.25%×6  
-- Daily rates: Flex/180=50bps, 365=70, 730=90, 1095=100  
+- Daily rates: Flex=35bps (0.35%), 180=50, 365=70, 730=90, 1095=100  
 - Flexible exit team fee: 10% RACE (weights 25…5)  
 - Laravel withdraw team: 10% of gross, same L1–L10 weights; unqualified → admin unallocated ledger  
 - Admin fee: $1 (&lt;$100) or 1% (≥$100)  

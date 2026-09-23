@@ -1,4 +1,4 @@
-import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, waitForConfirmations } from '@/lib/web3Deposit';
+import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, sendContractTx, waitForConfirmations } from '@/lib/web3Deposit';
 
 const SELECTORS = {
     balanceOf: '0x70a08231',
@@ -80,14 +80,6 @@ async function ethCall({ to, data, rpcUrl }) {
     });
     const payload = await response.json();
     return payload?.result || '0x0';
-}
-
-async function sendContractTx({ from, to, data }) {
-    await ensureBscNetwork();
-    return window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{ from, to, data }],
-    });
 }
 
 function decodeUint256Array(hex) {

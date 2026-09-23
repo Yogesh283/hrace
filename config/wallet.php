@@ -22,10 +22,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | USDT BEP20 contract address (BSC mainnet)
+    | USDT BEP20 — ONLY this contract is credited (anti flash / fake USDT)
     |--------------------------------------------------------------------------
+    | Mainnet MUST be official Tether: 0x55d398326f99059ff775485246999027b3197955
+    | Testnet MUST be project TestnetMockUSDT (never mainnet USDT address).
     */
     'usdt_contract_bep20' => env('USDT_CONTRACT_BEP20', '0x55d398326f99059ff775485246999027b3197955'),
+
+    'official_usdt_mainnet' => '0x55d398326f99059ff775485246999027b3197955',
 
     /*
     |--------------------------------------------------------------------------

@@ -35,7 +35,7 @@ describe('RaceParticipation', function () {
         return { owner, sponsor, user, funder, usdt, race, router, participation };
     }
 
-    it('allows flexible participate at 0.50% daily', async function () {
+    it('allows flexible participate at 0.35% daily', async function () {
         const { usdt, participation } = await deployFixture();
         const [, , , stranger] = await ethers.getSigners();
 
@@ -44,7 +44,7 @@ describe('RaceParticipation', function () {
 
         await participation.connect(stranger).participate(USDT_50, 0);
         const stake = await participation.stakeAt(stranger.address, 0);
-        expect(stake.dailyRateBps).to.equal(50n);
+        expect(stake.dailyRateBps).to.equal(35n);
     });
 
     it('stakes RACE from USDT via pancake price', async function () {

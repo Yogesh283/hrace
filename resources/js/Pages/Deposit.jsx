@@ -251,7 +251,8 @@ export default function Deposit({
                                         onChange={(e) => setAmountUsd(e.target.value)}
                                     />
                                     <p className="mt-1 text-xs text-fintech-muted">
-                                        Minimum $1 USDT · Official BEP20 only · {minConfirmations} confirmations
+                                        Minimum $1 · Only official configured USDT contract · Flash / fake USDT rejected ·{' '}
+                                        {minConfirmations} confirmations
                                     </p>
                                 </div>
 

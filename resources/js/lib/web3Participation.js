@@ -1,4 +1,4 @@
-import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount } from '@/lib/web3Deposit';
+import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, sendContractTx } from '@/lib/web3Deposit';
 
 const SELECTORS = {
     approve: '0x095ea7b3',
@@ -34,14 +34,6 @@ function encodeClaimReward(stakeIndex) {
 
 function encodeWithdrawStake(stakeIndex) {
     return SELECTORS.withdrawStake + padUint256(stakeIndex);
-}
-
-async function sendContractTx({ from, to, data }) {
-    await ensureBscNetwork();
-    return window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{ from, to, data }],
-    });
 }
 
 export async function purchaseOnChainParticipation({

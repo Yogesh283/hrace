@@ -52,7 +52,7 @@ describe('Financial safety — withdraw settle + reward oracle', function () {
 
         const before = await race.balanceOf(buyer.address);
         const stake = await engine.stakeAt(buyer.address, 0);
-        const expectedReward = expectedDailyRewardRace(stake.principalUsdt, 50);
+        const expectedReward = expectedDailyRewardRace(stake.principalUsdt, 35);
         const fee = (stake.stakedRace * 1000n) / 10_000n;
         const netPrincipal = stake.stakedRace - fee;
 
@@ -198,10 +198,10 @@ describe('Financial safety — withdraw settle + reward oracle', function () {
         const { buyer, engine, race } = await deployFixture();
         await engine.connect(buyer).participate(USDT_100, LOCK_FLEX);
         await time.increase(ONE_DAY);
-        // $100 * 0.50% = $0.50 USDT → 0.5 RACE at $1/RACE
+        // $100 * 0.35% = $0.35 USDT → 0.35 RACE at $1/RACE
         const before = await race.balanceOf(buyer.address);
         await engine.connect(buyer).claimReward(0);
-        expect((await race.balanceOf(buyer.address)) - before).to.equal(ethers.parseEther('0.5'));
+        expect((await race.balanceOf(buyer.address)) - before).to.equal(ethers.parseEther('0.35'));
     });
 
     it('14. manipulated Pancake spot does not change reward mint size', async function () {
@@ -213,13 +213,13 @@ describe('Financial safety — withdraw settle + reward oracle', function () {
         await router.setRate(1000, 1);
         const before = await race.balanceOf(buyer.address);
         await engine.connect(buyer).claimReward(0);
-        expect((await race.balanceOf(buyer.address)) - before).to.equal(ethers.parseEther('0.5'));
+        expect((await race.balanceOf(buyer.address)) - before).to.equal(ethers.parseEther('0.35'));
 
         await time.increase(ONE_DAY);
         await router.setRate(1, 1000);
         const mid = await race.balanceOf(buyer.address);
         await engine.connect(buyer).claimReward(0);
-        expect((await race.balanceOf(buyer.address)) - mid).to.equal(ethers.parseEther('0.5'));
+        expect((await race.balanceOf(buyer.address)) - mid).to.equal(ethers.parseEther('0.35'));
     });
 
     it('15. claim uses secure oracle price source', async function () {
@@ -230,8 +230,8 @@ describe('Financial safety — withdraw settle + reward oracle', function () {
         await oracle.updatePrice(ethers.parseEther('1.1'));
         const before = await race.balanceOf(buyer.address);
         await engine.connect(buyer).claimReward(0);
-        // rewardUsdt=0.5 → race = 0.5/1.1
-        const expected = (ethers.parseEther('0.5') * 10n ** 18n) / ethers.parseEther('1.1');
+        // rewardUsdt=0.35 → race = 0.35/1.1
+        const expected = (ethers.parseEther('0.35') * 10n ** 18n) / ethers.parseEther('1.1');
         expect((await race.balanceOf(buyer.address)) - before).to.equal(expected);
     });
 
@@ -245,8 +245,8 @@ describe('Financial safety — withdraw settle + reward oracle', function () {
         await engine.connect(buyer).compoundReward(0);
         const afterStake = await engine.stakeAt(buyer.address, 0);
         expect(await race.balanceOf(buyer.address)).to.equal(beforeWallet);
-        expect(afterStake.principalUsdt - beforeStake.principalUsdt).to.equal(ethers.parseEther('0.5'));
-        expect(afterStake.stakedRace - beforeStake.stakedRace).to.equal(ethers.parseEther('0.5'));
+        expect(afterStake.principalUsdt - beforeStake.principalUsdt).to.equal(ethers.parseEther('0.35'));
+        expect(afterStake.stakedRace - beforeStake.stakedRace).to.equal(ethers.parseEther('0.35'));
     });
 
     it('17. abnormal update deviation rejected', async function () {

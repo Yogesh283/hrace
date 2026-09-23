@@ -165,7 +165,7 @@ describe('RaceCommunityEngine', function () {
 
         const stats = await engine.memberStats(sponsor.address);
         const teamDailyRoi = stats[2];
-        expect(teamDailyRoi).to.equal(ethers.parseEther('20'));
+        expect(teamDailyRoi).to.equal(ethers.parseEther('17'));
 
         const day = BigInt(Math.floor(Date.now() / 1000 / 86400)) - 1n;
         const sponsorBefore = await race.balanceOf(sponsor.address);
@@ -187,12 +187,12 @@ describe('RaceCommunityEngine', function () {
 
         expect(await engine.isParticipationActive(user.address)).to.equal(false);
         const stake = await engine.stakeAt(user.address, 0);
-        expect(stake.dailyRateBps).to.equal(50n);
+        expect(stake.dailyRateBps).to.equal(35n);
         expect(stake.principalUsdt).to.equal(USDT_40);
 
         const sponsorAfter = await engine.memberStats(sponsor.address);
         expect(sponsorAfter[1] - sponsorBefore[1]).to.equal(USDT_40); // teamParticipationUsdt
-        expect(sponsorAfter[2] - sponsorBefore[2]).to.equal(ethers.parseEther('0.20')); // 40 * 0.50%
+        expect(sponsorAfter[2] - sponsorBefore[2]).to.equal(ethers.parseEther('0.14')); // 40 * 0.35%
         expect(await race.balanceOf(sponsor.address)).to.equal(sponsorRaceBefore); // no referral payout
 
         await time.increase(ONE_DAY);

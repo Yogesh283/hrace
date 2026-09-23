@@ -16,7 +16,7 @@ class BuiltForGrowthDurationTest extends TestCase
         $user = $this->actingAsUser();
 
         $flex = app(InvestmentRecorder::class)->record($user, '50', 0);
-        $this->assertSame('0.5000', (string) $flex->roi_percent_daily);
+        $this->assertSame('0.3500', (string) $flex->roi_percent_daily);
 
         $inv180 = app(InvestmentRecorder::class)->record($user, '100', 180);
         $this->assertSame('0.5000', (string) $inv180->roi_percent_daily);

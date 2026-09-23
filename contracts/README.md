@@ -51,7 +51,7 @@ Fully decentralized. Laravel does **not** calculate participation ROI when `PART
 
 | Tier | Lock | Daily rate |
 |------|------|------------|
-| Flexible | 0 | 0.50% |
+| Flexible | 0 | 0.35% |
 | 180 Days | 180d | 0.60% |
 | 365 Days | 365d | 1.00% |
 | 730 Days | 730d | 1.25% |

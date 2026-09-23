@@ -40,7 +40,7 @@ return [
     ],
 
     'lock_periods' => [
-        ['days' => 0, 'seconds' => 0, 'label' => 'Flexible', 'daily_rate_bps' => 50],
+        ['days' => 0, 'seconds' => 0, 'label' => 'Flexible', 'daily_rate_bps' => 35],
         ['days' => 180, 'seconds' => 180 * 86400, 'label' => '180 Days', 'daily_rate_bps' => 50],
         ['days' => 365, 'seconds' => 365 * 86400, 'label' => '365 Days', 'daily_rate_bps' => 70],
         ['days' => 730, 'seconds' => 730 * 86400, 'label' => '730 Days', 'daily_rate_bps' => 90],

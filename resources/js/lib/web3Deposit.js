@@ -190,6 +190,57 @@ export async function ensureBscNetwork(chainIdOverride) {
     return { chainIdHex: currentHex };
 }
 
+/**
+ * Public Testnet / custom RPCs often reject gas > 2^24-1 (16777216).
+ * MetaMask alone can propose ~35M when estimate fails → "gas limit too high".
+ */
+export const RPC_GAS_LIMIT_CAP = 16_000_000;
+export const DEFAULT_CONTRACT_GAS = 1_500_000;
+
+/**
+ * Estimate gas with buffer, hard-capped under RPC max. Never returns block gas limit.
+ * @returns {string} hex gas limit
+ */
+export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CONTRACT_GAS } = {}) {
+    let gas = Number(fallback) || DEFAULT_CONTRACT_GAS;
+
+    try {
+        const est = await window.ethereum.request({
+            method: 'eth_estimateGas',
+            params: [{ from, to, data }],
+        });
+        if (est != null && est !== '') {
+            gas = Number(BigInt(est));
+            gas = Math.ceil(gas * 1.25);
+        }
+    } catch {
+        // Keep fallback — do not let wallet use uncapped block gas limit.
+    }
+
+    if (!Number.isFinite(gas) || gas < 21_000) {
+        gas = DEFAULT_CONTRACT_GAS;
+    }
+
+    gas = Math.min(Math.floor(gas), RPC_GAS_LIMIT_CAP);
+    return `0x${gas.toString(16)}`;
+}
+
+/**
+ * eth_sendTransaction with explicit gas so Custom RPC 0x61 does not reject.
+ */
+export async function sendContractTx({ from, to, data, value }) {
+    await ensureBscNetwork();
+    const gas = await resolveGasLimitHex({ from, to, data });
+    const tx = { from, to, data, gas };
+    if (value != null && value !== '' && value !== '0x0' && value !== '0x') {
+        tx.value = value;
+    }
+    return window.ethereum.request({
+        method: 'eth_sendTransaction',
+        params: [tx],
+    });
+}
+
 /** Alias for UI "Switch to BSC Testnet" button. */
 export async function switchToConfiguredNetwork(chainIdOverride) {
     return ensureBscNetwork(chainIdOverride);
@@ -269,11 +320,19 @@ export function assertOfficialUsdtContract(usdtContract, expectedUsdt = null) {
         throw new Error('USDT contract is not configured.');
     }
 
+    if (activeChainId === BSC_TESTNET_CHAIN_ID && contract === normalizeAddress(OFFICIAL_USDT_BEP20)) {
+        throw new Error('Flash / mainnet USDT blocked on Testnet. Use project TestnetMockUSDT only.');
+    }
+
+    if (activeChainId === BSC_MAINNET_CHAIN_ID && contract !== normalizeAddress(OFFICIAL_USDT_BEP20)) {
+        throw new Error('Flash / fake USDT blocked. Only official BEP20 Tether USDT is allowed.');
+    }
+
     if (contract !== expected) {
         if (activeChainId === BSC_TESTNET_CHAIN_ID) {
-            throw new Error('Only configured TestnetMockUSDT is allowed on BSC Testnet.');
+            throw new Error('Only configured TestnetMockUSDT is allowed on BSC Testnet. Fake tokens rejected.');
         }
-        throw new Error('Only official BEP20 USDT deposits are allowed.');
+        throw new Error('Only official BEP20 USDT deposits are allowed. Fake / flash USDT rejected.');
     }
 }
 
@@ -307,6 +366,12 @@ export async function sendUsdtTransfer({ from, to, usdtContract, amountUsd }) {
                 from,
                 to: usdtContract,
                 data: encodeTransfer(to, amountWei),
+                gas: await resolveGasLimitHex({
+                    from,
+                    to: usdtContract,
+                    data: encodeTransfer(to, amountWei),
+                    fallback: 100_000,
+                }),
             },
         ],
     });

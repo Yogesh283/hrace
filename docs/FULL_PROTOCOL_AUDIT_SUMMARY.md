@@ -74,7 +74,7 @@ Full per-contract notes: `docs/FULL_PROTOCOL_AUDIT.md` §3.
 
 ## 5. CommunityEngine audit (summary)
 
-**Rates (source `_dailyRateBps`):** Flexible & 180D = 50 bps (0.50%); 365=70; 730=90; 1095=100 bps.
+**Rates (source `_dailyRateBps`):** Flexible = 35 bps (0.35%); 180D = 50 bps (0.50%); 365=70; 730=90; 1095=100 bps.
 
 **Reward formula:** `principalUsdt × dailyRateBps × daysOwed / 10_000` (USDT-notional), RACE via oracle conversion on pay.
 

@@ -1,4 +1,4 @@
-import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, waitForConfirmations } from '@/lib/web3Deposit';
+import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, sendContractTx, waitForConfirmations } from '@/lib/web3Deposit';
 import { formatTokenWei, friendlySwapError } from '@/lib/web3PancakeSwap';
 
 /**
@@ -60,7 +60,7 @@ export const POST_ICO_STAKE_PLANS = [
         lockPeriodSeconds: 0,
         days: 0,
         label: 'Flexible',
-        dailyRoiPercent: '0.50',
+        dailyRoiPercent: '0.35',
         lockLabel: 'No fixed lock — withdraw anytime',
     },
     ...ICO_STAKE_PLANS.map((p) => ({
@@ -106,14 +106,6 @@ async function ethCall({ to, data, rpcUrl }) {
     });
     const payload = await response.json();
     return payload?.result || '0x0';
-}
-
-async function sendContractTx({ from, to, data }) {
-    await ensureBscNetwork();
-    return window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [{ from, to, data }],
-    });
 }
 
 function word(hex, index) {

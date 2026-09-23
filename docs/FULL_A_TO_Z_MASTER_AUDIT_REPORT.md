@@ -221,7 +221,7 @@ If configured daily ROI on $1,000 principal is 0.50%/day → daily accrual **$5.
 
 | Plan | dailyRateBps (approx) | Notes |
 |------|----------------------|-------|
-| Flexible (0) | 50 bps | After ICO complete |
+| Flexible (0) | 35 bps | After ICO complete |
 | 180d / 365d / 730d / 1095d | 50/70/90/100 bps | Fixed unlock |
 
 **Maturity:** 10% RACE fee to `maturityTreasury`; 90% EMI escrow (30/30/rest). **Separate** from Laravel withdrawal admin fee.

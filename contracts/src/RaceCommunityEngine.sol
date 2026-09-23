@@ -18,7 +18,7 @@ import {PancakePrice} from "./libraries/PancakePrice.sol";
  * @title RaceCommunityEngine
  * @notice Single on-chain entry point for RACE Community Rewards (PDF program).
  * @dev Participation + ICO stakes + referrals, leadership, team rewards.
- *      Stake daily rates (FINAL): Flexible/180=50bps, 365=70, 730=90, 1095=100.
+ *      Stake daily rates (FINAL): Flexible=35bps (0.35%), 180=50bps, 365=70, 730=90, 1095=100.
  *      ROI is USD-notional (principalUsdt × bps); reward RACE mint size uses RaceRewardPriceOracle
  *      (NOT raw Pancake spot). Pancake remains for participate swaps / MLM USD→RACE path only.
  *      ICO openIcoStake: FIXED plans only (no Flexible). Flexible only via participate after RaceICO.icoCompleted.
@@ -1008,9 +1008,9 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         return IRaceIcoCompletion(icoContract).icoCompleted();
     }
 
-    /// @notice FINAL plan rates: Flexible/180=0.50%, 365=0.70%, 730=0.90%, 1095=1.00%.
+    /// @notice FINAL plan rates: Flexible=0.35%, 180=0.50%, 365=0.70%, 730=0.90%, 1095=1.00%.
     function _dailyRateBps(uint256 lockPeriod) internal pure returns (uint256) {
-        if (lockPeriod == LOCK_FLEXIBLE) return 50;
+        if (lockPeriod == LOCK_FLEXIBLE) return 35;
         if (lockPeriod == LOCK_180) return 50;
         if (lockPeriod == LOCK_365) return 70;
         if (lockPeriod == LOCK_730) return 90;

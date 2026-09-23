@@ -28,7 +28,7 @@ contract RaceParticipation is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant LOCK_730 = 730 days;
     uint256 public constant LOCK_1095 = 1095 days;
 
-    uint256 public constant RATE_FLEXIBLE_BPS = 50; // FINAL: 0.50% daily (aligned with CommunityEngine)
+    uint256 public constant RATE_FLEXIBLE_BPS = 35; // FINAL: 0.35% daily (aligned with CommunityEngine)
     uint256 public constant RATE_180_BPS = 50;
     uint256 public constant RATE_365_BPS = 70;
     uint256 public constant RATE_730_BPS = 90;
