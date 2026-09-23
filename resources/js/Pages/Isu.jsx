@@ -33,7 +33,8 @@ import {
     readClaimPolicyState,
     withdrawOnChainStake,
 } from '@/lib/web3Engine';
-import { Head, usePage } from '@inertiajs/react';
+import { syncParticipationTx } from '@/lib/web3Participation';
+import { Head, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const fieldClass =
@@ -546,6 +547,16 @@ export default function Isu({
                 dailyRoi: selectedPlan?.daily_roi_percent || selectedPlan?.dailyRoiPercent || '—',
                 lockLabel: selectedPlan?.lock_label || selectedPlan?.lockLabel || '—',
             });
+            // Index ICO → Engine stake so Member ID / participation flips Active ($50+).
+            try {
+                await syncParticipationTx({
+                    txHash,
+                    verifyUrl: '/participation/verify-onchain',
+                });
+                router.reload();
+            } catch (syncErr) {
+                console.warn('ICO verify-onchain:', syncErr?.message || syncErr);
+            }
             await refreshChainState();
         } catch (err) {
             setError(friendlyIcoError(err));

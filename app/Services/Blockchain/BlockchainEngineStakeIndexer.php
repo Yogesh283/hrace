@@ -4,6 +4,8 @@ namespace App\Services\Blockchain;
 
 use App\Models\BlockchainEngineStake;
 use App\Models\BlockchainEvent;
+use App\Models\User;
+use App\Support\RewardPlan;
 use Illuminate\Support\Str;
 
 /**
@@ -68,6 +70,23 @@ class BlockchainEngineStakeIndexer
                 'block_number' => $blockNumber,
             ],
         );
+
+        // ICO openIcoStake ($50+) must flip Member ID / participation on the Laravel user row.
+        if ($resolvedUserId && RewardPlan::isQualifyingParticipationAmount((string) $parsed['principal_usdt'])) {
+            $user = User::query()->find($resolvedUserId);
+            if ($user) {
+                $patch = [];
+                if ($user->participation_activated_at === null) {
+                    $patch['participation_activated_at'] = now();
+                }
+                if ($user->id_activated_at === null) {
+                    $patch['id_activated_at'] = now();
+                }
+                if ($patch !== []) {
+                    $user->forceFill($patch)->save();
+                }
+            }
+        }
     }
 
     /**

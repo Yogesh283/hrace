@@ -374,10 +374,10 @@ function useDashboardActivation(serverActivation) {
     const enabled = Boolean(web3.enabled);
     const engineContract = web3.engine_contract || web3.contract || '';
     const expectedChainId = Number(web3.chain_id || 56);
-    const walletAddress = user?.wallet_address ?? '';
+    const profileWallet = user?.wallet_address ?? '';
 
     const [chain, setChain] = useState({
-        loading: enabled && Boolean(walletAddress && engineContract),
+        loading: enabled && Boolean(engineContract),
         error: null,
         participationActive: false,
     });
@@ -389,15 +389,26 @@ function useDashboardActivation(serverActivation) {
             return undefined;
         }
 
-        if (!walletAddress) {
-            setChain({ loading: false, error: blockchainOnly ? 'connect' : null, participationActive: false });
-            return undefined;
-        }
-
         let cancelled = false;
 
         (async () => {
             setChain((prev) => ({ ...prev, loading: true, error: null }));
+
+            let walletAddress = profileWallet;
+            try {
+                const accounts = await window.ethereum?.request?.({ method: 'eth_accounts' });
+                if (accounts?.[0]) {
+                    walletAddress = accounts[0];
+                }
+            } catch {
+                /* keep profile wallet */
+            }
+
+            if (!walletAddress) {
+                if (cancelled) return;
+                setChain({ loading: false, error: blockchainOnly ? 'connect' : null, participationActive: false });
+                return;
+            }
 
             const chainId = await readChainIdHex();
             if (cancelled) return;
@@ -426,7 +437,7 @@ function useDashboardActivation(serverActivation) {
             window.ethereum?.removeListener?.('chainChanged', bump);
             window.ethereum?.removeListener?.('accountsChanged', bump);
         };
-    }, [enabled, engineContract, walletAddress, expectedChainId, blockchainOnly, refreshKey]);
+    }, [enabled, engineContract, profileWallet, expectedChainId, blockchainOnly, refreshKey]);
 
     return useMemo(() => {
         const base = { ...(serverActivation ?? {}) };

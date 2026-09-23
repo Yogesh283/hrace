@@ -47,13 +47,37 @@ class ParticipationOnChainSyncService
         }
 
         $wallet = strtolower(trim((string) ($user->wallet_address ?? '')));
-        if ($wallet === '' || ! preg_match('/^0x[a-f0-9]{40}$/', $wallet)) {
+        if ($wallet !== '' && ! preg_match('/^0x[a-f0-9]{40}$/', $wallet)) {
             return ['ok' => false, 'reason' => __('Connect your crypto wallet first.')];
         }
 
         $txHash = strtolower($txHash);
         if (BlockchainParticipation::query()->where('tx_hash', $txHash)->exists()) {
             return ['ok' => false, 'reason' => __('This transaction is already indexed.')];
+        }
+
+        // If profile has no wallet yet, resolve buyer from the tx and bind once.
+        if ($wallet === '') {
+            $rpc = (string) config('participation_contract.on_chain.rpc_url')
+                ?: (string) config('blockchain.rpc_url', '');
+            try {
+                $tx = $this->rpc($rpc, 'eth_getTransactionByHash', [$txHash]);
+                $from = strtolower((string) ($tx['from'] ?? ''));
+            } catch (\Throwable) {
+                $from = '';
+            }
+            if ($from === '' || ! preg_match('/^0x[a-f0-9]{40}$/', $from)) {
+                return ['ok' => false, 'reason' => __('Connect your crypto wallet first.')];
+            }
+            $taken = User::query()
+                ->whereRaw('LOWER(wallet_address) = ?', [$from])
+                ->where('id', '!=', $user->id)
+                ->exists();
+            if ($taken) {
+                return ['ok' => false, 'reason' => __('This wallet is already linked to another account.')];
+            }
+            $user->forceFill(['wallet_address' => $from])->save();
+            $wallet = $from;
         }
 
         $parsed = $this->parseParticipationTx($txHash, $wallet, $contract);
@@ -78,6 +102,9 @@ class ParticipationOnChainSyncService
         $dailyPct = RewardPlan::growthDailyPercentForDuration($lockDays) ?? 0.0;
 
         return DB::transaction(function () use ($user, $txHash, $wallet, $contract, $parsed, $principal, $lockDays, $dailyPct, $qualifying) {
+            // Display + income eligibility flags (not reward math). $50+ qualifies Member ID.
+            $this->markParticipationActiveIfNeeded($user, $qualifying);
+
             if (\App\Support\BlockchainMode::blockchainOnly()) {
                 $record = BlockchainParticipation::query()->create([
                     'user_id' => $user->id,
@@ -108,10 +135,6 @@ class ParticipationOnChainSyncService
                 'next_roi_at' => null,
             ]);
 
-            if ($qualifying && $user->participation_activated_at === null) {
-                $user->forceFill(['participation_activated_at' => now()])->save();
-            }
-
             $record = BlockchainParticipation::query()->create([
                 'user_id' => $user->id,
                 'investment_id' => $investment->id,
@@ -129,6 +152,27 @@ class ParticipationOnChainSyncService
 
             return ['ok' => true, 'participation' => $record->fresh()];
         });
+    }
+
+    /**
+     * Mark Laravel member / Member ID active for $50+ stakes (ICO or Engine).
+     */
+    public function markParticipationActiveIfNeeded(User $user, bool $qualifying): void
+    {
+        if (! $qualifying) {
+            return;
+        }
+
+        $patch = [];
+        if ($user->participation_activated_at === null) {
+            $patch['participation_activated_at'] = now();
+        }
+        if ($user->id_activated_at === null) {
+            $patch['id_activated_at'] = now();
+        }
+        if ($patch !== []) {
+            $user->forceFill($patch)->save();
+        }
     }
 
     /**
@@ -158,16 +202,26 @@ class ParticipationOnChainSyncService
                 return ['ok' => false, 'reason' => __('Transaction sender does not match your wallet.')];
             }
 
-            if (strtolower((string) ($tx['to'] ?? '')) !== $contract) {
-                return ['ok' => false, 'reason' => __('Transaction is not a staking purchase.')];
+            $txTo = strtolower((string) ($tx['to'] ?? ''));
+            $icoContract = strtolower(trim((string) config('blockchain.contracts.ico', '')));
+            $allowedTargets = array_values(array_filter([$contract, $icoContract], fn ($a) => preg_match('/^0x[a-f0-9]{40}$/', $a)));
+            if ($txTo === '' || ! in_array($txTo, $allowedTargets, true)) {
+                return ['ok' => false, 'reason' => __('Transaction is not a staking / ICO purchase.')];
             }
+
+            // RaceICO.purchase → Engine.openIcoStake emits ParticipationPurchased on Engine (not always tx.to).
+            $participationTopics = array_values(array_unique(array_filter([
+                $eventTopic,
+                '0x771e2f913fe17bca4c8610ec22f97692df4570133fa1f02f726012e653b14e81',
+                '0x3cef2b6f76a0f4f96feb02de766f08fcafd52c0677585fad3627da2aa9f2e0d2',
+            ])));
 
             foreach ($receipt['logs'] ?? [] as $log) {
                 if (strtolower((string) ($log['address'] ?? '')) !== $contract) {
                     continue;
                 }
                 $topics = $log['topics'] ?? [];
-                if (count($topics) < 1 || strtolower((string) $topics[0]) !== $eventTopic) {
+                if (count($topics) < 1 || ! in_array(strtolower((string) $topics[0]), $participationTopics, true)) {
                     continue;
                 }
 
