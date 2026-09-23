@@ -714,7 +714,7 @@ export default function AuthenticatedLayout({
                 {/* Mobile header (non-fintech pages) */}
                 {!showMobileFintechNav ? (
                 <header
-                    className="fixed inset-x-0 top-0 z-40 flex min-h-[3.5rem] items-center justify-between gap-1.5 border-b border-[#2563EB]/25 bg-[#0B0B0B]/90 px-2 pb-0 pt-[env(safe-area-inset-top,0px)] shadow-sm backdrop-blur-md sm:min-h-[4rem] sm:gap-3 sm:px-5 lg:hidden"
+                    className="fixed inset-x-0 top-0 z-40 flex min-h-[3.5rem] items-center justify-between gap-1.5 border-b border-[#38BDF8]/45 bg-[#0B0B0B]/92 px-2 pb-0 pt-[env(safe-area-inset-top,0px)] shadow-[0_8px_28px_-12px_rgba(37,99,235,0.45)] backdrop-blur-md sm:min-h-[4rem] sm:gap-3 sm:px-5 lg:hidden"
                 >
                         <>
                             <button
@@ -745,8 +745,8 @@ export default function AuthenticatedLayout({
                     id="member-header-desktop"
                     className={`fixed right-0 top-0 z-30 hidden h-16 items-center justify-between border-b px-4 shadow-sm backdrop-blur-md sm:px-6 lg:flex ${
                         isRaceShell
-                            ? 'border-[#2563EB]/25 bg-[#0B0B0B]/88'
-                            : 'border-sky-200/50 bg-white/90'
+                            ? 'border-[#38BDF8]/45 bg-[#0B0B0B]/90 shadow-[0_8px_28px_-12px_rgba(37,99,235,0.4)]'
+                            : 'border-sky-300/60 bg-white/90 shadow-[0_8px_24px_-12px_rgba(37,99,235,0.2)]'
                     }`}
                 >
                     <h1 className="min-w-0 truncate font-poppins text-base font-bold tracking-tight text-white sm:text-lg">

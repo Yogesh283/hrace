@@ -55,31 +55,31 @@ export default function MobilePremiumHeader({
 
             {/* Ambient glow behind bar */}
             <div
-                className="pointer-events-none absolute inset-x-6 top-2 h-16 rounded-full bg-[radial-gradient(ellipse,rgba(56,189,248,0.16),transparent_70%)] max-lg:opacity-70"
+                className="pointer-events-none absolute inset-x-6 top-2 h-16 rounded-full bg-[radial-gradient(ellipse,rgba(56,189,248,0.35),transparent_70%)] max-lg:opacity-90"
                 aria-hidden
             />
 
-            <div className="rx-mobile-topbar__shell pointer-events-auto relative overflow-visible rounded-[28px] border border-white/70 px-3 py-3 shadow-[0_12px_32px_-16px_rgba(29,78,216,0.28)] backdrop-blur-[8px] sm:rounded-[32px] sm:px-3.5 sm:py-3.5">
+            <div className="rx-mobile-topbar__shell pointer-events-auto relative overflow-visible rounded-[28px] border border-[#38BDF8]/55 px-3 py-3 shadow-[0_12px_32px_-12px_rgba(29,78,216,0.45),0_0_28px_-6px_rgba(56,189,248,0.4)] backdrop-blur-[8px] sm:rounded-[32px] sm:px-3.5 sm:py-3.5">
                 {/* Decorative layers — clipped separately so menu is not cut off */}
                 <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[28px] sm:rounded-[32px]">
                     <div
                         className="absolute inset-0 opacity-100"
                         style={{
                             background:
-                                'linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(224,242,254,0.78) 38%, rgba(186,230,253,0.55) 62%, rgba(255,255,255,0.88) 100%)',
+                                'linear-gradient(135deg, rgba(239,246,255,0.96) 0%, rgba(186,230,253,0.88) 38%, rgba(125,211,252,0.65) 62%, rgba(239,246,255,0.94) 100%)',
                         }}
                         aria-hidden
                     />
                     <div
-                        className="absolute -left-10 -top-12 h-32 w-32 rounded-full bg-[#38BDF8]/20 max-lg:hidden"
+                        className="absolute -left-10 -top-12 h-32 w-32 rounded-full bg-[#38BDF8]/35"
                         aria-hidden
                     />
                     <div
-                        className="absolute -bottom-10 -right-8 h-28 w-28 rounded-full bg-[#2563EB]/15 max-lg:hidden"
+                        className="absolute -bottom-10 -right-8 h-28 w-28 rounded-full bg-[#2563EB]/28"
                         aria-hidden
                     />
                     <div
-                        className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-white/95 to-transparent"
+                        className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-[#38BDF8]/80 to-transparent"
                         aria-hidden
                     />
                 </div>

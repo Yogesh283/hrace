@@ -104,15 +104,15 @@ export default function WelcomeMobileBottomNav() {
             />
 
             <div className="pointer-events-auto relative mx-auto max-w-md">
-                <div className="race-welcome-bottomnav__shell rx-mobile-bottomnav__shell relative overflow-hidden rounded-[26px] border border-white/12 bg-[#0B0B0B]/55 px-1 py-1.5 shadow-[0_16px_48px_-10px_rgba(0,0,0,0.72),0_0_40px_-12px_rgba(37,99,235,0.35),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-[22px] sm:rounded-[30px] sm:px-1.5">
+                <div className="race-welcome-bottomnav__shell rx-mobile-bottomnav__shell relative overflow-hidden rounded-[26px] border border-[#38BDF8]/45 bg-[#0B0B0B]/70 px-1 py-1.5 shadow-[0_16px_48px_-10px_rgba(0,0,0,0.72),0_0_48px_-8px_rgba(37,99,235,0.55),inset_0_1px_0_rgba(56,189,248,0.28)] backdrop-blur-[22px] sm:rounded-[30px] sm:px-1.5">
                     <div
-                        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#2563EB]/10 via-transparent to-[#F59E0B]/8"
+                        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#2563EB]/22 via-transparent to-[#F59E0B]/14"
                         aria-hidden
                     />
-                    <div className="pointer-events-none absolute -left-10 -top-8 h-24 w-24 rounded-full bg-[#38BDF8]/15 blur-2xl" aria-hidden />
-                    <div className="pointer-events-none absolute -bottom-10 -right-8 h-24 w-24 rounded-full bg-[#F59E0B]/12 blur-2xl" aria-hidden />
+                    <div className="pointer-events-none absolute -left-10 -top-8 h-24 w-24 rounded-full bg-[#38BDF8]/28 blur-2xl" aria-hidden />
+                    <div className="pointer-events-none absolute -bottom-10 -right-8 h-24 w-24 rounded-full bg-[#F59E0B]/20 blur-2xl" aria-hidden />
                     <div
-                        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/35 to-transparent"
+                        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/60 to-transparent"
                         aria-hidden
                     />
 
@@ -133,11 +133,11 @@ export default function WelcomeMobileBottomNav() {
                                         className={`relative flex h-9 w-9 items-center justify-center rounded-2xl transition-all duration-300 sm:h-10 sm:w-10 ${
                                             active
                                                 ? isCta
-                                                    ? 'bg-gradient-to-br from-[#F59E0B] to-[#FBBF24] text-[#0B0B0B] shadow-[0_8px_22px_-6px_rgba(245,158,11,0.55),inset_0_1px_0_rgba(255,255,255,0.35)] ring-1 ring-[#F59E0B]/50'
-                                                    : 'bg-gradient-to-br from-[#2563EB]/35 to-[#38BDF8]/20 text-sky-200 shadow-[0_8px_22px_-6px_rgba(37,99,235,0.45),inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-sky-400/35'
+                                                    ? 'bg-gradient-to-br from-[#F59E0B] to-[#FBBF24] text-[#0B0B0B] shadow-[0_8px_22px_-6px_rgba(245,158,11,0.7),inset_0_1px_0_rgba(255,255,255,0.35)] ring-2 ring-[#FBBF24]/70'
+                                                    : 'bg-gradient-to-br from-[#2563EB] to-[#38BDF8] text-white shadow-[0_8px_22px_-6px_rgba(37,99,235,0.65),0_0_18px_rgba(56,189,248,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] ring-2 ring-[#38BDF8]/55'
                                                 : isCta
-                                                  ? 'bg-[#F59E0B]/12 text-[#FCD34D] ring-1 ring-[#F59E0B]/30 group-hover:bg-[#F59E0B]/18'
-                                                  : 'text-slate-500 group-hover:bg-white/[0.04] group-hover:text-slate-300'
+                                                  ? 'bg-[#F59E0B]/18 text-[#FCD34D] ring-1 ring-[#F59E0B]/45 group-hover:bg-[#F59E0B]/28'
+                                                  : 'text-sky-300/70 ring-1 ring-white/10 group-hover:bg-[#2563EB]/15 group-hover:text-sky-200 group-hover:ring-[#38BDF8]/30'
                                         }`}
                                     >
                                         {active && !isCta ? (
@@ -167,10 +167,10 @@ export default function WelcomeMobileBottomNav() {
                                             active
                                                 ? isCta
                                                     ? 'font-bold text-[#FCD34D]'
-                                                    : 'font-bold text-sky-300'
+                                                    : 'font-bold text-sky-200'
                                                 : isCta
-                                                  ? 'text-[#F59E0B]/90'
-                                                  : 'text-slate-500 group-hover:text-slate-400'
+                                                  ? 'text-[#F59E0B]'
+                                                  : 'text-slate-400 group-hover:text-sky-300'
                                         }`}
                                     >
                                         {item.label}

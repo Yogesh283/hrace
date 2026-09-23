@@ -92,19 +92,19 @@ export default function MobileFintechBottomNav() {
             />
 
             <div className="pointer-events-auto relative mx-auto max-w-xl">
-                <div className="rx-mobile-bottomnav__shell relative overflow-hidden rounded-[30px] border border-slate-200/70 px-1.5 py-1 shadow-[0_8px_20px_-10px_rgba(15,23,42,0.28)] backdrop-blur-[8px]">
+                <div className="rx-mobile-bottomnav__shell relative overflow-hidden rounded-[30px] border border-[#38BDF8]/50 px-1.5 py-1 shadow-[0_8px_24px_-8px_rgba(37,99,235,0.45),0_0_28px_-6px_rgba(56,189,248,0.35)] backdrop-blur-[8px]">
                     <div
                         className="pointer-events-none absolute inset-0"
                         style={{
                             background:
-                                'linear-gradient(135deg, rgba(241,245,249,0.92) 0%, rgba(226,232,240,0.86) 45%, rgba(203,213,225,0.7) 72%, rgba(237,242,247,0.9) 100%)',
+                                'linear-gradient(135deg, rgba(239,246,255,0.96) 0%, rgba(224,242,254,0.92) 40%, rgba(186,230,253,0.75) 70%, rgba(239,246,255,0.95) 100%)',
                         }}
                         aria-hidden
                     />
-                    <div className="pointer-events-none absolute -left-8 -top-10 h-24 w-24 rounded-full bg-[#38BDF8]/12 max-lg:hidden" aria-hidden />
-                    <div className="pointer-events-none absolute -bottom-8 -right-6 h-20 w-20 rounded-full bg-[#2563EB]/10 max-lg:hidden" aria-hidden />
+                    <div className="pointer-events-none absolute -left-8 -top-10 h-24 w-24 rounded-full bg-[#38BDF8]/28" aria-hidden />
+                    <div className="pointer-events-none absolute -bottom-8 -right-6 h-20 w-20 rounded-full bg-[#2563EB]/22" aria-hidden />
                     <div
-                        className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-white/60 to-transparent"
+                        className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#38BDF8]/70 to-transparent"
                         aria-hidden
                     />
 
@@ -123,14 +123,14 @@ export default function MobileFintechBottomNav() {
                                     <span
                                         className={`relative flex h-8 w-8 items-center justify-center rounded-[14px] transition duration-200 ${
                                             active
-                                                ? 'bg-gradient-to-br from-white via-sky-50 to-sky-100/90 shadow-[0_6px_20px_-6px_rgba(37,99,235,0.45),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-[#2563EB]/20'
-                                                : 'bg-white/45 ring-1 ring-slate-200/60'
+                                                ? 'bg-gradient-to-br from-[#2563EB] to-[#38BDF8] shadow-[0_6px_20px_-4px_rgba(37,99,235,0.65),0_0_16px_rgba(56,189,248,0.4),inset_0_1px_0_rgba(255,255,255,0.35)] ring-2 ring-[#38BDF8]/55'
+                                                : 'bg-white/70 ring-1 ring-[#2563EB]/25'
                                         }`}
-                                        style={{ color: active ? '#2563EB' : item.color }}
+                                        style={{ color: active ? '#FFFFFF' : item.color }}
                                     >
                                         {active ? (
                                             <span
-                                                className="absolute inset-0 rounded-[14px] bg-gradient-to-br from-[#2563EB]/10 to-[#38BDF8]/15"
+                                                className="absolute inset-0 rounded-[14px] bg-gradient-to-br from-white/20 to-transparent"
                                                 aria-hidden
                                             />
                                         ) : null}
@@ -160,7 +160,7 @@ export default function MobileFintechBottomNav() {
                                         className={`mt-0.5 max-w-full truncate text-[8.5px] font-semibold leading-none tracking-tight sm:text-[9px] ${
                                             active ? 'font-bold' : ''
                                         }`}
-                                        style={{ color: active ? '#1D4ED8' : item.color }}
+                                        style={{ color: active ? '#1E40AF' : item.color }}
                                     >
                                         {item.label}
                                     </span>

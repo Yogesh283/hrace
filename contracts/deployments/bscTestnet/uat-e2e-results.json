@@ -9,7 +9,7 @@
       "expected": "97",
       "actual": "97",
       "status": "PASS",
-      "at": "2026-09-13T04:12:30.984Z"
+      "at": "2026-09-23T09:32:02.122Z"
     },
     {
       "section": "config",
@@ -17,7 +17,7 @@
       "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "status": "PASS",
-      "at": "2026-09-13T04:12:31.759Z"
+      "at": "2026-09-23T09:32:02.704Z"
     },
     {
       "section": "config",
@@ -25,7 +25,7 @@
       "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "status": "PASS",
-      "at": "2026-09-13T04:12:32.495Z"
+      "at": "2026-09-23T09:32:03.374Z"
     },
     {
       "section": "config",
@@ -33,7 +33,7 @@
       "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "status": "PASS",
-      "at": "2026-09-13T04:12:33.151Z"
+      "at": "2026-09-23T09:32:03.950Z"
     },
     {
       "section": "config",
@@ -41,7 +41,7 @@
       "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "status": "PASS",
-      "at": "2026-09-13T04:12:33.865Z"
+      "at": "2026-09-23T09:32:04.512Z"
     },
     {
       "section": "config",
@@ -49,7 +49,7 @@
       "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "status": "PASS",
-      "at": "2026-09-13T04:12:34.617Z"
+      "at": "2026-09-23T09:32:05.102Z"
     },
     {
       "section": "config",
@@ -57,7 +57,7 @@
       "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
       "status": "PASS",
-      "at": "2026-09-13T04:12:35.314Z"
+      "at": "2026-09-23T09:32:05.713Z"
     },
     {
       "section": "config",
@@ -65,7 +65,7 @@
       "expected": "true",
       "actual": "true",
       "status": "PASS",
-      "at": "2026-09-13T04:12:36.135Z"
+      "at": "2026-09-23T09:32:06.626Z"
     },
     {
       "section": "config",
@@ -73,23 +73,23 @@
       "expected": "true",
       "actual": "true",
       "status": "PASS",
-      "at": "2026-09-13T04:12:36.814Z"
+      "at": "2026-09-23T09:32:07.152Z"
     },
     {
       "section": "config",
       "name": "vault.engine",
-      "expected": "0xc0d9dee1476d67379069444a7e5f1b340f91f4e9",
-      "actual": "0xc0d9dee1476d67379069444a7e5f1b340f91f4e9",
+      "expected": "0xbddea78d9ef21bf7e8577de8bfe599e5dd0456ef",
+      "actual": "0xbddea78d9ef21bf7e8577de8bfe599e5dd0456ef",
       "status": "PASS",
-      "at": "2026-09-13T04:12:37.535Z"
+      "at": "2026-09-23T09:32:07.886Z"
     },
     {
       "section": "config",
       "name": "ico.stakingEngine",
-      "expected": "0xc0d9dee1476d67379069444a7e5f1b340f91f4e9",
-      "actual": "0xc0d9dee1476d67379069444a7e5f1b340f91f4e9",
+      "expected": "0xbddea78d9ef21bf7e8577de8bfe599e5dd0456ef",
+      "actual": "0xbddea78d9ef21bf7e8577de8bfe599e5dd0456ef",
       "status": "PASS",
-      "at": "2026-09-13T04:12:38.304Z"
+      "at": "2026-09-23T09:32:08.625Z"
     },
     {
       "section": "config",
@@ -97,7 +97,7 @@
       "expected": "0xb5a67cd0d32ed0d5021827b1c5d6bfd1c401556a",
       "actual": "0xb5a67cd0d32ed0d5021827b1c5d6bfd1c401556a",
       "status": "PASS",
-      "at": "2026-09-13T04:12:39.041Z"
+      "at": "2026-09-23T09:32:09.347Z"
     },
     {
       "section": "config",
@@ -105,7 +105,7 @@
       "expected": "true",
       "actual": "true",
       "status": "PASS",
-      "at": "2026-09-13T04:12:39.874Z"
+      "at": "2026-09-23T09:32:09.917Z"
     },
     {
       "section": "config",
@@ -113,7 +113,7 @@
       "expected": "0x04f3c02018da34d3641f47c1f136ffcdb57dc93a",
       "actual": "0x04f3c02018da34d3641f47c1f136ffcdb57dc93a",
       "status": "PASS",
-      "at": "2026-09-13T04:12:40.625Z"
+      "at": "2026-09-23T09:32:10.626Z"
     },
     {
       "section": "config",
@@ -121,7 +121,7 @@
       "expected": "3",
       "actual": "3",
       "status": "PASS",
-      "at": "2026-09-13T04:12:41.250Z"
+      "at": "2026-09-23T09:32:11.377Z"
     },
     {
       "section": "config",
@@ -129,7 +129,7 @@
       "expected": "optional/absent",
       "actual": "null",
       "status": "SKIP",
-      "at": "2026-09-13T04:12:41.250Z"
+      "at": "2026-09-23T09:32:11.377Z"
     },
     {
       "section": "config",
@@ -137,7 +137,7 @@
       "expected": "optional/absent",
       "actual": "not in manifest",
       "status": "SKIP",
-      "at": "2026-09-13T04:12:41.250Z"
+      "at": "2026-09-23T09:32:11.377Z"
     },
     {
       "section": "token",
@@ -145,7 +145,7 @@
       "expected": "TEST-USDT",
       "actual": "TEST-USDT",
       "status": "PASS",
-      "at": "2026-09-13T04:12:42.112Z"
+      "at": "2026-09-23T09:32:11.967Z"
     },
     {
       "section": "token",
@@ -153,15 +153,15 @@
       "expected": "18",
       "actual": "18",
       "status": "PASS",
-      "at": "2026-09-13T04:12:42.112Z"
+      "at": "2026-09-23T09:32:11.967Z"
     },
     {
       "section": "token",
       "name": "authorized mint",
       "expected": "balance sufficient",
-      "actual": "1000.0",
+      "actual": "1100.0",
       "status": "PASS",
-      "at": "2026-09-13T04:12:42.400Z"
+      "at": "2026-09-23T09:32:12.291Z"
     },
     {
       "section": "token",
@@ -169,17 +169,17 @@
       "expected": "revert",
       "actual": "reverted",
       "status": "PASS",
-      "at": "2026-09-13T04:12:42.764Z"
+      "at": "2026-09-23T09:32:12.576Z"
     },
     {
       "section": "token",
       "name": "approve",
       "expected": "SUCCESS",
-      "actual": "0x5db32f003a09027cab24c0dc48e885daa16506da8717cb14c26a4431c8bb3719",
+      "actual": "0xb2f70b36ccd8852483c3e1dbe2c9de188c035235f0a15c243c5c8a964d47e5b5",
       "status": "SUCCESS",
-      "hash": "0x5db32f003a09027cab24c0dc48e885daa16506da8717cb14c26a4431c8bb3719",
-      "block": 130724687,
-      "at": "2026-09-13T04:12:46.751Z"
+      "hash": "0xb2f70b36ccd8852483c3e1dbe2c9de188c035235f0a15c243c5c8a964d47e5b5",
+      "block": 132686690,
+      "at": "2026-09-23T09:32:15.575Z"
     },
     {
       "section": "token",
@@ -187,89 +187,55 @@
       "expected": ">= buy",
       "actual": "10000000000000000000",
       "status": "PASS",
-      "at": "2026-09-13T04:12:47.034Z"
+      "at": "2026-09-23T09:32:15.999Z"
     },
     {
       "section": "setup",
       "name": "fund Multisig signer 1",
       "expected": "already funded",
-      "actual": "0.019978357",
+      "actual": "0.019918486",
       "status": "PASS",
-      "at": "2026-09-13T04:12:47.410Z"
+      "at": "2026-09-23T09:32:16.302Z"
     },
     {
       "section": "setup",
       "name": "fund Multisig signer 2",
       "expected": "already funded",
-      "actual": "0.0199940381",
+      "actual": "0.0199761488",
       "status": "PASS",
-      "at": "2026-09-13T04:12:47.722Z"
+      "at": "2026-09-23T09:32:16.590Z"
     },
     {
       "section": "setup",
       "name": "fund Multisig signer 3",
       "expected": "already funded",
-      "actual": "0.02",
+      "actual": "0.0199642992",
       "status": "PASS",
-      "at": "2026-09-13T04:12:48.064Z"
-    },
-    {
-      "section": "multisig",
-      "name": "resume pending startPhase txId",
-      "expected": "0",
-      "actual": "0",
-      "status": "PASS",
-      "at": "2026-09-13T04:12:49.072Z"
-    },
-    {
-      "section": "multisig",
-      "name": "non-signer confirm blocked",
-      "expected": "revert",
-      "actual": "reverted",
-      "status": "PASS",
-      "at": "2026-09-13T04:12:49.405Z"
-    },
-    {
-      "section": "multisig",
-      "name": "confirm #1",
-      "expected": "already confirmed/executed",
-      "actual": "execution reverted: RaceMultiSig: confirmed: 0x08c379a00000000000000000000000000",
-      "status": "PASS",
-      "at": "2026-09-13T04:12:50.864Z"
-    },
-    {
-      "section": "multisig",
-      "name": "confirm #2",
-      "expected": "already confirmed/executed",
-      "actual": "execution reverted: RaceMultiSig: confirmed: 0x08c379a00000000000000000000000000",
-      "status": "PASS",
-      "at": "2026-09-13T04:12:51.721Z"
-    },
-    {
-      "section": "multisig",
-      "name": "confirm #3",
-      "expected": "SUCCESS",
-      "actual": "0x4cd4d1d2eaaae0b34e4e3c36dec142a54f676d1e636c0f66fec4d670b451ae6c",
-      "status": "SUCCESS",
-      "hash": "0x4cd4d1d2eaaae0b34e4e3c36dec142a54f676d1e636c0f66fec4d670b451ae6c",
-      "block": 130724712,
-      "at": "2026-09-13T04:12:58.415Z"
-    },
-    {
-      "section": "multisig",
-      "name": "duplicate confirm blocked",
-      "expected": "revert",
-      "actual": "reverted",
-      "status": "PASS",
-      "at": "2026-09-13T04:12:58.941Z"
+      "at": "2026-09-23T09:32:17.173Z"
     },
     {
       "section": "ico",
-      "name": "startPhase(1) via Multisig",
+      "name": "startPhase already active",
       "expected": "1",
       "actual": "1",
       "status": "PASS",
-      "at": "2026-09-13T04:12:59.303Z"
+      "at": "2026-09-23T09:32:17.582Z"
+    },
+    {
+      "section": "multisig",
+      "name": "startPhase path",
+      "expected": "already done",
+      "actual": "skipped live submit",
+      "status": "SKIP",
+      "at": "2026-09-23T09:32:17.582Z"
+    },
+    {
+      "section": "multisig",
+      "name": "non-signer submit blocked",
+      "expected": "revert",
+      "actual": "reverted",
+      "status": "PASS",
+      "at": "2026-09-23T09:32:17.851Z"
     },
     {
       "section": "multisig",
@@ -277,7 +243,7 @@
       "expected": "3",
       "actual": "3",
       "status": "PASS",
-      "at": "2026-09-13T04:13:00.007Z"
+      "at": "2026-09-23T09:32:18.442Z"
     },
     {
       "section": "ico",
@@ -285,25 +251,33 @@
       "expected": "revert",
       "actual": "reverted",
       "status": "PASS",
-      "at": "2026-09-13T04:13:02.024Z"
+      "at": "2026-09-23T09:32:21.398Z"
     },
     {
       "section": "ico",
       "name": "purchase",
       "expected": "SUCCESS",
-      "actual": "0xd6a8025c1bafcf5e627c5d632e5cf8376f834a15c15778de2da3a1e2ea4cf9f8",
+      "actual": "0x188139ef5be518bfd2ac52b86197e3c5607925d39e6ee96c0574acf4bbba5bb0",
       "status": "SUCCESS",
-      "hash": "0xd6a8025c1bafcf5e627c5d632e5cf8376f834a15c15778de2da3a1e2ea4cf9f8",
-      "block": 130724727,
-      "at": "2026-09-13T04:13:04.407Z"
+      "hash": "0x188139ef5be518bfd2ac52b86197e3c5607925d39e6ee96c0574acf4bbba5bb0",
+      "block": 132686712,
+      "at": "2026-09-23T09:32:26.018Z"
     },
     {
       "section": "ico",
-      "name": "USDT deducted",
+      "name": "USDT raised (buyer=adminWallet)",
       "expected": "1e18",
+      "actual": "1000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-23T09:32:28.017Z"
+    },
+    {
+      "section": "ico",
+      "name": "USDT buyer delta N/A (self-transfer)",
+      "expected": "0 expected",
       "actual": "0",
-      "status": "FAIL",
-      "at": "2026-09-13T04:13:06.168Z"
+      "status": "PASS",
+      "at": "2026-09-23T09:32:28.017Z"
     },
     {
       "section": "ico",
@@ -311,7 +285,7 @@
       "expected": ">0",
       "actual": "4000000000000000000",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.168Z"
+      "at": "2026-09-23T09:32:28.017Z"
     },
     {
       "section": "ico",
@@ -319,15 +293,15 @@
       "expected": ">0",
       "actual": "4000000000000000000",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.168Z"
+      "at": "2026-09-23T09:32:28.017Z"
     },
     {
       "section": "ico",
       "name": "stake created",
       "expected": "+1",
-      "actual": "0->1",
+      "actual": "7->8",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.168Z"
+      "at": "2026-09-23T09:32:28.017Z"
     },
     {
       "section": "ico",
@@ -335,7 +309,7 @@
       "expected": ">0",
       "actual": "4000000000000000000",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.168Z"
+      "at": "2026-09-23T09:32:28.017Z"
     },
     {
       "section": "stake",
@@ -343,7 +317,7 @@
       "expected": "1e18",
       "actual": "1000000000000000000",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.688Z"
+      "at": "2026-09-23T09:32:28.254Z"
     },
     {
       "section": "stake",
@@ -351,7 +325,7 @@
       "expected": ">0",
       "actual": "4000000000000000000",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.688Z"
+      "at": "2026-09-23T09:32:28.254Z"
     },
     {
       "section": "stake",
@@ -359,7 +333,7 @@
       "expected": "15552000",
       "actual": "15552000",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.688Z"
+      "at": "2026-09-23T09:32:28.254Z"
     },
     {
       "section": "stake",
@@ -367,15 +341,15 @@
       "expected": "50",
       "actual": "50",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.688Z"
+      "at": "2026-09-23T09:32:28.254Z"
     },
     {
       "section": "stake",
       "name": "unlockAt > started",
       "expected": "true",
-      "actual": "1804824785>1789272785",
+      "actual": "1805707945>1790155945",
       "status": "PASS",
-      "at": "2026-09-13T04:13:06.688Z"
+      "at": "2026-09-23T09:32:28.254Z"
     },
     {
       "section": "claim",
@@ -383,15 +357,15 @@
       "expected": "0",
       "actual": "0",
       "status": "PASS",
-      "at": "2026-09-13T04:13:07.000Z"
+      "at": "2026-09-23T09:32:28.642Z"
     },
     {
       "section": "claim",
       "name": "claim before accrual blocked",
       "expected": "revert",
-      "actual": "did not revert",
-      "status": "FAIL",
-      "at": "2026-09-13T04:13:07.319Z"
+      "actual": "reverted",
+      "status": "PASS",
+      "at": "2026-09-23T09:32:28.921Z"
     },
     {
       "section": "compound",
@@ -399,7 +373,7 @@
       "expected": "revert",
       "actual": "reverted",
       "status": "PASS",
-      "at": "2026-09-13T04:13:07.624Z"
+      "at": "2026-09-23T09:32:29.238Z"
     },
     {
       "section": "claim",
@@ -407,7 +381,7 @@
       "expected": "needs time travel",
       "actual": "NOT available on public BSC Testnet",
       "status": "SKIP",
-      "at": "2026-09-13T04:13:07.624Z"
+      "at": "2026-09-23T09:32:29.238Z"
     },
     {
       "section": "compound",
@@ -415,7 +389,7 @@
       "expected": "needs time travel",
       "actual": "NOT available on public BSC Testnet",
       "status": "SKIP",
-      "at": "2026-09-13T04:13:07.624Z"
+      "at": "2026-09-23T09:32:29.238Z"
     },
     {
       "section": "maturity",
@@ -423,7 +397,7 @@
       "expected": "needs time travel",
       "actual": "NOT available on public BSC Testnet (use Hardhat suite)",
       "status": "SKIP",
-      "at": "2026-09-13T04:13:07.624Z"
+      "at": "2026-09-23T09:32:29.238Z"
     },
     {
       "section": "flexible",
@@ -431,7 +405,7 @@
       "expected": "icoCompleted=false",
       "actual": "false",
       "status": "SKIP",
-      "at": "2026-09-13T04:13:07.944Z"
+      "at": "2026-09-23T09:32:29.689Z"
     },
     {
       "section": "flexible",
@@ -439,7 +413,15 @@
       "expected": "revert",
       "actual": "execution reverted: engine: flexible after ico only: 0x08c379a0000000000000000000000000000000000000000000000000000000000",
       "status": "PASS",
-      "at": "2026-09-13T04:13:08.312Z"
+      "at": "2026-09-23T09:32:29.974Z"
+    },
+    {
+      "section": "oracle",
+      "name": "heartbeat age vs maxStaleness",
+      "expected": "age<=86400",
+      "actual": "age=26314 max=86400",
+      "status": "PASS",
+      "at": "2026-09-23T09:32:30.982Z"
     },
     {
       "section": "oracle",
@@ -447,25 +429,25 @@
       "expected": "1e18",
       "actual": "1000000000000000000",
       "status": "PASS",
-      "at": "2026-09-13T04:13:08.628Z"
+      "at": "2026-09-23T09:32:31.421Z"
     },
     {
       "section": "oracle",
-      "name": "updater active (deployer)",
-      "expected": "true",
+      "name": "deployer isUpdater",
+      "expected": "optional after Multisig harden",
       "actual": "true",
       "status": "PASS",
-      "at": "2026-09-13T04:13:09.264Z"
+      "at": "2026-09-23T09:32:31.935Z"
     },
     {
       "section": "oracle",
       "name": "authorized updater heartbeat",
       "expected": "SUCCESS",
-      "actual": "0x2e47da5043bae2b3b95aa526444bbfe5329177a3cab9e74b203716d4a3c38472",
+      "actual": "0x812be8ca3ddcebf237c92b2e840c6122a52414f8814a9c509e5e6f486e93915e",
       "status": "SUCCESS",
-      "hash": "0x2e47da5043bae2b3b95aa526444bbfe5329177a3cab9e74b203716d4a3c38472",
-      "block": 130724743,
-      "at": "2026-09-13T04:13:11.494Z"
+      "hash": "0x812be8ca3ddcebf237c92b2e840c6122a52414f8814a9c509e5e6f486e93915e",
+      "block": 132686734,
+      "at": "2026-09-23T09:32:35.054Z"
     },
     {
       "section": "oracle",
@@ -473,7 +455,7 @@
       "expected": "revert",
       "actual": "reverted",
       "status": "PASS",
-      "at": "2026-09-13T04:13:11.990Z"
+      "at": "2026-09-23T09:32:35.541Z"
     },
     {
       "section": "governance",
@@ -481,7 +463,7 @@
       "expected": "deployed",
       "actual": "NOT DEPLOYED on this Testnet",
       "status": "SKIP",
-      "at": "2026-09-13T04:13:11.991Z"
+      "at": "2026-09-23T09:32:35.541Z"
     },
     {
       "section": "governance",
@@ -489,15 +471,15 @@
       "expected": "0xD53De472E9363B5eA08BAF919955B6332575A85D",
       "actual": "0xD53De472E9363B5eA08BAF919955B6332575A85D",
       "status": "PASS",
-      "at": "2026-09-13T04:13:11.991Z"
+      "at": "2026-09-23T09:32:35.541Z"
     },
     {
       "section": "laravel",
       "name": "contracts wired to Testnet deployment",
       "expected": "RACE_ICO + ENGINE match deployment.json",
-      "actual": "{\"wired\":false,\"icoEnv\":\"\",\"engEnv\":\"\",\"chain\":\"\",\"matchIco\":false,\"matchEngine\":false}",
-      "status": "FAIL",
-      "at": "2026-09-13T04:13:11.995Z"
+      "actual": "{\"matchIco\":true,\"matchEngine\":true,\"chain\":\"bsc_testnet\"}",
+      "status": "PASS",
+      "at": "2026-09-23T09:32:35.543Z"
     },
     {
       "section": "laravel",
@@ -505,7 +487,7 @@
       "expected": "events indexed",
       "actual": "not executed in this automated UAT",
       "status": "SKIP",
-      "at": "2026-09-13T04:13:11.995Z"
+      "at": "2026-09-23T09:32:35.543Z"
     },
     {
       "section": "frontend",
@@ -513,13 +495,13 @@
       "expected": "manual client session",
       "actual": "NOT STARTED in this automated run",
       "status": "SKIP",
-      "at": "2026-09-13T04:13:11.995Z"
+      "at": "2026-09-23T09:32:35.543Z"
     }
   ],
   "counts": {
-    "PASS": 47,
-    "FAIL": 3,
-    "SKIP": 9
+    "PASS": 48,
+    "FAIL": 0,
+    "SKIP": 10
   },
-  "finishedAt": "2026-09-13T04:13:11.995Z"
+  "finishedAt": "2026-09-23T09:32:35.543Z"
 }

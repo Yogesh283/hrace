@@ -25,7 +25,9 @@ describe('RaceIncomeVault security', function () {
         await usdt.mint(pool.address, fund);
         await usdt.connect(pool).approve(await vault.getAddress(), fund);
         const incomeType = await vault.INCOME_DAILY_REWARD();
-        const deadline = Math.floor(Date.now() / 1000) + 3600;
+        // Use Hardhat chain time — wall-clock Date.now() breaks after suite evm_increaseTime.
+        const block = await ethers.provider.getBlock('latest');
+        const deadline = Number(block.timestamp) + 3600;
         return {
             vault,
             usdt,
