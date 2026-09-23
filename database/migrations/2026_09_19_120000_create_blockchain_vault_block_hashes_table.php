@@ -14,7 +14,7 @@ return new class extends Migration
             $table->unsignedBigInteger('block_number');
             $table->string('block_hash', 66);
             $table->timestamps();
-            $table->unique(['contract_address', 'block_number']);
+            $table->unique(['contract_address', 'block_number'], 'vault_block_hash_uniq');
         });
     }
 
