@@ -11,6 +11,7 @@
 /.phpunit.cache
 /.vscode
 /.zed
+/.cursor
 /auth.json
 /node_modules
 /public/build
@@ -19,6 +20,12 @@
 /storage/*.key
 /storage/pail
 /vendor
+/contracts/node_modules
+/contracts/cache
+/contracts/artifacts
+/contracts/typechain-types
+composer.phar
+*.zip
 Homestead.json
 Homestead.yaml
 Thumbs.db

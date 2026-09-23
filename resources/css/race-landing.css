@@ -1,0 +1,897 @@
+/* RACE Coin — Premium Web3 / Fintech design system (global) */
+:root {
+    --race-black: #0b0b0b;
+    --race-midnight: #0f172a;
+    --race-blue: #2563eb;
+    --race-gold: #f59e0b;
+    --race-white: #ffffff;
+    --race-muted: #94a3b8;
+    --race-glass-bg: linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(11, 11, 11, 0.68));
+    --race-glass-border: rgba(37, 99, 235, 0.28);
+}
+
+.race-theme,
+.race-landing {
+    background: linear-gradient(180deg, var(--race-black) 0%, var(--race-midnight) 42%, #020617 100%);
+    color: var(--race-white);
+    min-height: 100vh;
+    font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+/* ─── Glass surfaces ─── */
+.race-theme .race-glass,
+.race-landing .race-glass {
+    background: var(--race-glass-bg);
+    border: 1px solid var(--race-glass-border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+        0 20px 50px -20px rgba(0, 0, 0, 0.55),
+        0 0 40px -12px rgba(37, 99, 235, 0.12);
+}
+
+.race-theme .race-glass:hover,
+.race-landing .race-glass:hover {
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+        0 24px 60px -18px rgba(0, 0, 0, 0.65),
+        0 0 48px -8px rgba(37, 99, 235, 0.35);
+}
+
+.race-theme .race-glow-text,
+.race-landing .race-glow-text {
+    background: linear-gradient(135deg, #fff 0%, #93c5fd 45%, #f59e0b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.race-landing .race-btn-primary,
+.race-theme .race-btn-primary {
+    background: linear-gradient(135deg, #2563eb, #38bdf8);
+    box-shadow: 0 12px 32px -8px rgba(37, 99, 235, 0.55);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.race-landing .race-btn-primary:hover,
+.race-theme .race-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px -6px rgba(56, 189, 248, 0.5);
+}
+
+.race-landing .race-btn-ghost,
+.race-theme .race-btn-ghost {
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.08);
+    transition: all 0.25s ease;
+}
+
+.race-landing .race-btn-ghost:hover,
+.race-theme .race-btn-ghost:hover {
+    background: rgba(245, 158, 11, 0.16);
+    box-shadow: 0 0 24px rgba(245, 158, 11, 0.25);
+}
+
+.race-landing .race-particles,
+.member-portal--race .race-particles {
+    background-image:
+        radial-gradient(1px 1px at 20% 30%, rgba(56, 189, 248, 0.5), transparent),
+        radial-gradient(1px 1px at 80% 20%, rgba(245, 158, 11, 0.4), transparent),
+        radial-gradient(1.5px 1.5px at 50% 70%, rgba(37, 99, 235, 0.45), transparent);
+    animation: race-particle-drift 24s linear infinite;
+}
+
+@keyframes race-particle-drift {
+    0% { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-30px, -40px, 0); }
+}
+
+.race-landing .race-coin-3d {
+    animation: race-coin-spin 18s linear infinite;
+    filter: drop-shadow(0 0 40px rgba(37, 99, 235, 0.5)) drop-shadow(0 0 80px rgba(245, 158, 11, 0.2));
+}
+
+@keyframes race-coin-spin {
+    0% { transform: rotateY(0deg) rotateX(8deg); }
+    100% { transform: rotateY(360deg) rotateX(8deg); }
+}
+
+.race-landing .race-coin-pulse {
+    animation: race-coin-pulse 3s ease-in-out infinite;
+}
+
+@keyframes race-coin-pulse {
+    0%, 100% { opacity: 0.35; transform: scale(1); }
+    50% { opacity: 0.65; transform: scale(1.08); }
+}
+
+.race-landing .race-timeline-line {
+    background: linear-gradient(90deg, transparent, #2563eb, #f59e0b, #2563eb, transparent);
+    height: 2px;
+}
+
+.race-landing .race-doc-card:hover .race-doc-icon {
+    transform: scale(1.08);
+    box-shadow: 0 0 32px rgba(245, 158, 11, 0.35);
+}
+
+.race-landing .race-world-map {
+    background:
+        radial-gradient(circle at 30% 40%, rgba(37, 99, 235, 0.12), transparent 50%),
+        radial-gradient(circle at 70% 60%, rgba(245, 158, 11, 0.08), transparent 45%);
+}
+
+.race-landing .race-nav-scrolled {
+    background: rgba(11, 11, 11, 0.85);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Member portal — RACE dark theme (all authenticated pages)
+   ═══════════════════════════════════════════════════════════════════════ */
+.member-portal.member-portal--race {
+    background: linear-gradient(180deg, #0b0b0b 0%, #0f172a 38%, #020617 100%);
+    color: #e2e8f0;
+    --rx-ink: #f8fafc;
+    --rx-muted: #94a3b8;
+    --rx-neon: #38bdf8;
+}
+
+.member-portal--race .rx-pro-bg::before {
+    opacity: 0.55;
+}
+.member-portal--race .rx-pro-bg::after {
+    opacity: 0.65;
+}
+.member-portal--race .rx-pro-orb {
+    opacity: 0.38;
+}
+.member-portal--race .rx-pro-scan {
+    opacity: 0.12;
+}
+
+/* Typography */
+.member-portal--race .text-fintech-ink,
+.member-portal--race .text-\[\#0F172A\],
+.member-portal--race .text-\[\#0B1220\],
+.member-portal--race .text-slate-900,
+.member-portal--race .text-slate-800,
+.member-portal--race .text-slate-700 {
+    color: #f1f5f9 !important;
+}
+
+.member-portal--race .text-fintech-muted,
+.member-portal--race .text-slate-600,
+.member-portal--race .text-slate-500,
+.member-portal--race .text-\[\#64748B\] {
+    color: #94a3b8 !important;
+}
+
+.member-portal--race .text-fintech-primary,
+.member-portal--race .text-\[\#2563EB\] {
+    color: #60a5fa !important;
+}
+
+.member-portal--race .rx-pro-muted,
+.member-portal--race .rx-pro-heading {
+    color: #f1f5f9;
+}
+.member-portal--race .rx-pro-muted {
+    color: #94a3b8;
+}
+.member-portal--race .rx-pro-eyebrow {
+    color: #38bdf8;
+}
+
+/* Glass cards & panels */
+.member-portal--race .border-white\/90,
+.member-portal--race .border-white\/80,
+.member-portal--race .border-white\/70,
+.member-portal--race .bg-white\/80,
+.member-portal--race .bg-white\/75,
+.member-portal--race .bg-white\/70,
+.member-portal--race .bg-white\/60,
+.member-portal--race .bg-white\/50,
+.member-portal--race .bg-white {
+    background: var(--race-glass-bg) !important;
+    border-color: var(--race-glass-border) !important;
+    color: #e2e8f0;
+}
+
+.member-portal--race .border-fintech-line,
+.member-portal--race .border-sky-100,
+.member-portal--race .border-sky-200,
+.member-portal--race .border-slate-100,
+.member-portal--race .border-slate-200 {
+    border-color: rgba(37, 99, 235, 0.22) !important;
+}
+
+.member-portal--race .bg-fintech-soft,
+.member-portal--race .bg-sky-50,
+.member-portal--race .bg-sky-50\/80,
+.member-portal--race .bg-sky-50\/90,
+.member-portal--race .bg-slate-50\/90,
+.member-portal--race .bg-emerald-50\/80,
+.member-portal--race .from-white,
+.member-portal--race .to-sky-50,
+.member-portal--race .to-slate-50 {
+    background-color: rgba(15, 23, 42, 0.55) !important;
+    --tw-gradient-from: rgba(15, 23, 42, 0.7) !important;
+    --tw-gradient-to: rgba(11, 11, 11, 0.5) !important;
+}
+
+.member-portal--race .rx-dash-premium .rx-dp-grid {
+    opacity: 0.35;
+}
+
+/* Headers */
+.member-portal--race #member-header-desktop,
+.member-portal--race header.border-slate-200\/90.bg-white {
+    border-color: rgba(37, 99, 235, 0.25) !important;
+    background: rgba(11, 11, 11, 0.82) !important;
+    backdrop-filter: blur(16px);
+}
+
+.member-portal--race .rx-mobile-topbar__shell {
+    border-color: rgba(37, 99, 235, 0.3) !important;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(11, 11, 11, 0.88)) !important;
+    box-shadow: 0 20px 50px -16px rgba(0, 0, 0, 0.55), 0 0 32px -8px rgba(37, 99, 235, 0.2) !important;
+}
+
+.member-portal--race .rx-mobile-topbar__shell > div:first-child > div:first-child {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(11, 11, 11, 0.9)) !important;
+}
+
+.member-portal--race .rx-mobile-topbar h1,
+.member-portal--race .rx-mobile-topbar .font-poppins,
+.member-portal--race .rx-mobile-topbar__shell h1 {
+    color: #f8fafc !important;
+}
+
+/* Form inputs — force visible text on dark glass */
+.race-theme input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.race-theme select,
+.race-theme textarea,
+.member-portal--race input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.member-portal--race select,
+.member-portal--race textarea,
+.guest-race input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.guest-race select,
+.guest-race textarea {
+    background-color: rgba(15, 23, 42, 0.85) !important;
+    border-color: rgba(37, 99, 235, 0.4) !important;
+    color: #f1f5f9 !important;
+    -webkit-text-fill-color: #f1f5f9 !important;
+    caret-color: #38bdf8;
+}
+
+.race-theme input::placeholder,
+.race-theme textarea::placeholder,
+.member-portal--race input::placeholder,
+.member-portal--race textarea::placeholder,
+.guest-race input::placeholder,
+.guest-race textarea::placeholder {
+    color: #64748b !important;
+    -webkit-text-fill-color: #64748b !important;
+    opacity: 1;
+}
+
+.race-theme select option,
+.member-portal--race select option,
+.guest-race select option {
+    background-color: #0f172a;
+    color: #f1f5f9;
+}
+
+.race-theme input:-webkit-autofill,
+.race-theme input:-webkit-autofill:hover,
+.race-theme input:-webkit-autofill:focus,
+.member-portal--race input:-webkit-autofill,
+.member-portal--race input:-webkit-autofill:hover,
+.member-portal--race input:-webkit-autofill:focus,
+.guest-race input:-webkit-autofill,
+.guest-race input:-webkit-autofill:hover,
+.guest-race input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #f1f5f9 !important;
+    -webkit-box-shadow: 0 0 0 1000px rgba(15, 23, 42, 0.92) inset !important;
+    box-shadow: 0 0 0 1000px rgba(15, 23, 42, 0.92) inset !important;
+    caret-color: #38bdf8;
+}
+
+/* Tables */
+.member-portal--race thead.bg-fintech-soft,
+.member-portal--race .divide-fintech-line > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgba(37, 99, 235, 0.15) !important;
+}
+
+.member-portal--race tr.hover\:bg-fintech-soft\/80:hover {
+    background: rgba(37, 99, 235, 0.08) !important;
+}
+
+/* Bottom nav */
+.member-portal--race .rx-mobile-bottomnav__shell {
+    border-color: rgba(37, 99, 235, 0.3) !important;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(11, 11, 11, 0.92)) !important;
+    box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.6), 0 0 24px -6px rgba(37, 99, 235, 0.2) !important;
+}
+
+.member-portal--race .rx-mobile-bottomnav__shell > div:first-child {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(11, 11, 11, 0.95)) !important;
+}
+
+.member-portal--race .rx-mobile-bottomnav a {
+    color: #94a3b8;
+}
+
+.member-portal--race .rx-mobile-bottomnav a .text-\[\#2563EB\] {
+    color: #38bdf8 !important;
+}
+
+.member-portal--race .mobile-fintech-bottom-nav {
+    border-color: rgba(37, 99, 235, 0.25) !important;
+    background: rgba(11, 11, 11, 0.92) !important;
+    backdrop-filter: blur(16px);
+}
+
+/* Income nav pills */
+.member-portal--race nav[aria-label='Income programs'] a {
+    border-color: rgba(37, 99, 235, 0.25);
+    background: rgba(15, 23, 42, 0.6);
+    color: #cbd5e1;
+}
+.member-portal--race nav[aria-label='Income programs'] a[aria-current='page'],
+.member-portal--race nav[aria-label='Income programs'] a.bg-white {
+    background: rgba(37, 99, 235, 0.25) !important;
+    color: #fff !important;
+    border-color: rgba(56, 189, 248, 0.4) !important;
+}
+
+/* Alert / status boxes keep semantic colors but darker base */
+.member-portal--race .bg-amber-50,
+.member-portal--race .bg-emerald-50,
+.member-portal--race .bg-red-50,
+.member-portal--race .bg-violet-50 {
+    background-color: rgba(15, 23, 42, 0.7) !important;
+}
+
+/* Guest / auth pages */
+.guest-race.race-theme {
+    color: #e2e8f0;
+}
+
+.guest-race .text-\[\#0F172A\],
+.guest-race .text-slate-900,
+.guest-race .text-slate-800,
+.guest-race .text-slate-700 {
+    color: #f1f5f9 !important;
+}
+
+.guest-race .text-slate-600,
+.guest-race .text-slate-500 {
+    color: #94a3b8 !important;
+}
+
+.guest-race .bg-white,
+.guest-race .bg-white\/80,
+.guest-race .bg-white\/90 {
+    background: var(--race-glass-bg) !important;
+    border-color: var(--race-glass-border) !important;
+}
+
+.guest-race header.border-slate-200\/80 {
+    border-color: rgba(37, 99, 235, 0.25) !important;
+    background: rgba(11, 11, 11, 0.85) !important;
+    backdrop-filter: blur(16px);
+}
+
+.guest-race input,
+.guest-race select,
+.guest-race textarea {
+    max-width: 100%;
+}
+
+/* Welcome page alignment */
+.welcome-page.race-theme {
+    background: linear-gradient(165deg, #0b0b0b 0%, #0f172a 45%, #020617 100%) !important;
+    color: #e2e8f0;
+}
+
+.welcome-page.race-theme .text-slate-900,
+.welcome-page.race-theme .text-slate-800,
+.welcome-page.race-theme .rx-pro-heading,
+.welcome-page.race-theme .rx-pro-subheading {
+    color: #f8fafc !important;
+}
+
+.welcome-page.race-theme .text-slate-600,
+.welcome-page.race-theme .text-slate-500,
+.welcome-page.race-theme .text-fintech-muted,
+.welcome-page.race-theme .rx-pro-muted {
+    color: #94a3b8 !important;
+}
+
+.welcome-page.race-theme .text-fintech-primary,
+.welcome-page.race-theme .rx-pro-eyebrow {
+    color: #38bdf8 !important;
+}
+
+.welcome-page.race-theme .rx-pro-eyebrow::before {
+    background: #38bdf8;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+.welcome-page.race-theme .border-white\/90,
+.welcome-page.race-theme .border-white\/80,
+.welcome-page.race-theme .bg-white\/80,
+.welcome-page.race-theme .bg-white\/75,
+.welcome-page.race-theme .bg-white\/90,
+.welcome-page.race-theme .bg-slate-50\/90,
+.welcome-page.race-theme .bg-emerald-50\/80,
+.welcome-page.race-theme .bg-sky-50\/80,
+.welcome-page.race-theme .bg-sky-50\/50 {
+    background: rgba(15, 23, 42, 0.55) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.welcome-page.race-theme .border-slate-200\/90,
+.welcome-page.race-theme .border-slate-200\/80,
+.welcome-page.race-theme .border-sky-200\/90 {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Responsive utilities from fintech-light — keep for race */
+.member-portal--race {
+    overflow-x: clip;
+}
+
+.member-portal--race #member-main {
+    min-width: 0;
+}
+
+.member-portal--race .member-page-hero h1 {
+    overflow-wrap: anywhere;
+}
+
+.member-portal--race .member-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+@media (max-width: 380px) {
+    .member-portal--race .member-stat-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (min-width: 640px) {
+    .member-portal--race .member-stat-grid {
+        gap: 1rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .member-portal--race .member-stat-grid.lg\:grid-cols-4 {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.member-portal--race .member-table-scroll {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+
+.member-portal--race nav[aria-label='Income programs'] {
+    max-width: 100%;
+    margin-left: -0.125rem;
+    margin-right: -0.125rem;
+    padding-left: 0.125rem;
+    padding-right: 0.125rem;
+}
+
+.member-portal--race input,
+.member-portal--race select,
+.member-portal--race textarea {
+    max-width: 100%;
+}
+
+.member-portal--race img,
+.member-portal--race video,
+.member-portal--race svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Unified page width + card alignment inside member shell */
+.member-portal--race .rx-dash-premium .race-glass,
+.member-portal--race .rx-dash-premium .member-page-hero {
+    width: 100%;
+}
+
+.member-portal--race .rx-dash-premium .member-page-hero {
+    max-width: 100%;
+}
+
+.guest-race .text-\[\#64748B\] {
+    color: #94a3b8 !important;
+}
+
+.guest-race input:not([type='checkbox']),
+.guest-race select,
+.guest-race textarea {
+    border-color: rgba(37, 99, 235, 0.35) !important;
+    background: rgba(15, 23, 42, 0.8) !important;
+    color: #f1f5f9 !important;
+}
+
+.guest-race input::placeholder,
+.guest-race textarea::placeholder {
+    color: #64748b !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Welcome page — mobile responsive
+   ═══════════════════════════════════════════════════════════════════════ */
+.welcome-page.race-theme {
+    overflow-x: clip;
+}
+
+.welcome-page.race-theme main,
+.welcome-page.race-theme .rx-pro-section > div,
+.welcome-page.race-theme .rx-dash-premium > .relative {
+    min-width: 0;
+}
+
+.welcome-page.race-theme h1,
+.welcome-page.race-theme h2,
+.welcome-page.race-theme h3,
+.welcome-page.race-theme p,
+.welcome-page.race-theme li {
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+    .welcome-page.race-theme .rx-pro-section.scroll-mt-24 {
+        scroll-margin-top: 5.25rem;
+    }
+
+    .welcome-page.race-theme .rx-mobile-topbar__shell {
+        border-radius: 1.25rem;
+    }
+}
+
+@media (hover: none) {
+    .welcome-page.race-theme .transition.duration-300.hover\:-translate-y-1:hover {
+        transform: none;
+    }
+}
+
+/* Welcome — premium mobile bottom nav */
+.race-welcome-bottomnav {
+    -webkit-font-smoothing: antialiased;
+}
+
+.race-welcome-bottomnav__shell {
+    transform: translateZ(0);
+    will-change: transform;
+}
+
+.race-welcome-bottomnav a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.race-welcome-showcase img {
+    max-width: 100%;
+}
+
+.race-welcome-showcase--banner {
+    aspect-ratio: auto !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible;
+}
+
+.race-welcome-showcase--banner img {
+    width: 100%;
+    height: auto !important;
+    object-fit: contain !important;
+    object-position: center;
+}
+
+@media (max-width: 1023px) {
+    .welcome-page.race-theme .welcome-hero-section > div {
+        padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+        padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+    }
+
+    .welcome-page.race-theme .welcome-hero-visual {
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        width: 100vw;
+        max-width: 100vw;
+    }
+
+    .welcome-page.race-theme .welcome-hero-visual .race-welcome-showcase {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+
+    .welcome-page.race-theme .race-welcome-showcase--bleed {
+        margin-left: calc(50% - 50vw);
+        margin-right: calc(50% - 50vw);
+        width: 100vw;
+        max-width: 100vw;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+}
+
+@media (max-width: 639px) {
+    .race-welcome-showcase {
+        box-shadow: 0 12px 36px -14px rgba(0, 0, 0, 0.55);
+    }
+
+    .welcome-page.race-theme .welcome-page-main {
+        padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+    }
+
+    .welcome-page.race-theme .rx-pro-section {
+        padding-top: clamp(2rem, 5vw, 2.75rem);
+        padding-bottom: clamp(2rem, 5vw, 2.75rem);
+    }
+
+    .welcome-page.race-theme .rx-pro-section.scroll-mt-24 {
+        scroll-margin-top: 5.25rem;
+    }
+
+    .welcome-page.race-theme .rx-mobile-topbar__shell {
+        border-radius: 1.25rem;
+    }
+
+    .welcome-page.race-theme .welcome-hero-copy {
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+    .welcome-page.race-theme .rx-pro-section > div {
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+    }
+}
+
+@media (min-width: 640px) {
+    .race-welcome-showcase {
+        border-radius: 1.5rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .race-welcome-bottomnav__shell {
+        border-radius: 1.35rem;
+    }
+
+    .race-welcome-bottomnav a span:last-child {
+        font-size: 8px;
+    }
+}
+
+/* Welcome — hero video banner responsive */
+.welcome-hero-visual video,
+.welcome-hero-visual img {
+    display: block;
+    max-width: 100%;
+}
+
+@media (max-width: 639px) {
+    .welcome-hero-visual {
+        margin-bottom: 0.25rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .welcome-hero-visual {
+        min-height: 0;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RACE Community Rewards PDF theme — member portal (all pages except landing)
+   Dark navy · neon blue glow · gold accents · glass panels
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.member-portal--race {
+    background:
+        radial-gradient(ellipse 90% 55% at 50% -8%, rgba(37, 99, 235, 0.28), transparent 58%),
+        radial-gradient(ellipse 50% 35% at 85% 95%, rgba(56, 189, 248, 0.14), transparent 55%),
+        radial-gradient(ellipse 40% 30% at 10% 80%, rgba(245, 158, 11, 0.06), transparent 50%),
+        linear-gradient(180deg, #0b0b0b 0%, #0f172a 42%, #020617 100%);
+}
+
+.member-portal--race .text-fintech-ink,
+.member-portal--race .text-\[\#0F172A\],
+.member-portal--race .text-slate-900 {
+    color: #f1f5f9 !important;
+}
+
+.member-portal--race .text-fintech-muted,
+.member-portal--race .text-slate-600,
+.member-portal--race .text-slate-500,
+.member-portal--race .text-slate-700 {
+    color: #94a3b8 !important;
+}
+
+.member-portal--race .text-brand,
+.member-portal--race .text-\[\#2563EB\] {
+    color: #38bdf8 !important;
+}
+
+.member-portal--race .text-emerald-600,
+.member-portal--race .text-emerald-700 {
+    color: #34d399 !important;
+}
+
+/* PDF backdrop layers inside MemberPageShell */
+.race-pdf-backdrop-globe {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.45;
+    background:
+        radial-gradient(circle at 50% 35%, rgba(56, 189, 248, 0.12) 0%, transparent 42%),
+        radial-gradient(circle at 50% 40%, rgba(37, 99, 235, 0.08) 0%, transparent 55%);
+}
+
+.race-pdf-backdrop-city {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 45%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.35;
+    background: linear-gradient(
+        to top,
+        rgba(37, 99, 235, 0.15) 0%,
+        transparent 100%
+    );
+    mask-image: linear-gradient(to top, black 20%, transparent 100%);
+}
+
+.member-portal--race .rx-dash-premium .rx-dp-grid {
+    opacity: 0.5;
+    background-image:
+        linear-gradient(rgba(56, 189, 248, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+}
+
+/* Hero — PDF gold title + neon frame */
+.member-portal--race .member-page-hero--pdf {
+    border-color: rgba(56, 189, 248, 0.45) !important;
+    box-shadow:
+        0 0 0 1px rgba(245, 158, 11, 0.1) inset,
+        0 0 48px -8px rgba(37, 99, 235, 0.45),
+        0 20px 50px -20px rgba(0, 0, 0, 0.55) !important;
+}
+
+.member-portal--race .race-pdf-hero-title {
+    background: linear-gradient(135deg, #fef3c7 0%, #f59e0b 42%, #fbbf24 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.35));
+}
+
+/* PDF panels */
+.race-pdf-panel {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(11, 11, 11, 0.78));
+    border: 1px solid rgba(56, 189, 248, 0.32);
+    box-shadow:
+        0 0 0 1px rgba(245, 158, 11, 0.06) inset,
+        0 0 32px -8px rgba(37, 99, 235, 0.22);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.race-pdf-section-header {
+    background: linear-gradient(135deg, #020b2d 0%, #0c1e4a 48%, #1e3a8a 100%);
+    border-bottom: 1px solid rgba(245, 158, 11, 0.35);
+    box-shadow:
+        inset 0 1px 0 rgba(56, 189, 248, 0.12),
+        0 4px 24px -8px rgba(37, 99, 235, 0.35);
+}
+
+.race-pdf-section-sub {
+    font-size: 0.6875rem;
+    line-height: 1.4;
+    color: rgba(147, 197, 253, 0.88);
+}
+
+/* Income nav pills */
+.race-pdf-nav-pill--idle {
+    border-color: rgba(56, 189, 248, 0.28) !important;
+    background: rgba(15, 23, 42, 0.65) !important;
+    color: #cbd5e1 !important;
+}
+
+.race-pdf-nav-pill--idle:hover {
+    border-color: rgba(56, 189, 248, 0.5) !important;
+    color: #38bdf8 !important;
+    box-shadow: 0 0 20px -6px rgba(37, 99, 235, 0.4);
+}
+
+.race-pdf-nav-pill--active {
+    border-color: rgba(245, 158, 11, 0.45) !important;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.55), rgba(30, 58, 138, 0.75)) !important;
+    color: #fff !important;
+    box-shadow: 0 0 24px -4px rgba(37, 99, 235, 0.5);
+}
+
+/* Tables — PDF gold headers, blue rows */
+.member-portal--race .race-pdf-table-wrap table {
+    color: #e2e8f0;
+}
+
+.member-portal--race .race-pdf-table-wrap thead tr,
+.member-portal--race .race-pdf-table-wrap thead th {
+    background: rgba(2, 11, 45, 0.95) !important;
+    color: #fbbf24 !important;
+    border-color: rgba(245, 158, 11, 0.25) !important;
+}
+
+.member-portal--race .race-pdf-table-wrap tbody tr {
+    border-color: rgba(37, 99, 235, 0.15) !important;
+}
+
+.member-portal--race .race-pdf-table-wrap tbody tr:nth-child(odd) {
+    background: rgba(37, 99, 235, 0.1) !important;
+}
+
+.member-portal--race .race-pdf-table-wrap tbody tr:nth-child(even) {
+    background: rgba(15, 23, 42, 0.55) !important;
+}
+
+.member-portal--race .race-pdf-table-wrap tbody td {
+    color: #e2e8f0;
+}
+
+/* Dashboard income sections */
+.member-portal--race section.bg-gradient-to-br {
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(11, 11, 11, 0.72)) !important;
+    border-color: rgba(56, 189, 248, 0.28) !important;
+}
+
+.member-portal--race .bg-gradient-to-r.from-\[\#2563EB\] {
+    border-color: rgba(56, 189, 248, 0.35) !important;
+}
+
+/* Primary buttons */
+.member-portal--race .bg-\[\#2563EB\]:not(.race-pdf-nav-pill--active) {
+    box-shadow: 0 0 24px -6px rgba(37, 99, 235, 0.55);
+}
+
+.member-portal--race .race-btn-primary,
+.member-portal--race button.bg-\[\#2563EB\] {
+    background: linear-gradient(135deg, #2563eb, #38bdf8) !important;
+}
+
+/* Sidebar */
+.member-portal--race aside,
+.member-portal--race #member-sidebar {
+    border-color: rgba(56, 189, 248, 0.2) !important;
+    background: rgba(2, 11, 45, 0.92) !important;
+}
+
+.member-portal--race #member-main {
+    background: transparent;
+}

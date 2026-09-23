@@ -1,0 +1,34 @@
+{
+  "name": "race-coin-contracts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "check:testnet-balance": "node scripts/check-testnet-balance.js",
+    "check:testnet-wallets": "node scripts/check-testnet-wallets.js",
+    "check:testnet-pancake": "node scripts/check-testnet-pancake.js",
+    "report:testnet-wallets": "node scripts/report-testnet-wallets.js",
+    "derive:testnet-signer-addresses": "node scripts/derive-testnet-signer-addresses.js",
+    "sync:testnet-multisig-signers": "node scripts/sync-testnet-multisig-signers.js",
+    "preflight:testnet": "node scripts/preflight-testnet.js",
+    "check:testnet-deployment": "node scripts/check-testnet-deployment.js",
+    "deploy:testnet-usdt": "hardhat run scripts/deploy-testnet-usdt.js --network bscTestnet",
+    "mint:testnet-usdt": "hardhat run scripts/mint-testnet-usdt.js --network bscTestnet",
+    "transfer:testnet-tbnb": "hardhat run scripts/transfer-testnet-tbnb.js --network bscTestnet",
+    "complete:testnet-postdeploy": "hardhat run scripts/complete-testnet-postdeploy.js --network bscTestnet",
+    "redeploy:engine-c1-testnet": "hardhat run scripts/redeploy-engine-c1-testnet.js --network bscTestnet",
+    "verify:engine-testnet": "hardhat run scripts/verify-engine-bytecode-testnet.js --network bscTestnet",
+    "deploy:income-vault-testnet": "hardhat run scripts/deploy-income-vault-testnet.js --network bscTestnet",
+    "uat:testnet-e2e": "hardhat run scripts/uat-testnet-e2e.js --network bscTestnet",
+    "deploy:testnet": "node scripts/preflight-testnet.js && hardhat run scripts/deploy.js --network bscTestnet",
+    "deploy:mainnet": "node -e \"console.error('STOP: Mainnet deploy blocked. Testnet only.'); process.exit(1)\"",
+    "deploy:governance:testnet": "hardhat run scripts/deploy-governance-testnet.js --network bscTestnet",
+    "deploy:governance:local": "hardhat run scripts/deploy-governance-testnet.js"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@openzeppelin/contracts": "^5.0.2",
+    "hardhat": "^2.22.0"
+  }
+}

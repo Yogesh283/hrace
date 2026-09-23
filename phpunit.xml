@@ -32,5 +32,10 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="OTP_BYPASS" value="false"/>
+        <env name="OTP_STORE_PLAIN" value="true"/>
+        <env name="INCOME_DEDUCT_INVESTMENT" value="false"/>
+        <env name="REWARDS_ENGINE" value="hybrid"/>
+        <env name="PARTICIPATION_ON_CHAIN" value="false"/>
     </php>
 </phpunit>

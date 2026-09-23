@@ -1,0 +1,525 @@
+{
+  "chainId": 97,
+  "testUser": "0xB836F0A8B9014a0431aBe7710EaB818dCd7AE984",
+  "deployment": "0x9C227938885f5fE4f91826EC6dB37ea54AC31C73",
+  "results": [
+    {
+      "section": "setup",
+      "name": "chainId",
+      "expected": "97",
+      "actual": "97",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:30.984Z"
+    },
+    {
+      "section": "config",
+      "name": "RaceCoin.owner",
+      "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:31.759Z"
+    },
+    {
+      "section": "config",
+      "name": "Engine.owner",
+      "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:32.495Z"
+    },
+    {
+      "section": "config",
+      "name": "ICO.owner",
+      "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:33.151Z"
+    },
+    {
+      "section": "config",
+      "name": "Vault.owner",
+      "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:33.865Z"
+    },
+    {
+      "section": "config",
+      "name": "Oracle.owner",
+      "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:34.617Z"
+    },
+    {
+      "section": "config",
+      "name": "Treasury.multisig",
+      "expected": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "actual": "0x6e043a778fbd5b372bfb8a41746a42e2ede3c64a",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:35.314Z"
+    },
+    {
+      "section": "config",
+      "name": "minter ICO",
+      "expected": "true",
+      "actual": "true",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:36.135Z"
+    },
+    {
+      "section": "config",
+      "name": "minter Vault",
+      "expected": "true",
+      "actual": "true",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:36.814Z"
+    },
+    {
+      "section": "config",
+      "name": "vault.engine",
+      "expected": "0xc0d9dee1476d67379069444a7e5f1b340f91f4e9",
+      "actual": "0xc0d9dee1476d67379069444a7e5f1b340f91f4e9",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:37.535Z"
+    },
+    {
+      "section": "config",
+      "name": "ico.stakingEngine",
+      "expected": "0xc0d9dee1476d67379069444a7e5f1b340f91f4e9",
+      "actual": "0xc0d9dee1476d67379069444a7e5f1b340f91f4e9",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:38.304Z"
+    },
+    {
+      "section": "config",
+      "name": "engine.oracle",
+      "expected": "0xb5a67cd0d32ed0d5021827b1c5d6bfd1c401556a",
+      "actual": "0xb5a67cd0d32ed0d5021827b1c5d6bfd1c401556a",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:39.041Z"
+    },
+    {
+      "section": "config",
+      "name": "maturityTreasuryLocked",
+      "expected": "true",
+      "actual": "true",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:39.874Z"
+    },
+    {
+      "section": "config",
+      "name": "maturityTreasury",
+      "expected": "0x04f3c02018da34d3641f47c1f136ffcdb57dc93a",
+      "actual": "0x04f3c02018da34d3641f47c1f136ffcdb57dc93a",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:40.625Z"
+    },
+    {
+      "section": "config",
+      "name": "MultiSig.threshold",
+      "expected": "3",
+      "actual": "3",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:41.250Z"
+    },
+    {
+      "section": "config",
+      "name": "RaceLiquidityLocker",
+      "expected": "optional/absent",
+      "actual": "null",
+      "status": "SKIP",
+      "at": "2026-09-13T04:12:41.250Z"
+    },
+    {
+      "section": "config",
+      "name": "RaceGovernance (community)",
+      "expected": "optional/absent",
+      "actual": "not in manifest",
+      "status": "SKIP",
+      "at": "2026-09-13T04:12:41.250Z"
+    },
+    {
+      "section": "token",
+      "name": "symbol",
+      "expected": "TEST-USDT",
+      "actual": "TEST-USDT",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:42.112Z"
+    },
+    {
+      "section": "token",
+      "name": "decimals",
+      "expected": "18",
+      "actual": "18",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:42.112Z"
+    },
+    {
+      "section": "token",
+      "name": "authorized mint",
+      "expected": "balance sufficient",
+      "actual": "1000.0",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:42.400Z"
+    },
+    {
+      "section": "token",
+      "name": "unauthorized mint blocked",
+      "expected": "revert",
+      "actual": "reverted",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:42.764Z"
+    },
+    {
+      "section": "token",
+      "name": "approve",
+      "expected": "SUCCESS",
+      "actual": "0x5db32f003a09027cab24c0dc48e885daa16506da8717cb14c26a4431c8bb3719",
+      "status": "SUCCESS",
+      "hash": "0x5db32f003a09027cab24c0dc48e885daa16506da8717cb14c26a4431c8bb3719",
+      "block": 130724687,
+      "at": "2026-09-13T04:12:46.751Z"
+    },
+    {
+      "section": "token",
+      "name": "allowance",
+      "expected": ">= buy",
+      "actual": "10000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:47.034Z"
+    },
+    {
+      "section": "setup",
+      "name": "fund Multisig signer 1",
+      "expected": "already funded",
+      "actual": "0.019978357",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:47.410Z"
+    },
+    {
+      "section": "setup",
+      "name": "fund Multisig signer 2",
+      "expected": "already funded",
+      "actual": "0.0199940381",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:47.722Z"
+    },
+    {
+      "section": "setup",
+      "name": "fund Multisig signer 3",
+      "expected": "already funded",
+      "actual": "0.02",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:48.064Z"
+    },
+    {
+      "section": "multisig",
+      "name": "resume pending startPhase txId",
+      "expected": "0",
+      "actual": "0",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:49.072Z"
+    },
+    {
+      "section": "multisig",
+      "name": "non-signer confirm blocked",
+      "expected": "revert",
+      "actual": "reverted",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:49.405Z"
+    },
+    {
+      "section": "multisig",
+      "name": "confirm #1",
+      "expected": "already confirmed/executed",
+      "actual": "execution reverted: RaceMultiSig: confirmed: 0x08c379a00000000000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:50.864Z"
+    },
+    {
+      "section": "multisig",
+      "name": "confirm #2",
+      "expected": "already confirmed/executed",
+      "actual": "execution reverted: RaceMultiSig: confirmed: 0x08c379a00000000000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:51.721Z"
+    },
+    {
+      "section": "multisig",
+      "name": "confirm #3",
+      "expected": "SUCCESS",
+      "actual": "0x4cd4d1d2eaaae0b34e4e3c36dec142a54f676d1e636c0f66fec4d670b451ae6c",
+      "status": "SUCCESS",
+      "hash": "0x4cd4d1d2eaaae0b34e4e3c36dec142a54f676d1e636c0f66fec4d670b451ae6c",
+      "block": 130724712,
+      "at": "2026-09-13T04:12:58.415Z"
+    },
+    {
+      "section": "multisig",
+      "name": "duplicate confirm blocked",
+      "expected": "revert",
+      "actual": "reverted",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:58.941Z"
+    },
+    {
+      "section": "ico",
+      "name": "startPhase(1) via Multisig",
+      "expected": "1",
+      "actual": "1",
+      "status": "PASS",
+      "at": "2026-09-13T04:12:59.303Z"
+    },
+    {
+      "section": "multisig",
+      "name": "RaceMultiSig unchanged 3-of-5",
+      "expected": "3",
+      "actual": "3",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:00.007Z"
+    },
+    {
+      "section": "ico",
+      "name": "Flexible lock rejected on ICO",
+      "expected": "revert",
+      "actual": "reverted",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:02.024Z"
+    },
+    {
+      "section": "ico",
+      "name": "purchase",
+      "expected": "SUCCESS",
+      "actual": "0xd6a8025c1bafcf5e627c5d632e5cf8376f834a15c15778de2da3a1e2ea4cf9f8",
+      "status": "SUCCESS",
+      "hash": "0xd6a8025c1bafcf5e627c5d632e5cf8376f834a15c15778de2da3a1e2ea4cf9f8",
+      "block": 130724727,
+      "at": "2026-09-13T04:13:04.407Z"
+    },
+    {
+      "section": "ico",
+      "name": "USDT deducted",
+      "expected": "1e18",
+      "actual": "0",
+      "status": "FAIL",
+      "at": "2026-09-13T04:13:06.168Z"
+    },
+    {
+      "section": "ico",
+      "name": "totalSupply increased",
+      "expected": ">0",
+      "actual": "4000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.168Z"
+    },
+    {
+      "section": "ico",
+      "name": "Engine RACE increased",
+      "expected": ">0",
+      "actual": "4000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.168Z"
+    },
+    {
+      "section": "ico",
+      "name": "stake created",
+      "expected": "+1",
+      "actual": "0->1",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.168Z"
+    },
+    {
+      "section": "ico",
+      "name": "totalSoldRace increased",
+      "expected": ">0",
+      "actual": "4000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.168Z"
+    },
+    {
+      "section": "stake",
+      "name": "principalUsdt",
+      "expected": "1e18",
+      "actual": "1000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.688Z"
+    },
+    {
+      "section": "stake",
+      "name": "stakedRace",
+      "expected": ">0",
+      "actual": "4000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.688Z"
+    },
+    {
+      "section": "stake",
+      "name": "lockPeriod",
+      "expected": "15552000",
+      "actual": "15552000",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.688Z"
+    },
+    {
+      "section": "stake",
+      "name": "dailyRateBps",
+      "expected": "50",
+      "actual": "50",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.688Z"
+    },
+    {
+      "section": "stake",
+      "name": "unlockAt > started",
+      "expected": "true",
+      "actual": "1804824785>1789272785",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:06.688Z"
+    },
+    {
+      "section": "claim",
+      "name": "pending before 1 day",
+      "expected": "0",
+      "actual": "0",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:07.000Z"
+    },
+    {
+      "section": "claim",
+      "name": "claim before accrual blocked",
+      "expected": "revert",
+      "actual": "did not revert",
+      "status": "FAIL",
+      "at": "2026-09-13T04:13:07.319Z"
+    },
+    {
+      "section": "compound",
+      "name": "compound before accrual blocked",
+      "expected": "revert",
+      "actual": "reverted",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:07.624Z"
+    },
+    {
+      "section": "claim",
+      "name": "live 1-day accrual / duplicate claim",
+      "expected": "needs time travel",
+      "actual": "NOT available on public BSC Testnet",
+      "status": "SKIP",
+      "at": "2026-09-13T04:13:07.624Z"
+    },
+    {
+      "section": "compound",
+      "name": "live compound accrual",
+      "expected": "needs time travel",
+      "actual": "NOT available on public BSC Testnet",
+      "status": "SKIP",
+      "at": "2026-09-13T04:13:07.624Z"
+    },
+    {
+      "section": "maturity",
+      "name": "matureStake + EMI 1/2/3",
+      "expected": "needs time travel",
+      "actual": "NOT available on public BSC Testnet (use Hardhat suite)",
+      "status": "SKIP",
+      "at": "2026-09-13T04:13:07.624Z"
+    },
+    {
+      "section": "flexible",
+      "name": "withdraw after ICO complete",
+      "expected": "icoCompleted=false",
+      "actual": "false",
+      "status": "SKIP",
+      "at": "2026-09-13T04:13:07.944Z"
+    },
+    {
+      "section": "flexible",
+      "name": "participate(FLEX) before ICO complete",
+      "expected": "revert",
+      "actual": "execution reverted: engine: flexible after ico only: 0x08c379a0000000000000000000000000000000000000000000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:08.312Z"
+    },
+    {
+      "section": "oracle",
+      "name": "racePriceUsdt == $1",
+      "expected": "1e18",
+      "actual": "1000000000000000000",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:08.628Z"
+    },
+    {
+      "section": "oracle",
+      "name": "updater active (deployer)",
+      "expected": "true",
+      "actual": "true",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:09.264Z"
+    },
+    {
+      "section": "oracle",
+      "name": "authorized updater heartbeat",
+      "expected": "SUCCESS",
+      "actual": "0x2e47da5043bae2b3b95aa526444bbfe5329177a3cab9e74b203716d4a3c38472",
+      "status": "SUCCESS",
+      "hash": "0x2e47da5043bae2b3b95aa526444bbfe5329177a3cab9e74b203716d4a3c38472",
+      "block": 130724743,
+      "at": "2026-09-13T04:13:11.494Z"
+    },
+    {
+      "section": "oracle",
+      "name": "unauthorized updater blocked",
+      "expected": "revert",
+      "actual": "reverted",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:11.990Z"
+    },
+    {
+      "section": "governance",
+      "name": "RaceGovernance community 10-12",
+      "expected": "deployed",
+      "actual": "NOT DEPLOYED on this Testnet",
+      "status": "SKIP",
+      "at": "2026-09-13T04:13:11.991Z"
+    },
+    {
+      "section": "governance",
+      "name": "legacy RaceGovernor present",
+      "expected": "0xD53De472E9363B5eA08BAF919955B6332575A85D",
+      "actual": "0xD53De472E9363B5eA08BAF919955B6332575A85D",
+      "status": "PASS",
+      "at": "2026-09-13T04:13:11.991Z"
+    },
+    {
+      "section": "laravel",
+      "name": "contracts wired to Testnet deployment",
+      "expected": "RACE_ICO + ENGINE match deployment.json",
+      "actual": "{\"wired\":false,\"icoEnv\":\"\",\"engEnv\":\"\",\"chain\":\"\",\"matchIco\":false,\"matchEngine\":false}",
+      "status": "FAIL",
+      "at": "2026-09-13T04:13:11.995Z"
+    },
+    {
+      "section": "laravel",
+      "name": "indexer live event soak",
+      "expected": "events indexed",
+      "actual": "not executed in this automated UAT",
+      "status": "SKIP",
+      "at": "2026-09-13T04:13:11.995Z"
+    },
+    {
+      "section": "frontend",
+      "name": "live browser UAT",
+      "expected": "manual client session",
+      "actual": "NOT STARTED in this automated run",
+      "status": "SKIP",
+      "at": "2026-09-13T04:13:11.995Z"
+    }
+  ],
+  "counts": {
+    "PASS": 47,
+    "FAIL": 3,
+    "SKIP": 9
+  },
+  "finishedAt": "2026-09-13T04:13:11.995Z"
+}

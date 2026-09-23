@@ -1,0 +1,15 @@
+{
+  "network": "bscTestnet",
+  "chainId": 97,
+  "contract": "TestnetMockUSDT",
+  "address": "0xE30Fb617215c4EB5a0E4E6B1a5F537C0E28C8fEc",
+  "name": "RACE Test USDT",
+  "symbol": "TEST-USDT",
+  "decimals": 18,
+  "mintAuthority": "0xB836F0A8B9014a0431aBe7710EaB818dCd7AE984",
+  "deployer": "0xB836F0A8B9014a0431aBe7710EaB818dCd7AE984",
+  "deploymentTimestamp": "2026-09-13T03:50:28.568Z",
+  "blockNumber": 130721715,
+  "smokeMintTx": "0x279f4476f872462567d3cc8d5fe62bb8343a7834a6b918971d3b26dd4cadeb2a",
+  "note": "TESTNET ONLY — NOT real USDT / NOT for Mainnet"
+}

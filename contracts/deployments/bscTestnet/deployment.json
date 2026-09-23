@@ -1,0 +1,111 @@
+{
+  "network": "bscTestnet",
+  "chainId": 97,
+  "raceMultiSig": "0x6E043A778FBD5B372BFB8a41746A42e2EdE3c64a",
+  "raceCoin": "0xbCAE5e637872a2760065ff9e9f6533ECC80122e6",
+  "raceTreasury": "0x04F3C02018Da34D3641f47C1F136FFcDb57Dc93A",
+  "raceDevelopmentTreasury": "0xfFfF27aFdADf6F58276d2293A3246eDAd2B4cd5f",
+  "raceMarketingTreasury": "0x67e5d4ab5187a9292F47e7FeC6a0b067dD64084A",
+  "raceOperationsTreasury": "0x08Bba9326DbCc9f7f9C615dDb4889656e1C3cCFA",
+  "raceAutoLiquidity": "0xafC443895FAb63F4221B50Cc9dceB46ce925F146",
+  "raceStaking": "0xA31C053767034C86BaB132B53686AAb7898255A3",
+  "raceRewardVault": "0x44aB7B654dAA8184C7B43CAcB69994969A926ca4",
+  "raceCommunityEngine": "0xbdDeA78d9Ef21BF7E8577de8BFe599E5dd0456ef",
+  "raceParticipation": "0x9BF2E3405c0cB666C6664BD7651dab3F656fEDA5",
+  "raceICO": "0x9C227938885f5fE4f91826EC6dB37ea54AC31C73",
+  "raceRewardPriceOracle": "0xB5A67CD0D32Ed0D5021827b1C5d6bfd1C401556a",
+  "raceRewardPool": "0x77116d2B7f00F17fdEA1E2076dBAEfD257E004C8",
+  "raceGovernor": "0xD53De472E9363B5eA08BAF919955B6332575A85D",
+  "raceEcosystemVault": "0x6bBBe3AB18f2639c2Ade66F68D1F4edf32Bdc6D9",
+  "strategicReserveVesting": "0x1AF0856957FB35d6143C204C84c5187aBc01E70E",
+  "developmentFundVesting": "0xDBC3C6e5295A2244036DB93E3DfF626d94ab02D9",
+  "partnershipsVesting": "0x859929b84D3Ded76fd409289724Ae0a78f75de74",
+  "raceLiquidityLocker": null,
+  "usdt": "0xE30Fb617215c4EB5a0E4E6B1a5F537C0E28C8fEc",
+  "pancakeRouter": "0xD99D1c33F9fC3444f8101754aBC46c52416550D1",
+  "deployer": "0xB836F0A8B9014a0431aBe7710EaB818dCd7AE984",
+  "completedAt": "2026-09-13T04:00:45.927Z",
+  "blockNumber": 130723087,
+  "oracleUpdater": "0xB836F0A8B9014a0431aBe7710EaB818dCd7AE984",
+  "oraclePriceUsdt": "1",
+  "oraclePriceWei": "1000000000000000000",
+  "hardenGovernance": true,
+  "owners": {
+    "raceCoin": "0x6E043A778FBD5B372BFB8a41746A42e2EdE3c64a",
+    "engine": "0x6E043A778FBD5B372BFB8a41746A42e2EdE3c64a",
+    "vault": "0x6E043A778FBD5B372BFB8a41746A42e2EdE3c64a",
+    "ico": "0x6E043A778FBD5B372BFB8a41746A42e2EdE3c64a",
+    "oracle": "0x6E043A778FBD5B372BFB8a41746A42e2EdE3c64a",
+    "treasury": "0x6E043A778FBD5B372BFB8a41746A42e2EdE3c64a",
+    "treasuryMultisig": "0x6E043A778FBD5B372BFB8a41746A42e2EdE3c64a"
+  },
+  "multisigThreshold": "3",
+  "multisigSigners": [
+    "0x659a2f504825A05485513eF69Caf5081E488ee4C",
+    "0x55f1996Df66Bcd3E7c3565CA4CD7e9A24745Be7b",
+    "0xc6A400278a073197e755D326d53C673165ed9F2A",
+    "0x5D3e2b2B32CA9192D4801Aa9788AF63819c44881",
+    "0xaf337Af5922Eb75e10915cd71824c50B7F879CC8"
+  ],
+  "postDeployTxs": [
+    {
+      "action": "oracle.updatePrice(heartbeat $1)",
+      "txHash": "0x0f278b6a5cfdefa199b9e5ab29d8778f73ccc6299d2a3574ea0c93fe2ecb002e",
+      "status": "SUCCESS",
+      "block": 130722917
+    },
+    {
+      "action": "oracle.updatePrice(heartbeat $1)",
+      "txHash": "0xbf2ac9019b4e2bd9cf94b7ff5f4d3243986aaf3730bbe934cbdd939ea1974b01",
+      "status": "SUCCESS",
+      "block": 130723027
+    },
+    {
+      "action": "oracle.transferOwnership(MultiSig)",
+      "txHash": "0x88c4b74fd91f0b839a004a6ddc7f3b516a0ff37803dcd673366a4d4d9a15c36e",
+      "status": "SUCCESS",
+      "block": 130723039
+    },
+    {
+      "action": "engine.transferOwnership(MultiSig)",
+      "txHash": "0x0773979ab3167bced92282326eea3f845cc8dfaa62dc3871c8ed71042a2caf4e",
+      "status": "SUCCESS",
+      "block": 130723047
+    },
+    {
+      "action": "treasury.transferOwnership(MultiSig)",
+      "txHash": "0x439596ab78d6fc0611dabdc4f95c4b81ec17378dcabcc72d70c07ecaedfdf085",
+      "status": "SUCCESS",
+      "block": 130723056
+    },
+    {
+      "action": "raceCoin.transferOwnership(MultiSig)",
+      "txHash": "0x0c45da6111f2b1cfadfc3cc80eaf471a137fa67da282cab45ecea8988cdc5d6c",
+      "status": "SUCCESS",
+      "block": 130723065
+    },
+    {
+      "action": "ico.transferOwnership(MultiSig)",
+      "txHash": "0x2e418685b48d33c32c15df5aa7e1e54ad418da7435c56025503fc651b5682fdf",
+      "status": "SUCCESS",
+      "block": 130723072
+    },
+    {
+      "action": "vault.transferOwnership(MultiSig)",
+      "txHash": "0xfab5a9d548c21df694d87e9bb027b6f9967a547e386114f30843ebcf02115fec",
+      "status": "SUCCESS",
+      "block": 130723078
+    }
+  ],
+  "linkages": {
+    "vaultEngine": "0xbdDeA78d9Ef21BF7E8577de8BFe599E5dd0456ef",
+    "icoStakingEngine": "0xbdDeA78d9Ef21BF7E8577de8BFe599E5dd0456ef",
+    "engineOracle": "0xB5A67CD0D32Ed0D5021827b1C5d6bfd1C401556a",
+    "raceCoinMinterIco": true,
+    "raceCoinMinterVault": true
+  },
+  "note": "C-1 engine redeploy — claim policy bytecode live. Legacy engine deprecated. TESTNET ONLY.",
+  "raceCommunityEngineDeprecated": "0xc0D9Dee1476D67379069444A7e5f1b340f91F4E9",
+  "c1EngineRedeployAt": "2026-09-14T07:40:42.828Z",
+  "c1EngineRedeployBlock": 130944412
+}

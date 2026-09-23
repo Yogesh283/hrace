@@ -5,6 +5,9 @@
 
     RewriteEngine On
 
+    # Block hidden files (e.g. .env) except .well-known
+    RewriteRule ^\.(?!well-known).* - [F,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

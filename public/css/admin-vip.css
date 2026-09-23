@@ -1,0 +1,528 @@
+/* Rynex Capital — Orchid admin VIP tables */
+.rx-admin-badge {
+    display: inline-block;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+.rx-admin-badge--default {
+    background: rgba(148, 163, 184, 0.2);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+}
+.rx-admin-badge--success {
+    background: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+.rx-admin-badge--danger {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+}
+.rx-admin-badge--vip {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.35), rgba(99, 102, 241, 0.25));
+    color: #bfdbfe;
+    border: 1px solid rgba(96, 165, 250, 0.55);
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.25);
+}
+.rx-admin-badge--gold {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.35), rgba(234, 179, 8, 0.2));
+    color: #fde68a;
+    border: 1px solid rgba(251, 191, 36, 0.55);
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.2);
+}
+.rx-admin-badge--muted {
+    background: rgba(100, 116, 139, 0.15);
+    color: #94a3b8;
+    border: 1px solid rgba(100, 116, 139, 0.3);
+}
+/* ── Admin dashboard sections ── */
+.rx-dash {
+    width: 100%;
+    margin-bottom: 1.5rem;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.rx-dash-hero {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.35rem 1.5rem;
+    margin-bottom: 1.5rem;
+    border-radius: 1.25rem;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #172554 100%);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    position: relative;
+    overflow: hidden;
+}
+.rx-dash-hero::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 280px;
+    height: 280px;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+}
+.rx-dash-hero__brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+    z-index: 1;
+}
+.rx-dash-hero__logo {
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(251, 191, 36, 0.35);
+}
+.rx-dash-hero__eyebrow {
+    margin: 0 0 0.15rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #fbbf24;
+}
+.rx-dash-hero__title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #f8fafc;
+    letter-spacing: -0.02em;
+}
+.rx-dash-hero__meta {
+    margin: 0.35rem 0 0;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+.rx-dash-hero__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    position: relative;
+    z-index: 1;
+}
+.rx-dash-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+.rx-dash-chip--live .rx-dash-chip__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px #22c55e;
+    animation: rx-dash-pulse 2s ease-in-out infinite;
+}
+@keyframes rx-dash-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+.rx-dash-section {
+    margin-bottom: 1.75rem;
+}
+.rx-dash-section__head {
+    margin-bottom: 1rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+.rx-dash-section__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #e2e8f0;
+}
+.rx-dash-section__desc {
+    margin: 0.35rem 0 0;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.rx-dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.rx-dash-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 1.15rem 1.2rem 0.9rem;
+    border-radius: 1rem;
+    background: linear-gradient(160deg, rgba(30, 41, 59, 0.92) 0%, rgba(15, 23, 42, 0.98) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.rx-dash-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.32);
+}
+.rx-dash-card__glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    opacity: 0.9;
+}
+.rx-dash-card--success .rx-dash-card__glow {
+    background: linear-gradient(90deg, #10b981, #34d399);
+}
+.rx-dash-card--danger .rx-dash-card__glow {
+    background: linear-gradient(90deg, #ef4444, #f87171);
+}
+.rx-dash-card--vip .rx-dash-card__glow {
+    background: linear-gradient(90deg, #3b82f6, #818cf8);
+}
+.rx-dash-card--gold .rx-dash-card__glow {
+    background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+.rx-dash-card--income .rx-dash-card__glow {
+    background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+}
+.rx-dash-card--success { border-color: rgba(16, 185, 129, 0.3); }
+.rx-dash-card--danger { border-color: rgba(239, 68, 68, 0.3); }
+.rx-dash-card--vip { border-color: rgba(96, 165, 250, 0.35); }
+.rx-dash-card--gold { border-color: rgba(251, 191, 36, 0.4); }
+.rx-dash-card--income { border-color: rgba(139, 92, 246, 0.35); }
+
+.rx-dash-card__top {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.rx-dash-card__icon-wrap {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.75rem;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.rx-dash-card--success .rx-dash-card__icon-wrap { color: #6ee7b7; box-shadow: 0 0 20px rgba(16, 185, 129, 0.2); }
+.rx-dash-card--danger .rx-dash-card__icon-wrap { color: #fca5a5; box-shadow: 0 0 20px rgba(239, 68, 68, 0.2); }
+.rx-dash-card--vip .rx-dash-card__icon-wrap { color: #93c5fd; box-shadow: 0 0 20px rgba(59, 130, 246, 0.25); }
+.rx-dash-card--gold .rx-dash-card__icon-wrap { color: #fde68a; box-shadow: 0 0 20px rgba(245, 158, 11, 0.25); }
+.rx-dash-card--income .rx-dash-card__icon-wrap { color: #c4b5fd; box-shadow: 0 0 20px rgba(139, 92, 246, 0.25); }
+.rx-dash-card__icon {
+    width: 1.35rem;
+    height: 1.35rem;
+}
+.rx-dash-card__name {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+.rx-dash-card__hint {
+    margin: 0.2rem 0 0;
+    font-size: 0.72rem;
+    color: #64748b;
+}
+
+.rx-dash-card__metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    flex: 1;
+}
+.rx-dash-metric {
+    padding: 0.65rem 0.7rem;
+    border-radius: 0.65rem;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+.rx-dash-metric--total {
+    background: rgba(30, 41, 59, 0.65);
+    border-color: rgba(251, 191, 36, 0.2);
+}
+.rx-dash-metric__pill {
+    display: block;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #94a3b8;
+    margin-bottom: 0.25rem;
+}
+.rx-dash-metric__value {
+    display: block;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #f8fafc;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+}
+.rx-dash-card--gold .rx-dash-metric__value,
+.rx-dash-metric--total .rx-dash-metric__value {
+    color: #fde68a;
+}
+.rx-dash-metric__sub {
+    display: block;
+    margin-top: 0.2rem;
+    font-size: 0.68rem;
+    color: #64748b;
+}
+
+.rx-dash-card__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.85rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.12);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #93c5fd;
+    text-decoration: none;
+    transition: color 0.15s ease, gap 0.15s ease;
+}
+.rx-dash-card__link:hover {
+    color: #fbbf24;
+    gap: 0.5rem;
+}
+.rx-dash-card__link-icon {
+    width: 0.85rem;
+    height: 0.85rem;
+}
+
+.rx-dash-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+.rx-dash-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem;
+    border-radius: 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    text-decoration: none;
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.rx-dash-link:hover {
+    color: #fff;
+    border-color: rgba(251, 191, 36, 0.45);
+    transform: translateY(-1px);
+}
+.rx-dash-link svg {
+    width: 1rem;
+    height: 1rem;
+    opacity: 0.85;
+}
+
+/* Light Orchid workspace fallback */
+@media (prefers-color-scheme: light) {
+    .bg-white .rx-dash-hero,
+    [data-bs-theme='light'] .rx-dash-hero {
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-color: #cbd5e1;
+    }
+    .bg-white .rx-dash-hero__title,
+    [data-bs-theme='light'] .rx-dash-hero__title {
+        color: #0f172a;
+    }
+}
+
+.rx-admin-code {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #b45309;
+    letter-spacing: 0.06em;
+    background: rgba(251, 191, 36, 0.12);
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+}
+
+/* ── VIP data tables (all admin list pages) ── */
+.rx-tbl-section__head {
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid rgba(251, 191, 36, 0.35);
+}
+.rx-tbl-section__title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: #0f172a;
+}
+
+.rx-admin-table-panel {
+    border-radius: 1rem;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.rx-admin-table-wrap {
+    margin: 0;
+}
+
+.rx-admin-table {
+    margin-bottom: 0 !important;
+    font-size: 0.875rem;
+}
+
+.rx-admin-table thead th {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+    color: #f1f5f9 !important;
+    font-size: 0.7rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.85rem 1rem !important;
+    border-bottom: 2px solid #f59e0b !important;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.rx-admin-table tbody td {
+    padding: 0.75rem 1rem !important;
+    vertical-align: middle !important;
+    border-color: #f1f5f9 !important;
+    color: #334155;
+}
+
+.rx-admin-table.table-striped > tbody > tr:nth-of-type(odd) > * {
+    background-color: #f8fafc;
+    box-shadow: none;
+}
+
+.rx-admin-table.table-hover > tbody > tr:hover > * {
+    background-color: #eff6ff !important;
+    color: #0f172a;
+}
+
+.rx-admin-table__row {
+    transition: background 0.12s ease;
+}
+
+.rx-admin-table-footer {
+    padding: 0.65rem 1rem;
+    background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+    border-top: 1px solid #e2e8f0;
+}
+
+.rx-admin-table-footer .pagination {
+    margin-bottom: 0;
+}
+
+.rx-admin-table-empty {
+    text-align: center;
+    padding: 2.5rem 1.5rem;
+    background: #f8fafc;
+}
+.rx-admin-table-empty__icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    opacity: 0.35;
+    margin-bottom: 0.75rem;
+}
+.rx-admin-table-empty__title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0;
+}
+
+.rx-tbl-id {
+    font-family: ui-monospace, monospace;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.rx-tbl-money {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #0f766e;
+    white-space: nowrap;
+}
+
+.rx-tbl-member {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 10rem;
+}
+.rx-tbl-member__name {
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.25;
+}
+.rx-tbl-member__email {
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.2;
+}
+
+.rx-tbl-date {
+    display: flex;
+    flex-direction: column;
+    white-space: nowrap;
+}
+.rx-tbl-date__main {
+    font-weight: 600;
+    color: #334155;
+    font-size: 0.8rem;
+}
+.rx-tbl-date__sub {
+    font-size: 0.72rem;
+    color: #94a3b8;
+}
+
+.rx-tbl-text {
+    color: #334155;
+}
+
+.rx-tbl-muted {
+    color: #94a3b8;
+}
+
+/* Filters row above tables */
+.layout .form-group label,
+.layout .filter-panel {
+    font-size: 0.8rem;
+}
+
+.layout .table-responsive + .pagination,
+.rx-admin-table-panel .dropdown-menu {
+    font-size: 0.85rem;
+}
