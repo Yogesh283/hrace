@@ -518,11 +518,11 @@ function MemberActivationStatusCard({ activation, memberNumber, isTestnet = fals
     const loading = a.loading || a.member_status === 'loading';
     const statusClass = (ok) => {
         if (loading) {
-            return 'border-slate-200 bg-slate-50 text-slate-500';
+            return 'border-slate-500/50 bg-slate-900/80 text-slate-200';
         }
         return ok
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            : 'border-amber-200 bg-amber-50 text-amber-900';
+            ? 'border-emerald-400/60 bg-emerald-950/50 text-emerald-100'
+            : 'border-amber-400/70 bg-amber-950/50 text-amber-100';
     };
 
     return (
@@ -540,7 +540,7 @@ function MemberActivationStatusCard({ activation, memberNumber, isTestnet = fals
                 </p>
             ) : null}
             {a.banner === 'network' ? (
-                <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                <p className="mt-3 rounded-xl border border-amber-400/60 bg-amber-950/50 px-3 py-2 text-xs font-semibold text-amber-100">
                     {isTestnet ? 'Switch to BSC Testnet (Chain ID 97)' : 'Switch to BNB Smart Chain'}
                 </p>
             ) : null}
@@ -552,15 +552,15 @@ function MemberActivationStatusCard({ activation, memberNumber, isTestnet = fals
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className={`rounded-xl border px-4 py-3 ${statusClass(a.member_status === 'active')}`}>
-                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">Member status</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-90">Member status</p>
                     <p className="mt-1 text-sm font-bold">{a.member_status_label ?? '—'}</p>
                 </div>
                 <div className={`rounded-xl border px-4 py-3 ${statusClass(a.participation_status === 'active')}`}>
-                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">Staking</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-90">Staking</p>
                     <p className="mt-1 text-sm font-bold">{a.participation_status_label ?? '—'}</p>
                 </div>
                 <div className={`rounded-xl border px-4 py-3 ${statusClass(idActive)}`}>
-                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">Member ID</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-90">Member ID</p>
                     <p className="mt-1 truncate text-sm font-bold">
                         {memberLabel} · {a.id_status_label ?? (idActive ? 'Activated' : 'Pending')}
                     </p>

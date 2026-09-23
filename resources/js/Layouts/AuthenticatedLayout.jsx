@@ -361,38 +361,6 @@ function usePageTitle(pageTitleProp) {
     }
 }
 
-function SidebarUpgradeCard({ onNavigate = () => {} }) {
-    return (
-        <div className="relative mt-2 overflow-hidden rounded-xl border border-white/[0.12] bg-gradient-to-br from-[#2563EB] via-[#1d4ed8] to-[#38BDF8] p-3 shadow-[0_8px_28px_-8px_rgba(37,99,235,0.5)]">
-            <div
-                className="pointer-events-none absolute -right-4 -top-8 h-24 w-24 rounded-full bg-white/20 blur-2xl"
-                aria-hidden
-            />
-            <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex justify-center gap-1 pb-0.5 opacity-85" aria-hidden>
-                {[10, 16, 12, 20, 14, 22, 16].map((h, i) => (
-                    <span
-                        key={i}
-                        className="w-1 rounded-t-sm bg-white/90"
-                        style={{ height: `${h}px` }}
-                    />
-                ))}
-            </div>
-            <div className="relative">
-                <p className="text-[0.6rem] font-semibold uppercase tracking-[0.18em] text-white/75">Growth</p>
-                <p className="mt-0.5 font-poppins text-sm font-bold leading-tight text-white">Upgrade plan</p>
-                <p className="mt-0.5 text-[0.7rem] leading-snug text-white/80">Higher limits and priority payouts.</p>
-                <Link
-                    href={routeHref('investment')}
-                    onClick={onNavigate}
-                    className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-white px-2.5 py-2 text-xs font-bold text-[#2563EB] shadow-md transition hover:bg-slate-50"
-                >
-                    Packages
-                </Link>
-            </div>
-        </div>
-    );
-}
-
 export default function AuthenticatedLayout({
     header,
     children,
@@ -498,19 +466,6 @@ export default function AuthenticatedLayout({
                 </button>
             </div>
 
-            <div className="relative mb-2 rounded-xl border border-white/[0.08] bg-white/[0.06] p-2 shadow-inner backdrop-blur-md">
-                <div className="flex items-center gap-2">
-                    <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2563EB] to-[#38BDF8] text-[0.65rem] font-bold text-white shadow-[0_0_12px_rgba(56,189,248,0.3)]">
-                        {initials}
-                        <span className="absolute -bottom-px -right-px h-2.5 w-2.5 rounded-full border-2 border-[#020B2D] bg-emerald-400" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-semibold leading-tight text-white">{user?.name ?? 'Member'}</p>
-                        <p className="truncate font-mono text-[0.6rem] font-medium leading-tight text-[#38BDF8]">{memberId}</p>
-                    </div>
-                </div>
-            </div>
-
             <nav className="relative flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain py-0.5">
                 {memberNav.map((item, idx) => {
                     const active = navActive(item);
@@ -547,7 +502,6 @@ export default function AuthenticatedLayout({
             </nav>
 
             <div className="relative mt-auto shrink-0 space-y-2 border-t border-white/[0.08] pt-2.5">
-                <SidebarUpgradeCard onNavigate={() => setOpen(false)} />
                 <Link
                     href={routeHref('logout')}
                     method="post"
