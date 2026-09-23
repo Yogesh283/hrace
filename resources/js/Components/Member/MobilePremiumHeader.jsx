@@ -40,7 +40,7 @@ export default function MobilePremiumHeader({
 
     return (
         <header
-            className={`rx-mobile-topbar pointer-events-none fixed inset-x-0 top-0 z-[110] px-3.5 pt-[max(0.65rem,env(safe-area-inset-top,0px))] lg:hidden ${
+            className={`rx-mobile-topbar pointer-events-none fixed inset-x-0 top-0 z-[110] px-0 pt-[env(safe-area-inset-top,0px)] lg:hidden ${
                 menuOpen ? 'rx-mobile-topbar--menu-open' : ''
             }`}
         >
@@ -53,33 +53,17 @@ export default function MobilePremiumHeader({
                 />
             ) : null}
 
-            {/* Ambient glow behind bar */}
-            <div
-                className="pointer-events-none absolute inset-x-6 top-2 h-16 rounded-full bg-[radial-gradient(ellipse,rgba(56,189,248,0.35),transparent_70%)] max-lg:opacity-90"
-                aria-hidden
-            />
-
-            <div className="rx-mobile-topbar__shell pointer-events-auto relative overflow-visible rounded-[28px] border border-[#38BDF8]/55 px-3 py-3 shadow-[0_12px_32px_-12px_rgba(29,78,216,0.45),0_0_28px_-6px_rgba(56,189,248,0.4)] backdrop-blur-[8px] sm:rounded-[32px] sm:px-3.5 sm:py-3.5">
-                {/* Decorative layers — clipped separately so menu is not cut off */}
-                <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[28px] sm:rounded-[32px]">
+            <div className="rx-mobile-topbar__shell pointer-events-auto relative overflow-visible rounded-none border-b border-[#38BDF8] bg-[#EFF6FF] px-3 py-3 shadow-[0_8px_20px_-8px_rgba(29,78,216,0.35)] sm:px-3.5 sm:py-3.5">
+                <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-none">
                     <div
-                        className="absolute inset-0 opacity-100"
+                        className="absolute inset-0"
                         style={{
-                            background:
-                                'linear-gradient(135deg, rgba(239,246,255,0.96) 0%, rgba(186,230,253,0.88) 38%, rgba(125,211,252,0.65) 62%, rgba(239,246,255,0.94) 100%)',
+                            background: 'linear-gradient(135deg, #EFF6FF 0%, #BAE6FD 45%, #7DD3FC 70%, #EFF6FF 100%)',
                         }}
                         aria-hidden
                     />
                     <div
-                        className="absolute -left-10 -top-12 h-32 w-32 rounded-full bg-[#38BDF8]/35"
-                        aria-hidden
-                    />
-                    <div
-                        className="absolute -bottom-10 -right-8 h-28 w-28 rounded-full bg-[#2563EB]/28"
-                        aria-hidden
-                    />
-                    <div
-                        className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-[#38BDF8]/80 to-transparent"
+                        className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-[#38BDF8] to-transparent"
                         aria-hidden
                     />
                 </div>

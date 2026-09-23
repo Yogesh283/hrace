@@ -236,12 +236,11 @@
 }
 
 .member-portal--race .rx-mobile-topbar__shell {
-    border-color: rgba(56, 189, 248, 0.55) !important;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(11, 11, 11, 0.9)) !important;
-    box-shadow:
-        0 20px 50px -16px rgba(0, 0, 0, 0.55),
-        0 0 40px -6px rgba(37, 99, 235, 0.55),
-        inset 0 1px 0 rgba(56, 189, 248, 0.28) !important;
+    border-radius: 0 !important;
+    border-color: #38bdf8 !important;
+    background: #0f172a !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.65) !important;
 }
 
 .member-portal--race .rx-mobile-topbar__shell > div:first-child > div:first-child {
@@ -316,16 +315,15 @@
 
 /* Bottom nav */
 .member-portal--race .rx-mobile-bottomnav__shell {
-    border-color: rgba(56, 189, 248, 0.55) !important;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(11, 11, 11, 0.94)) !important;
-    box-shadow:
-        0 12px 40px -10px rgba(0, 0, 0, 0.6),
-        0 0 40px -6px rgba(37, 99, 235, 0.55),
-        inset 0 1px 0 rgba(56, 189, 248, 0.28) !important;
+    border-radius: 0 !important;
+    border-color: #38bdf8 !important;
+    background: #0b0b0b !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 -8px 20px -8px rgba(0, 0, 0, 0.7) !important;
 }
 
 .member-portal--race .rx-mobile-bottomnav__shell > div:first-child {
-    background: linear-gradient(180deg, rgba(30, 58, 138, 0.35), rgba(11, 11, 11, 0.95)) !important;
+    background: #0b0b0b !important;
 }
 
 .member-portal--race .rx-mobile-bottomnav a {
@@ -570,7 +568,9 @@
     }
 
     .welcome-page.race-theme .rx-mobile-topbar__shell {
-        border-radius: 1.25rem;
+        border-radius: 0 !important;
+        background: #0f172a !important;
+        backdrop-filter: none !important;
     }
 }
 
@@ -588,6 +588,9 @@
 .race-welcome-bottomnav__shell {
     transform: translateZ(0);
     will-change: transform;
+    border-radius: 0 !important;
+    background: #0b0b0b !important;
+    backdrop-filter: none !important;
 }
 
 .race-welcome-bottomnav a {
@@ -662,7 +665,9 @@
     }
 
     .welcome-page.race-theme .rx-mobile-topbar__shell {
-        border-radius: 1.25rem;
+        border-radius: 0 !important;
+        background: #0f172a !important;
+        backdrop-filter: none !important;
     }
 
     .welcome-page.race-theme .welcome-hero-copy {
@@ -686,7 +691,7 @@
 
 @media (max-width: 380px) {
     .race-welcome-bottomnav__shell {
-        border-radius: 1.35rem;
+        border-radius: 0 !important;
     }
 
     .race-welcome-bottomnav a span:last-child {

@@ -83,28 +83,20 @@ function NavIcon({ name, active }) {
 export default function MobileFintechBottomNav() {
     return (
         <nav
-            className="rx-mobile-bottomnav pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-2.5 pb-[max(0.45rem,env(safe-area-inset-bottom,0px))] pt-2 lg:hidden"
+            className="rx-mobile-bottomnav pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-0 pb-[env(safe-area-inset-bottom,0px)] pt-0 lg:hidden"
             aria-label="Primary"
         >
-            <div
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-slate-300/20 to-transparent"
-                aria-hidden
-            />
-
-            <div className="pointer-events-auto relative mx-auto max-w-xl">
-                <div className="rx-mobile-bottomnav__shell relative overflow-hidden rounded-[30px] border border-[#38BDF8]/50 px-1.5 py-1 shadow-[0_8px_24px_-8px_rgba(37,99,235,0.45),0_0_28px_-6px_rgba(56,189,248,0.35)] backdrop-blur-[8px]">
+            <div className="pointer-events-auto relative mx-auto w-full max-w-none">
+                <div className="rx-mobile-bottomnav__shell relative overflow-hidden rounded-none border-t border-[#38BDF8] bg-[#EFF6FF] px-1.5 py-1 shadow-[0_-8px_20px_-8px_rgba(37,99,235,0.35)]">
                     <div
                         className="pointer-events-none absolute inset-0"
                         style={{
-                            background:
-                                'linear-gradient(135deg, rgba(239,246,255,0.96) 0%, rgba(224,242,254,0.92) 40%, rgba(186,230,253,0.75) 70%, rgba(239,246,255,0.95) 100%)',
+                            background: 'linear-gradient(135deg, #EFF6FF 0%, #E0F2FE 40%, #BAE6FD 70%, #EFF6FF 100%)',
                         }}
                         aria-hidden
                     />
-                    <div className="pointer-events-none absolute -left-8 -top-10 h-24 w-24 rounded-full bg-[#38BDF8]/28" aria-hidden />
-                    <div className="pointer-events-none absolute -bottom-8 -right-6 h-20 w-20 rounded-full bg-[#2563EB]/22" aria-hidden />
                     <div
-                        className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#38BDF8]/70 to-transparent"
+                        className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-[#38BDF8] to-transparent"
                         aria-hidden
                     />
 

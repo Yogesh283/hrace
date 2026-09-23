@@ -91,28 +91,17 @@ export default function WelcomeMobileBottomNav() {
 
     return (
         <nav
-            className="race-welcome-bottomnav rx-mobile-bottomnav pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-3 pb-[max(0.55rem,env(safe-area-inset-bottom,0px))] pt-3 xl:hidden"
+            className="race-welcome-bottomnav rx-mobile-bottomnav pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-0 pb-[env(safe-area-inset-bottom,0px)] pt-0 xl:hidden"
             aria-label="RACE sections"
         >
-            <div
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#0B0B0B]/95 via-[#0F172A]/55 to-transparent"
-                aria-hidden
-            />
-            <div
-                className="pointer-events-none absolute inset-x-8 bottom-2 h-16 rounded-full bg-[#2563EB]/20 blur-3xl"
-                aria-hidden
-            />
-
-            <div className="pointer-events-auto relative mx-auto max-w-md">
-                <div className="race-welcome-bottomnav__shell rx-mobile-bottomnav__shell relative overflow-hidden rounded-[26px] border border-[#38BDF8]/45 bg-[#0B0B0B]/70 px-1 py-1.5 shadow-[0_16px_48px_-10px_rgba(0,0,0,0.72),0_0_48px_-8px_rgba(37,99,235,0.55),inset_0_1px_0_rgba(56,189,248,0.28)] backdrop-blur-[22px] sm:rounded-[30px] sm:px-1.5">
+            <div className="pointer-events-auto relative mx-auto w-full max-w-none">
+                <div className="race-welcome-bottomnav__shell rx-mobile-bottomnav__shell relative overflow-hidden rounded-none border-t border-[#38BDF8] bg-[#0B0B0B] px-1 py-1.5 shadow-[0_-8px_24px_-8px_rgba(0,0,0,0.7)] sm:px-1.5">
                     <div
-                        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#2563EB]/22 via-transparent to-[#F59E0B]/14"
+                        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#2563EB]/25 via-[#0B0B0B] to-[#F59E0B]/18"
                         aria-hidden
                     />
-                    <div className="pointer-events-none absolute -left-10 -top-8 h-24 w-24 rounded-full bg-[#38BDF8]/28 blur-2xl" aria-hidden />
-                    <div className="pointer-events-none absolute -bottom-10 -right-8 h-24 w-24 rounded-full bg-[#F59E0B]/20 blur-2xl" aria-hidden />
                     <div
-                        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/60 to-transparent"
+                        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-400 to-transparent"
                         aria-hidden
                     />
 

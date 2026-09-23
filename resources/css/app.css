@@ -1940,6 +1940,8 @@ body::-webkit-scrollbar,
 .rx-mobile-topbar__shell {
     transform: translateZ(0);
     contain: layout style;
+    border-radius: 0 !important;
+    backdrop-filter: none !important;
 }
 
 @media (max-width: 1023px) {
@@ -1978,6 +1980,8 @@ body::-webkit-scrollbar,
 .rx-mobile-bottomnav__shell {
     transform: translateZ(0);
     contain: layout style;
+    border-radius: 0 !important;
+    backdrop-filter: none !important;
 }
 
 /* ─── Light fintech text (Welcome + member portal) ────────────────────── */
