@@ -80,8 +80,8 @@ export default function RaceToken({ raceTokenConfig = {} }) {
         }
         try {
             const [race, usdt] = await Promise.all([
-                readErc20Balance(raceToken, walletAddress),
-                readErc20Balance(usdtContract, walletAddress),
+                readErc20Balance({ token: raceToken, wallet: walletAddress }),
+                readErc20Balance({ token: usdtContract, wallet: walletAddress }),
             ]);
             setRaceBalance(race);
             setUsdtBalance(usdt);
