@@ -107,23 +107,42 @@ class ExplainStakeReferralsCommand extends Command
         $paid = $refLogs > 0;
 
         $walletLower = strtolower($wallet);
-        $referrer = $walletLower !== '' ? $this->callEngineView($engine, self::SELECTOR_REFERRER, $walletLower, $block) : null;
-        $referrerActive = $referrer && $referrer !== '0x0000000000000000000000000000000000000000'
-            ? $this->callEngineViewBool($engine, self::SELECTOR_ACTIVE, $referrer, $block)
+        $zero = '0x0000000000000000000000000000000000000000';
+
+        $referrerAtBlock = $walletLower !== '' && $block > 0
+            ? $this->callEngineView($engine, self::SELECTOR_REFERRER, $walletLower, $block)
+            : null;
+        $referrerNow = $walletLower !== ''
+            ? $this->callEngineView($engine, self::SELECTOR_REFERRER, $walletLower, 0)
+            : null;
+
+        $referrerForReason = $referrerAtBlock ?? $referrerNow;
+        if ($referrerForReason === $zero) {
+            $referrerForReason = null;
+        }
+
+        $sponsorActiveAtBlock = $referrerAtBlock && $referrerAtBlock !== $zero
+            ? $this->callEngineViewBool($engine, self::SELECTOR_ACTIVE, $referrerAtBlock, $block)
+            : false;
+        $sponsorActiveNow = $referrerNow && $referrerNow !== $zero
+            ? $this->callEngineViewBool($engine, self::SELECTOR_ACTIVE, $referrerNow, 0)
             : false;
 
         $reason = 'OK_SAME_TX_REFERRAL_PAID';
         $fix = null;
         if (! $paid) {
-            if ($referrer === null || $referrer === '0x0000000000000000000000000000000000000000') {
-                $reason = 'NO_ON_CHAIN_SPONSOR_AT_STAKE';
-                $fix = 'Pehle register(sponsor) — openIcoStake bina register ke 0x0 referrer se register kar deta tha; ab UI register+active sponsor force karti hai.';
-            } elseif (! $referrerActive) {
+            if ($referrerForReason === null) {
+                $reason = 'NO_ON_CHAIN_SPONSOR';
+                $fix = 'Stake se pehle Engine.register(sponsor) — warna ICO tx andar 0x0 referrer se register ho jata hai; ab UI pehle sponsor bind+active karti hai.';
+            } elseif (! $sponsorActiveAtBlock && ($sponsorActiveNow || $referrerAtBlock === null)) {
                 $reason = 'SPONSOR_NOT_ACTIVE_AT_STAKE';
-                $fix = 'Sponsor pehle $50+ stake kare (participationActive), phir downline stake — tabhi same tx mein level income.';
+                $fix = 'Sponsor pehle $50+ Buy & Stake (on-chain active), phir downline — level income usi downline stake tx mein jati hai.';
+            } elseif (! $sponsorActiveAtBlock) {
+                $reason = 'SPONSOR_NOT_ACTIVE_AT_STAKE';
+                $fix = 'Sponsor ab bhi active nahi — pehle sponsor ka $50+ stake complete karo.';
             } else {
                 $reason = 'REFERRAL_NOT_EMITTED_OTHER';
-                $fix = 'Tx receipt check karo (oracle/vault revert nahi hona chahiye); support ko tx bhejo.';
+                $fix = 'Receipt / oracle / vault check; tx support ko bhejo.';
             }
         }
 
@@ -136,8 +155,10 @@ class ExplainStakeReferralsCommand extends Command
             'block' => $block,
             'referral_events_in_tx' => $refLogs,
             'referral_paid' => $paid,
-            'referrer_at_stake_block' => $referrer,
-            'sponsor_participation_active_at_stake_block' => $referrerActive,
+            'referrer_at_stake_block' => $referrerAtBlock,
+            'referrer_now' => $referrerNow,
+            'sponsor_active_at_stake_block' => $sponsorActiveAtBlock,
+            'sponsor_active_now' => $sponsorActiveNow,
             'reason_code' => $reason,
             'fix' => $fix,
         ];
@@ -175,8 +196,8 @@ class ExplainStakeReferralsCommand extends Command
 
     private function callEngineView(string $engine, string $selector, string $wallet, int $block): ?string
     {
-        $data = '0x'.$selector.str_pad(substr($wallet, 2), 64, '0', STR_PAD_LEFT);
-        $blockHex = '0x'.dechex(max(0, $block));
+        $data = '0x'.$selector.str_pad(substr(strtolower($wallet), 2), 64, '0', STR_PAD_LEFT);
+        $blockTag = $block > 0 ? '0x'.dechex($block) : 'latest';
 
         $response = Http::timeout(25)->post(BlockchainRpc::primaryRpcUrl(), [
             'jsonrpc' => '2.0',
@@ -184,22 +205,25 @@ class ExplainStakeReferralsCommand extends Command
             'method' => 'eth_call',
             'params' => [
                 ['to' => $engine, 'data' => $data],
-                $blockHex,
+                $blockTag,
             ],
         ]);
 
         $result = $response->json('result');
+        if ($response->json('error') !== null) {
+            return null;
+        }
         if (! is_string($result) || strlen($result) < 66) {
             return null;
         }
 
-        return '0x'.substr($result, -40);
+        return '0x'.strtolower(substr($result, -40));
     }
 
     private function callEngineViewBool(string $engine, string $selector, string $wallet, int $block): bool
     {
-        $data = '0x'.$selector.str_pad(substr($wallet, 2), 64, '0', STR_PAD_LEFT);
-        $blockHex = '0x'.dechex(max(0, $block));
+        $data = '0x'.$selector.str_pad(substr(strtolower($wallet), 2), 64, '0', STR_PAD_LEFT);
+        $blockTag = $block > 0 ? '0x'.dechex($block) : 'latest';
 
         $response = Http::timeout(25)->post(BlockchainRpc::primaryRpcUrl(), [
             'jsonrpc' => '2.0',
@@ -207,7 +231,7 @@ class ExplainStakeReferralsCommand extends Command
             'method' => 'eth_call',
             'params' => [
                 ['to' => $engine, 'data' => $data],
-                $blockHex,
+                $blockTag,
             ],
         ]);
 
