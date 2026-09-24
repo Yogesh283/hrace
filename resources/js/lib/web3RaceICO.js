@@ -396,7 +396,8 @@ export async function purchaseIcoRace({
         to: icoContract,
         data,
         chainId,
-        gasFallback: 5_000_000,
+        gasFallback: 6_000_000,
+        minGas: 4_000_000,
     });
 
     if (waitConfirmations > 0) {

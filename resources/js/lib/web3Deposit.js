@@ -274,7 +274,13 @@ export const DEFAULT_CONTRACT_GAS = 3_500_000;
  * If the call would revert, throws (do NOT send a doomed tx with fallback gas).
  * @returns {string} hex gas limit
  */
-export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CONTRACT_GAS } = {}) {
+export async function resolveGasLimitHex({
+    from,
+    to,
+    data,
+    fallback = DEFAULT_CONTRACT_GAS,
+    minGas = 0,
+} = {}) {
     let gas = Number(fallback) || DEFAULT_CONTRACT_GAS;
     let estimated = false;
 
@@ -285,7 +291,7 @@ export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CO
         });
         if (est != null && est !== '') {
             gas = Number(BigInt(est));
-            gas = Math.ceil(gas * 1.25);
+            gas = Math.ceil(gas * 1.35);
             estimated = true;
         }
     } catch (err) {
@@ -308,6 +314,11 @@ export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CO
 
     if (!Number.isFinite(gas) || gas < 21_000) {
         gas = DEFAULT_CONTRACT_GAS;
+    }
+
+    const floor = Number(minGas) || 0;
+    if (floor > 0) {
+        gas = Math.max(gas, floor);
     }
 
     gas = Math.min(Math.floor(gas), RPC_GAS_LIMIT_CAP);
@@ -398,13 +409,14 @@ function decodeSolidityErrorString(data) {
 /**
  * eth_sendTransaction with explicit gas so Custom RPC 0x61 does not reject.
  */
-export async function sendContractTx({ from, to, data, value, chainId, gasFallback }) {
+export async function sendContractTx({ from, to, data, value, chainId, gasFallback, minGas }) {
     await ensureBscNetwork(chainId);
     const gas = await resolveGasLimitHex({
         from,
         to,
         data,
         fallback: gasFallback ?? DEFAULT_CONTRACT_GAS,
+        minGas: minGas ?? 0,
     });
     const tx = { from, to, data, gas };
     if (value != null && value !== '' && value !== '0x0' && value !== '0x') {
@@ -573,11 +585,31 @@ export async function waitForConfirmations(
         if (receipt) {
             if (receipt.status !== '0x1') {
                 const reason = await tryReplayRevertReason(txHash);
+                let gasLimit = BigInt(receipt.gasLimit || '0x0');
+                if (gasLimit === 0n) {
+                    try {
+                        const tx = await window.ethereum.request({
+                            method: 'eth_getTransactionByHash',
+                            params: [txHash],
+                        });
+                        gasLimit = BigInt(tx?.gas || '0x0');
+                    } catch {
+                        gasLimit = 0n;
+                    }
+                }
+                const gasUsed = BigInt(receipt.gasUsed || '0x0');
+                const outOfGas =
+                    gasLimit > 0n && gasUsed > 0n && gasUsed * 100n >= gasLimit * 95n;
                 const short = txHash.slice(0, 10);
+                if (outOfGas) {
+                    throw new Error(
+                        `Transaction ran out of gas (${short}…). Retry Buy & Stake — more gas will be used.`,
+                    );
+                }
                 throw new Error(
                     reason
                         ? `Transaction failed on chain (${short}…): ${reason}`
-                        : `Transaction failed on chain (${short}…). Check explorer for revert reason.`,
+                        : `Transaction failed on chain (${short}…). Open https://testnet.bscscan.com/tx/${txHash}`,
                 );
             }
             break;
