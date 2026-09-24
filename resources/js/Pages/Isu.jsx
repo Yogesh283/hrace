@@ -8,7 +8,7 @@ import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { RACE_BANNER_STAKING, RACE_LOGO_SRC } from '@/lib/brandAssets';
 import { notifyError, notifySuccess } from '@/lib/appNotify';
 import { configureWeb3Network, parseTokenAmount, syncBlockchainTx, TESTNET_MOCK_USDT } from '@/lib/web3Deposit';
-import { ensureEngineReferralBeforeStake } from '@/lib/web3Engine';
+import { ensureEngineReferralBeforeStake, ensureSponsorActiveForLevelIncome } from '@/lib/web3Engine';
 import {
     approveUsdtForIco,
     formatPurchaseDate,
@@ -594,31 +594,22 @@ export default function Isu({
                 await refreshChainState();
             }
 
-            if (engineContract) {
+            if (engineContract && Number(amountUsd) >= 50) {
                 setBusy('register');
-                try {
-                    const reg = await ensureEngineReferralBeforeStake({
-                        walletAddress,
-                        engineContract,
-                        rpcUrl,
-                        sponsorWallet: on_chain_sponsor_wallet,
-                        chainId: expectedChainId,
-                        waitConfirmations: 1,
-                    });
-                    if (reg?.sponsorPendingOnboarding) {
-                        notifySuccess(
-                            'Sponsor not active on this Engine yet — stake will still complete. Level income starts after sponsor Buy & Stake ($50+).',
-                            'ICO',
-                        );
-                    }
-                } catch (regErr) {
-                    // Never block ICO Buy & Stake on referral wiring — openIcoStake can auto-register.
-                    console.warn('ensureEngineReferralBeforeStake', regErr);
-                    notifySuccess(
-                        'On-chain sponsor link skipped — continuing Buy & Stake. Level income may need sponsor activation.',
-                        'ICO',
-                    );
-                }
+                await ensureSponsorActiveForLevelIncome({
+                    sponsorWallet: on_chain_sponsor_wallet,
+                    engineContract,
+                    rpcUrl,
+                    stakeUsd: amountUsd,
+                });
+                await ensureEngineReferralBeforeStake({
+                    walletAddress,
+                    engineContract,
+                    rpcUrl,
+                    sponsorWallet: on_chain_sponsor_wallet,
+                    chainId: expectedChainId,
+                    waitConfirmations: 1,
+                });
             }
 
             setBusy('buy');
