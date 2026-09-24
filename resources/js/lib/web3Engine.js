@@ -1,4 +1,10 @@
-import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, sendContractTx } from '@/lib/web3Deposit';
+import {
+    assertOfficialUsdtContract,
+    ensureBscNetwork,
+    parseTokenAmount,
+    sendContractTx,
+    waitForConfirmations,
+} from '@/lib/web3Deposit';
 
 const SELECTORS = {
     approve: '0x095ea7b3',
@@ -10,6 +16,7 @@ const SELECTORS = {
     matureStake: '0xdd2c4db5',
     claimMaturityEmi: '0xd6aa892a',
     isRegistered: '0xc3c5a547',
+    referrerOf: '0xd21cacdf',
     isParticipationActive: '0x2d3e946c',
     stakeCount: '0x33060d90',
     stakeAt: '0x997db02d',
@@ -121,15 +128,124 @@ export async function registerOnChain({ walletAddress, engineContract, referrer 
     return sendContractTx({ from: walletAddress, to: engineContract, data });
 }
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+function normalizeWalletAddress(address) {
+    if (!address || typeof address !== 'string') {
+        return null;
+    }
+    const trimmed = address.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+        return null;
+    }
+    return trimmed;
+}
+
+function decodeAddressReturn(hex) {
+    const raw = (hex || '0x').replace(/^0x/, '');
+    if (raw.length < 40) {
+        return ZERO_ADDRESS;
+    }
+    return `0x${raw.slice(-40).toLowerCase()}`;
+}
+
+function isZeroAddress(address) {
+    if (!address) {
+        return true;
+    }
+    return address.toLowerCase() === ZERO_ADDRESS;
+}
+
+/**
+ * Before ICO openIcoStake or Engine.participate: bind on-chain referrer so
+ * CommunityReferralPaid (level income) can fire on the same stake tx.
+ */
+export async function ensureEngineReferralBeforeStake({
+    walletAddress,
+    engineContract,
+    rpcUrl,
+    sponsorWallet,
+    waitConfirmations: confirmCount = 1,
+}) {
+    await ensureBscNetwork();
+
+    const self = normalizeWalletAddress(walletAddress);
+    if (!self || !engineContract) {
+        return { ok: false, reason: 'missing_wallet_or_engine' };
+    }
+
+    const registered = await readIsRegistered({ walletAddress: self, engineContract, rpcUrl });
+    if (registered) {
+        const onChainReferrer = await readReferrerOf({ walletAddress: self, engineContract, rpcUrl });
+        const sponsor = normalizeWalletAddress(sponsorWallet);
+        if (sponsor && isZeroAddress(onChainReferrer)) {
+            throw new Error(
+                'This wallet is already registered on-chain without a sponsor, so instant level income cannot apply. Use a fresh wallet linked under your sponsor, or complete registration before any stake.',
+            );
+        }
+        return { ok: true, alreadyRegistered: true };
+    }
+
+    const sponsor = normalizeWalletAddress(sponsorWallet);
+    if (sponsor && sponsor.toLowerCase() === self.toLowerCase()) {
+        throw new Error('Invalid sponsor: cannot refer yourself.');
+    }
+
+    let referrer = ZERO_ADDRESS;
+    if (sponsor) {
+        const sponsorRegistered = await readIsRegistered({
+            walletAddress: sponsor,
+            engineContract,
+            rpcUrl,
+        });
+        if (!sponsorRegistered) {
+            throw new Error(
+                'Your sponsor must register on-chain first (Staking page — connect their wallet once). Then retry ICO or stake.',
+            );
+        }
+        referrer = sponsor;
+    }
+
+    const txHash = await registerOnChain({
+        walletAddress: self,
+        engineContract,
+        referrer,
+    });
+    if (confirmCount > 0) {
+        await waitForConfirmations(txHash, confirmCount);
+    }
+    memberStateCache = { key: '', value: null, at: 0 };
+
+    return { ok: true, registered: true, txHash, sponsorBound: !isZeroAddress(referrer) };
+}
+
+export async function readReferrerOf({ walletAddress, engineContract, rpcUrl }) {
+    if (!engineContract || !walletAddress) {
+        return ZERO_ADDRESS;
+    }
+    const data = SELECTORS.referrerOf + padAddress(walletAddress);
+    return decodeAddressReturn(await ethCall({ to: engineContract, data, rpcUrl }));
+}
+
 export async function purchaseOnChainParticipation({
     walletAddress,
     engineContract,
     usdtContract,
     amountUsd,
     lockSeconds,
+    sponsorWallet,
+    rpcUrl,
 }) {
     assertOfficialUsdtContract(usdtContract);
     await ensureBscNetwork();
+
+    await ensureEngineReferralBeforeStake({
+        walletAddress,
+        engineContract,
+        rpcUrl,
+        sponsorWallet,
+        waitConfirmations: 1,
+    });
 
     const amountWei = parseTokenAmount(amountUsd, 18);
     await sendContractTx({

@@ -6,6 +6,7 @@ use App\Models\IcoPurchase;
 use App\Services\Blockchain\BlockchainContractPayload;
 use App\Services\Blockchain\BlockchainWalletIndexerSyncService;
 use App\Services\Blockchain\CommunityEngineStakeReadService;
+use App\Support\OnChainReferrer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -84,6 +85,7 @@ class IsuController extends Controller
             'lock_tiers' => $lockTiers,
             'indexed_purchases' => $indexed,
             'indexed_engine_stakes' => $indexedEngineStakes,
+            'on_chain_sponsor_wallet' => $user ? OnChainReferrer::sponsorWalletFor($user) : null,
         ]);
     }
 }

@@ -87,6 +87,7 @@ export default function Investment({
     blockchainParticipations = [],
     communityEngineStakes = [],
     memberActivation = {},
+    on_chain_sponsor_wallet = null,
 }) {
     const { auth, blockchain } = usePage().props;
     const walletAddress = auth?.user?.wallet_address ?? '';
@@ -224,6 +225,8 @@ export default function Investment({
                 usdtContract: engineConfig.usdt_contract,
                 amountUsd: data.amount_usd,
                 lockSeconds: tier.seconds ?? 0,
+                sponsorWallet: on_chain_sponsor_wallet,
+                rpcUrl: engineConfig.rpc_url || blockchain?.rpc_url || '',
             });
             setOnChainStatus('Transaction sent. Daily RACE rewards pay directly to your wallet from the smart contract.');
             router.reload({ only: ['investments', 'blockchainParticipations', 'communityEngineStakes', 'memberActivation', 'web3Engine'] });

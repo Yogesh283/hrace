@@ -7,6 +7,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { RACE_BANNER_STAKING, RACE_LOGO_SRC } from '@/lib/brandAssets';
 import { parseTokenAmount } from '@/lib/web3Deposit';
+import { ensureEngineReferralBeforeStake } from '@/lib/web3Engine';
 import {
     approveUsdtForIco,
     formatPurchaseDate,
@@ -101,6 +102,7 @@ export default function Isu({
     lock_tiers = [],
     indexed_purchases = [],
     indexed_engine_stakes = [],
+    on_chain_sponsor_wallet = null,
 }) {
     const page = usePage();
     const { auth, blockchain } = page.props;
@@ -511,11 +513,22 @@ export default function Isu({
         setError('');
         setSuccess(null);
         try {
+            if (engineContract) {
+                setBusy('register');
+                await ensureEngineReferralBeforeStake({
+                    walletAddress,
+                    engineContract,
+                    rpcUrl,
+                    sponsorWallet: on_chain_sponsor_wallet,
+                    waitConfirmations: 1,
+                });
+            }
             const raceBefore = await readErc20BalanceOf({
                 token: raceToken,
                 wallet: walletAddress,
                 rpcUrl,
             });
+            setBusy('buy');
             const txHash = await purchaseIcoRace({
                 walletAddress,
                 icoContract,

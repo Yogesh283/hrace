@@ -14,6 +14,7 @@ use App\Services\Income\R10LeadershipService;
 use App\Services\Income\StakeUnlockService;
 use App\Services\Income\WalletBalanceService;
 use App\Services\Member\MemberActivationService;
+use App\Support\OnChainReferrer;
 use App\Support\RewardPlan;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -347,6 +348,7 @@ class InvestmentController extends Controller
             'income_policy' => $incomePolicy,
             'race_coin_balance' => $raceCoin->currentBalance($user),
             'race_coin_price_usd' => number_format($raceCoin->priceUsd(), 2, '.', ''),
+            'on_chain_sponsor_wallet' => OnChainReferrer::sponsorWalletFor($user),
         ];
     }
 }

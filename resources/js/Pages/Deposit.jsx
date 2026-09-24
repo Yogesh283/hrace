@@ -256,11 +256,11 @@ export default function Deposit({
                                     </p>
                                 </div>
 
-                                <div className="rounded-xl border-2 border-amber-400 bg-amber-50 px-3 py-3 shadow-sm">
-                                    <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                                <div className="rounded-xl border-2 border-amber-400/70 bg-amber-950/50 px-3 py-3 shadow-sm">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-amber-200">
                                         Sending to
                                     </p>
-                                    <p className="mt-1 break-all rounded-lg bg-amber-100 px-2 py-1.5 font-mono text-[13px] font-bold text-amber-950">
+                                    <p className="mt-1 break-all rounded-lg border border-amber-400/40 bg-[#0a1838]/80 px-2 py-1.5 font-mono text-[13px] font-bold text-amber-100">
                                         {treasuryAddress}
                                     </p>
                                 </div>

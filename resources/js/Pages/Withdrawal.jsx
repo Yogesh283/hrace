@@ -204,7 +204,7 @@ export default function Withdrawal({
                     ) : null}
 
                     {withdrawals_disabled ? (
-                        <p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 sm:text-sm">
+                        <p className="mb-3 rounded-lg border border-amber-400/70 bg-amber-950/50 px-3 py-2 text-xs text-amber-100 sm:text-sm">
                             Withdrawals are temporarily disabled for your account. Please contact support.
                         </p>
                     ) : null}
@@ -213,8 +213,8 @@ export default function Withdrawal({
                         <div
                             className={`mb-3 rounded-lg border px-3 py-2.5 text-xs sm:text-sm ${
                                 rateLimited
-                                    ? 'border-amber-300 bg-amber-50 text-amber-950'
-                                    : 'border-sky-200/80 bg-sky-50/90 text-sky-950'
+                                    ? 'border-amber-400/70 bg-amber-950/50 text-amber-100'
+                                    : 'border-sky-400/50 bg-[#0a1838]/80 text-sky-100'
                             }`}
                         >
                             <p className="font-semibold">
@@ -222,19 +222,19 @@ export default function Withdrawal({
                                 {rate_limit.max_per_window ?? 2} used in last{' '}
                                 {rate_limit.window_hours ?? 24}h
                                 {!rateLimited ? (
-                                    <span className="font-normal">
+                                    <span className="font-normal text-sky-200/90">
                                         {' '}
                                         · {rate_limit.remaining ?? 0} left
                                     </span>
                                 ) : null}
                             </p>
                             {rateLimited ? (
-                                <p className="mt-2 font-mono text-lg font-bold tracking-wider text-amber-900 sm:text-xl">
+                                <p className="mt-2 font-mono text-lg font-bold tracking-wider text-amber-100 sm:text-xl">
                                     Next in {formatCountdown(countdownMs)}
                                 </p>
                             ) : null}
                             {Array.isArray(rate_limit.slot_frees_at) && rate_limit.slot_frees_at.length > 0 ? (
-                                <ul className="mt-2 space-y-0.5 text-[11px] text-fintech-muted sm:text-xs">
+                                <ul className="mt-2 space-y-0.5 text-[11px] text-sky-300/80 sm:text-xs">
                                     {rate_limit.slot_frees_at.map((iso, i) => (
                                         <li key={`${iso}-${i}`}>
                                             Slot {i + 1} frees:{' '}
@@ -251,18 +251,18 @@ export default function Withdrawal({
                         </div>
                     ) : null}
 
-                    <p className="mb-3 rounded-lg border border-sky-200/80 bg-sky-50/90 px-3 py-2 text-xs leading-relaxed text-sky-950 sm:text-sm">
-                        <span className="font-semibold">Income withdrawal:</span> {percent}% Team Reward (L1–L10)
+                    <p className="mb-3 rounded-lg border border-sky-400/50 bg-[#0a1838]/80 px-3 py-2 text-xs leading-relaxed text-sky-100 sm:text-sm">
+                        <span className="font-semibold text-sky-50">Income withdrawal:</span> {percent}% Team Reward (L1–L10)
                         plus separate Admin Fee (${adminFlat} if under ${adminPercentFrom}; {adminPercent}% at $
-                        {adminPercentFrom}+). After approval, <strong>net USDT</strong> is sent to your BEP20
+                        {adminPercentFrom}+). After approval, <strong className="text-white">net USDT</strong> is sent to your BEP20
                         address. Separate from fixed-stake maturity / EMI.
                     </p>
                     {adminAddress ? (
-                        <p className="mb-3 break-all rounded-lg border border-amber-200 bg-amber-50/90 px-3 py-2 text-[11px] text-amber-950 sm:text-xs">
-                            <span className="font-semibold">
+                        <p className="mb-3 break-all rounded-lg border-2 border-amber-400/70 bg-amber-950/50 px-3 py-2 text-[11px] text-amber-100 sm:text-xs">
+                            <span className="font-semibold text-amber-200">
                                 Admin / Treasury wallet ({adminNetwork}):
                             </span>{' '}
-                            {adminAddress}
+                            <span className="font-mono font-bold text-amber-50">{adminAddress}</span>
                         </p>
                     ) : null}
 
