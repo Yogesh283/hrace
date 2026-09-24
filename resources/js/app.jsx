@@ -2,6 +2,7 @@ import '../css/app.css';
 import './bootstrap';
 
 import NavigationLoader from '@/Components/NavigationLoader';
+import WalletPendingOverlay from '@/Components/WalletPendingOverlay';
 import { configureWeb3Network, resolvePageChainId } from '@/lib/web3Deposit';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -69,6 +70,7 @@ createInertiaApp({
         root.render(
             <Fragment>
                 <NavigationLoader />
+                <WalletPendingOverlay />
                 <App {...props} />
             </Fragment>,
         );

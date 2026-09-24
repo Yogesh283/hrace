@@ -583,7 +583,6 @@ export default function Isu({
             });
             if (currentAllowance < amountWei) {
                 setBusy('approve');
-                notifySuccess('Confirm USDT approve in MetaMask…', 'ICO');
                 await approveUsdtForIco({
                     walletAddress,
                     icoContract,
@@ -623,7 +622,6 @@ export default function Isu({
             }
 
             setBusy('buy');
-            notifySuccess('Confirm Buy & Stake in MetaMask…', 'ICO');
             const txHash = await purchaseIcoRace({
                 walletAddress,
                 icoContract,

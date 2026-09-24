@@ -1,4 +1,6 @@
 /** Official Tether USD (USDT) on BSC mainnet — never use on Testnet. */
+import { hideWalletPending, showWalletPending } from '@/lib/appNotify';
+
 export const OFFICIAL_USDT_BEP20 = '0x55d398326f99059ff775485246999027b3197955';
 
 /** Project TestnetMockUSDT (BSC Testnet) — when configured, wallet must be on chain 97. */
@@ -410,22 +412,27 @@ function decodeSolidityErrorString(data) {
  * eth_sendTransaction with explicit gas so Custom RPC 0x61 does not reject.
  */
 export async function sendContractTx({ from, to, data, value, chainId, gasFallback, minGas }) {
-    await ensureBscNetwork(chainId);
-    const gas = await resolveGasLimitHex({
-        from,
-        to,
-        data,
-        fallback: gasFallback ?? DEFAULT_CONTRACT_GAS,
-        minGas: minGas ?? 0,
-    });
-    const tx = { from, to, data, gas };
-    if (value != null && value !== '' && value !== '0x0' && value !== '0x') {
-        tx.value = value;
+    showWalletPending('Confirm transaction in your wallet…');
+    try {
+        await ensureBscNetwork(chainId);
+        const gas = await resolveGasLimitHex({
+            from,
+            to,
+            data,
+            fallback: gasFallback ?? DEFAULT_CONTRACT_GAS,
+            minGas: minGas ?? 0,
+        });
+        const tx = { from, to, data, gas };
+        if (value != null && value !== '' && value !== '0x0' && value !== '0x') {
+            tx.value = value;
+        }
+        return await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [tx],
+        });
+    } finally {
+        hideWalletPending();
     }
-    return window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [tx],
-    });
 }
 
 /** Alias for UI "Switch to BSC Testnet" button. */
@@ -440,28 +447,34 @@ export async function connectWalletWithNetwork(chainIdOverride) {
     requireEthereum();
     const targetChainId = resolveChainId(chainIdOverride);
 
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    const address = accounts?.[0];
-    if (!address) {
-        throw new Error('No account returned from the wallet.');
+    showWalletPending('Connect / unlock your wallet…');
+    try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const address = accounts?.[0];
+        if (!address) {
+            throw new Error('No account returned from the wallet.');
+        }
+
+        debugLog({
+            phase: 'connect-accounts',
+            walletAddress: address,
+            targetChainId: chainIdToHex(targetChainId),
+        });
+
+        showWalletPending('Switch network in your wallet if asked…');
+        const { chainIdHex } = await ensureBscNetwork(targetChainId);
+
+        debugLog({
+            phase: 'connect-success',
+            walletAddress: address,
+            currentChainId: chainIdHex,
+            targetChainId: chainIdToHex(targetChainId),
+        });
+
+        return { address, chainIdHex };
+    } finally {
+        hideWalletPending();
     }
-
-    debugLog({
-        phase: 'connect-accounts',
-        walletAddress: address,
-        targetChainId: chainIdToHex(targetChainId),
-    });
-
-    const { chainIdHex } = await ensureBscNetwork(targetChainId);
-
-    debugLog({
-        phase: 'connect-success',
-        walletAddress: address,
-        currentChainId: chainIdHex,
-        targetChainId: chainIdToHex(targetChainId),
-    });
-
-    return { address, chainIdHex };
 }
 
 /**
@@ -541,112 +554,126 @@ function encodeTransfer(to, amountWei) {
 }
 
 export async function sendUsdtTransfer({ from, to, usdtContract, amountUsd }) {
-    await ensureBscNetwork();
-    assertOfficialUsdtContract(usdtContract);
+    showWalletPending('Confirm USDT transfer in your wallet…');
+    try {
+        await ensureBscNetwork();
+        assertOfficialUsdtContract(usdtContract);
 
-    const amountWei = parseTokenAmount(amountUsd, 18);
+        const amountWei = parseTokenAmount(amountUsd, 18);
 
-    const txHash = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [
-            {
-                from,
-                to: usdtContract,
-                data: encodeTransfer(to, amountWei),
-                gas: await resolveGasLimitHex({
+        const txHash = await window.ethereum.request({
+            method: 'eth_sendTransaction',
+            params: [
+                {
                     from,
                     to: usdtContract,
                     data: encodeTransfer(to, amountWei),
-                    fallback: 100_000,
-                }),
-            },
-        ],
-    });
+                    gas: await resolveGasLimitHex({
+                        from,
+                        to: usdtContract,
+                        data: encodeTransfer(to, amountWei),
+                        fallback: 100_000,
+                    }),
+                },
+            ],
+        });
 
-    if (!txHash || typeof txHash !== 'string') {
-        throw new Error('Wallet did not return a transaction hash.');
+        if (!txHash || typeof txHash !== 'string') {
+            throw new Error('Wallet did not return a transaction hash.');
+        }
+
+        return txHash;
+    } finally {
+        hideWalletPending();
     }
-
-    return txHash;
 }
 
 export async function waitForConfirmations(
     txHash,
     { minConfirmations = 12, maxAttempts = 80, intervalMs = 3000 } = {},
 ) {
-    let receipt = null;
+    showWalletPending('Waiting for blockchain confirmation…');
+    try {
+        let receipt = null;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        receipt = await window.ethereum.request({
-            method: 'eth_getTransactionReceipt',
-            params: [txHash],
-        });
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            receipt = await window.ethereum.request({
+                method: 'eth_getTransactionReceipt',
+                params: [txHash],
+            });
 
-        if (receipt) {
-            if (receipt.status !== '0x1') {
-                const reason = await tryReplayRevertReason(txHash);
-                let gasLimit = BigInt(receipt.gasLimit || '0x0');
-                if (gasLimit === 0n) {
-                    try {
-                        const tx = await window.ethereum.request({
-                            method: 'eth_getTransactionByHash',
-                            params: [txHash],
-                        });
-                        gasLimit = BigInt(tx?.gas || '0x0');
-                    } catch {
-                        gasLimit = 0n;
+            if (receipt) {
+                if (receipt.status !== '0x1') {
+                    const reason = await tryReplayRevertReason(txHash);
+                    let gasLimit = BigInt(receipt.gasLimit || '0x0');
+                    if (gasLimit === 0n) {
+                        try {
+                            const tx = await window.ethereum.request({
+                                method: 'eth_getTransactionByHash',
+                                params: [txHash],
+                            });
+                            gasLimit = BigInt(tx?.gas || '0x0');
+                        } catch {
+                            gasLimit = 0n;
+                        }
                     }
-                }
-                const gasUsed = BigInt(receipt.gasUsed || '0x0');
-                const outOfGas =
-                    gasLimit > 0n && gasUsed > 0n && gasUsed * 100n >= gasLimit * 95n;
-                const short = txHash.slice(0, 10);
-                if (outOfGas) {
+                    const gasUsed = BigInt(receipt.gasUsed || '0x0');
+                    const outOfGas =
+                        gasLimit > 0n && gasUsed > 0n && gasUsed * 100n >= gasLimit * 95n;
+                    const short = txHash.slice(0, 10);
+                    if (outOfGas) {
+                        throw new Error(
+                            `Transaction ran out of gas (${short}…). Retry Buy & Stake — more gas will be used.`,
+                        );
+                    }
                     throw new Error(
-                        `Transaction ran out of gas (${short}…). Retry Buy & Stake — more gas will be used.`,
+                        reason
+                            ? `Transaction failed on chain (${short}…): ${reason}`
+                            : `Transaction failed on chain (${short}…). Open https://testnet.bscscan.com/tx/${txHash}`,
                     );
                 }
-                throw new Error(
-                    reason
-                        ? `Transaction failed on chain (${short}…): ${reason}`
-                        : `Transaction failed on chain (${short}…). Open https://testnet.bscscan.com/tx/${txHash}`,
-                );
+                break;
             }
-            break;
+
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
         }
 
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-
-    if (!receipt) {
-        throw new Error('Transaction confirmation timed out. Your USDT may still arrive — check Recent deposits shortly.');
-    }
-
-    const txBlock = parseInt(receipt.blockNumber, 16);
-    if (Number.isNaN(txBlock)) {
-        throw new Error('Could not read transaction block.');
-    }
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const currentBlockHex = await window.ethereum.request({
-            method: 'eth_blockNumber',
-            params: [],
-        });
-        const currentBlock = parseInt(currentBlockHex, 16);
-        const confirmations = currentBlock - txBlock + 1;
-
-        if (confirmations >= minConfirmations) {
-            return receipt;
+        if (!receipt) {
+            throw new Error(
+                'Transaction confirmation timed out. Your USDT may still arrive — check Recent deposits shortly.',
+            );
         }
 
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
+        const txBlock = parseInt(receipt.blockNumber, 16);
+        if (Number.isNaN(txBlock)) {
+            throw new Error('Could not read transaction block.');
+        }
 
-    throw new Error(
-        `Waiting for ${minConfirmations} block confirmations. Try crediting again from Recent deposits shortly.`,
-    );
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const currentBlockHex = await window.ethereum.request({
+                method: 'eth_blockNumber',
+                params: [],
+            });
+            const currentBlock = parseInt(currentBlockHex, 16);
+            const confirmations = currentBlock - txBlock + 1;
+
+            if (confirmations >= minConfirmations) {
+                return receipt;
+            }
+
+            showWalletPending(
+                `Waiting for confirmations… (${Math.min(confirmations, minConfirmations)}/${minConfirmations})`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        }
+
+        throw new Error(
+            `Waiting for ${minConfirmations} block confirmations. Try crediting again from Recent deposits shortly.`,
+        );
+    } finally {
+        hideWalletPending();
+    }
 }
-
 async function tryReplayRevertReason(txHash) {
     try {
         const tx = await window.ethereum.request({

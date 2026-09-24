@@ -1,4 +1,5 @@
 import { router } from '@inertiajs/react';
+import { hideWalletPending, showWalletPending } from '@/lib/appNotify';
 
 function readCsrfToken() {
     if (typeof document === 'undefined') {
@@ -42,10 +43,16 @@ export async function linkWalletToAccount(walletAddress) {
         throw new Error('Wallet verification message missing.');
     }
 
-    const signature = await window.ethereum.request({
-        method: 'personal_sign',
-        params: [message, address],
-    });
+    showWalletPending('Sign the message in your wallet…');
+    let signature;
+    try {
+        signature = await window.ethereum.request({
+            method: 'personal_sign',
+            params: [message, address],
+        });
+    } finally {
+        hideWalletPending();
+    }
 
     return new Promise((resolve, reject) => {
         router.post(
