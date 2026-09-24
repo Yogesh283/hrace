@@ -20,7 +20,7 @@ const abi = [
     'function isParticipationActive(address) view returns (bool)',
 ];
 
-const CHUNK = Number(process.env.AUDIT_LOG_CHUNK || 800);
+const CHUNK = Number(process.env.AUDIT_LOG_CHUNK || 250);
 
 async function main() {
     const provider = new ethers.JsonRpcProvider(RPC, { chainId: 97, name: 't' }, { staticNetwork: true });
