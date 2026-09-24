@@ -377,12 +377,18 @@ export async function purchaseIcoRace({
 
     const data = SELECTORS.purchase + padUint256(amountWei) + padUint256(lock);
 
+    const preflightRpc =
+        rpcUrl ||
+        (Number(chainId) === 97 ? 'https://bsc-testnet-rpc.publicnode.com' : '');
+
     // Preflight with enough gas. MetaMask eth_call without gas often returns empty "0x" revert (OOG noise).
     await assertIcoPurchaseWouldSucceed({
         from: walletAddress,
         icoContract,
         data,
-        rpcUrl,
+        rpcUrl: preflightRpc,
+        lockPeriodSeconds: lock,
+        amountWei,
     });
 
     const txHash = await sendContractTx({
@@ -402,8 +408,23 @@ export async function purchaseIcoRace({
 
 const PREFLIGHT_GAS = '0x4c4b40'; // 5_000_000
 
-async function assertIcoPurchaseWouldSucceed({ from, icoContract, data, rpcUrl }) {
+function isAmbiguousEmptyRevert(reason) {
+    const r = String(reason || '')
+        .trim()
+        .toLowerCase();
+    return (
+        r === '' ||
+        r === '0x' ||
+        r === 'execution reverted' ||
+        r === 'execution reverted: 0x' ||
+        r === 'execution reverted:0x' ||
+        /^execution reverted:\s*0x$/i.test(r)
+    );
+}
+
+async function assertIcoPurchaseWouldSucceed({ from, icoContract, data, rpcUrl, lockPeriodSeconds, amountWei }) {
     const tx = { from, to: icoContract, data, gas: PREFLIGHT_GAS };
+    let rpcOk = false;
 
     // Prefer public RPC — cleaner revert strings than MetaMask Internal JSON-RPC.
     if (rpcUrl) {
@@ -423,18 +444,37 @@ async function assertIcoPurchaseWouldSucceed({ from, icoContract, data, rpcUrl }
                 const reason =
                     decodeSolidityErrorString(String(payload.error.data || '')) ||
                     String(payload.error.message || '');
-                throw new Error(
-                    mapIcoRevertToUserMessage(reason) ||
-                        `ICO buy would fail: ${reason || 'execution reverted'}`,
-                );
+                if (!isAmbiguousEmptyRevert(reason)) {
+                    throw new Error(
+                        mapIcoRevertToUserMessage(reason) ||
+                            `ICO buy would fail: ${reason}`,
+                    );
+                }
+                // Empty 0x from flaky RPC — try MetaMask / proceed.
+            } else {
+                rpcOk = true;
+                return;
             }
-            return;
         } catch (err) {
-            if (String(err?.message || '').startsWith('ICO buy would fail') || String(err?.message || '').startsWith('Invalid') || String(err?.message || '').includes('RaceICO:')) {
+            const msg = String(err?.message || '');
+            if (
+                msg.startsWith('ICO buy would fail') ||
+                msg.includes('RaceICO:') ||
+                msg.includes('Invalid stake') ||
+                msg.includes('USDT allowance') ||
+                msg.includes('Insufficient') ||
+                msg.includes('No active') ||
+                msg.includes('sold out') ||
+                msg.includes('paused')
+            ) {
                 throw err;
             }
-            // RPC flake — fall through to MetaMask.
+            // RPC flake — fall through.
         }
+    }
+
+    if (rpcOk) {
+        return;
     }
 
     try {
@@ -443,17 +483,18 @@ async function assertIcoPurchaseWouldSucceed({ from, icoContract, data, rpcUrl }
             params: [tx, 'latest'],
         });
     } catch (err) {
-        const reason = extractRpcRevertMessage(err);
-        // Empty "0x" / Internal JSON-RPC with no reason is often MetaMask OOG noise when gas was missing.
-        // With gas set above, a real require() should decode; if still empty, do not hard-block — sendContractTx estimate will catch real reverts.
-        if (reason) {
+        const reason = extractRpcRevertMessage(err) || String(err?.data?.message || err?.message || '');
+        if (reason && !isAmbiguousEmptyRevert(reason)) {
             throw new Error(mapIcoRevertToUserMessage(reason) || `ICO buy would fail: ${reason}`);
         }
-        const soft = String(err?.message || err?.data?.message || '');
-        if (/execution reverted/i.test(soft) && !/0x\s*$/i.test(soft) && soft.length > 40) {
-            throw new Error(friendlyIcoError(err));
-        }
-        // Ambiguous MetaMask noise — proceed; estimateGas in sendContractTx is the hard gate.
+        // Ambiguous MetaMask/RPC "execution reverted: 0x" is often wrong-chain or OOG noise.
+        // Hard gate is eth_estimateGas inside sendContractTx (throws on real reverts).
+        console.warn('ICO preflight ambiguous revert ignored', {
+            reason,
+            lockPeriodSeconds: String(lockPeriodSeconds ?? ''),
+            amountWei: String(amountWei ?? ''),
+            icoContract,
+        });
     }
 }
 

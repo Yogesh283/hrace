@@ -291,13 +291,19 @@ export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CO
     } catch (err) {
         // Revert / execution failure — surface reason; do not broadcast with fallback gas.
         const decoded = extractRpcRevertMessage(err);
-        if (decoded || isExecutionRevertError(err)) {
+        const raw = String(err?.data?.message || err?.message || '');
+        const isAmbiguous =
+            !decoded &&
+            (/execution reverted:\s*0x$/i.test(raw) ||
+                raw.toLowerCase() === 'execution reverted: 0x' ||
+                raw.toLowerCase() === 'internal json-rpc error.');
+        if ((decoded || isExecutionRevertError(err)) && !isAmbiguous) {
             throw new Error(
                 decoded ||
                     'Transaction would revert on-chain. Check allowance, stake plan, balance, and network.',
             );
         }
-        // RPC timeout / rate limit — keep fallback below.
+        // Ambiguous empty revert or RPC timeout — keep fallback below.
     }
 
     if (!Number.isFinite(gas) || gas < 21_000) {
