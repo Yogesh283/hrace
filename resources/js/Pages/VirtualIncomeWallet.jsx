@@ -106,7 +106,7 @@ export default function VirtualIncomeWallet({
 
                 <PanelCard title="Income history" icon="transactions">
                     {history.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No income ledger entries yet.</p>
+                        <p className="rx-empty">No income ledger entries yet.</p>
                     ) : (
                         <MemberTableScroll>
                             <table className="w-full min-w-[28rem] text-left text-xs sm:text-sm">

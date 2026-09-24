@@ -12,17 +12,18 @@ import {IRaceIcoStakeReceiver} from "./interfaces/IRaceIcoStakeReceiver.sol";
 
 /**
  * @title RaceICO
- * @notice Official RACE ICO — USDT → admin; RACE minted to CommunityEngine stake (not buyer wallet).
+ * @notice Official RACE ICO — USDT → admin; RACE minted and held on this contract per buyer.
  * @dev Fixed on-chain prices. Hard ICO mint limit: totalSoldRace <= 600_000.
- *      purchase(usdtAmount, lockPeriod) is atomic with openIcoStake on stakingEngine.
+ *      purchase() holds RACE (no auto-stake). After icoCompleted, buyer calls createStake()
+ *      which opens Engine stake valued at icoEndPriceUsdt (phase-3 / ICO-end rate).
  *
  * Phases (immutable):
  *   Phase 1: $0.25 / RACE — 200,000 RACE — max $50,000 USDT
  *   Phase 2: $0.35 / RACE — 200,000 RACE — max $70,000 USDT
  *   Phase 3: $0.45 / RACE — 200,000 RACE — max $90,000 USDT
  *
- * Stake plans for ICO (lockPeriod seconds): 180d / 365d / 730d / 1095d only.
- * Flexible (0) is NOT allowed on ICO purchases — use post-ICO Engine.participate after icoCompleted.
+ * Stake plans chosen at purchase (lockPeriod seconds): 180d / 365d / 730d / 1095d only.
+ * Flexible (0) is NOT allowed on ICO — use post-ICO Engine.participate after icoCompleted.
  */
 contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
@@ -35,6 +36,7 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     uint256 public constant LOCK_365 = 365 days;
     uint256 public constant LOCK_730 = 730 days;
     uint256 public constant LOCK_1095 = 1095 days;
+    uint256 public constant STAKE_NOT_CREATED = type(uint256).max;
 
     IERC20 public immutable raceToken;
     IERC20 public immutable usdt;
@@ -42,7 +44,7 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     uint8 public immutable usdtDecimals;
 
     address public adminWallet;
-    /// @notice RaceCommunityEngine (IRaceIcoStakeReceiver) — ICO RACE minted here then staked.
+    /// @notice RaceCommunityEngine (IRaceIcoStakeReceiver) — receives held RACE on createStake.
     address public stakingEngine;
 
     uint256 public immutable phase1PriceUsdt;
@@ -71,10 +73,11 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         uint256 usdtPaid;
         uint256 priceUsdt;
         uint64 purchasedAt;
-        uint64 unlockAt; // stake unlock hint (0 if flexible)
-        uint256 claimed; // race delivered to stake (== raceAmount)
+        uint64 unlockAt; // planned unlock from purchase time + lock (hint until stake)
+        uint256 claimed; // race delivered to Engine stake (0 until createStake)
         uint256 lockPeriod;
-        uint256 stakeIndex;
+        uint256 stakeIndex; // STAKE_NOT_CREATED until createStake
+        bool staked;
     }
 
     Phase[4] private _phases;
@@ -82,12 +85,17 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
 
     mapping(address => uint256[]) private _userPurchaseIds;
     mapping(address => uint256) public userContributedUsdt;
+    /// @notice Unstaked ICO RACE still held on this contract for the buyer.
+    mapping(address => uint256) public userHeldRace;
 
-    /// @notice Always 0 in mint-to-user model (ABI compatibility).
-    uint256 public totalLockedRace;
+    /// @notice Sum of all userHeldRace (RACE locked as ICO holds on this contract).
+    uint256 public totalHeldRace;
 
     /// @notice Cumulative RACE minted via ICO (must stay ≤ TOTAL_ALLOCATION).
     uint256 public totalSoldRace;
+
+    /// @notice ICO-end price used for createStake principal (set when phase 3 completes).
+    uint256 public icoEndPriceUsdt;
 
     uint256 public totalRaisedUsdt;
     uint256 public totalUsdtWithdrawn;
@@ -95,6 +103,11 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     uint8 public currentPhaseId;
     bool public icoCompleted;
     uint64 public icoCompletedAt;
+
+    /// @notice Alias: held RACE on this contract (same as totalHeldRace).
+    function totalLockedRace() external view returns (uint256) {
+        return totalHeldRace;
+    }
 
     event ICOPhaseStarted(uint8 indexed phaseId, uint256 priceUsdt, uint256 allocation, uint64 timestamp);
     event ICOPhaseCompleted(uint8 indexed phaseId, uint256 sold, uint256 raisedUsdt, uint64 timestamp);
@@ -117,10 +130,10 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         uint256 price
     );
     event UsdtTransferredToAdmin(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        uint256 indexed purchaseId
+        address indexed from, address indexed to, uint256 amount, uint256 indexed purchaseId
+    );
+    event RaceMintedToHold(
+        address indexed buyer, uint256 indexed purchaseId, uint256 raceAmount, uint256 lockPeriod
     );
     event RaceMintedToStaking(
         address indexed stakingEngine,
@@ -128,6 +141,14 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         uint256 indexed purchaseId,
         uint256 raceAmount,
         uint256 lockPeriod,
+        uint256 stakeIndex
+    );
+    event ICOHoldStakeCreated(
+        address indexed buyer,
+        uint256 indexed purchaseId,
+        uint256 principalUsdt,
+        uint256 raceAmount,
+        uint256 endPriceUsdt,
         uint256 stakeIndex
     );
     event StakingEngineUpdated(address indexed stakingEngine);
@@ -212,7 +233,6 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         return totalSoldRace;
     }
 
-    /// @notice ICO-only mint counter alias (same as totalSoldRace; ≤ TOTAL_ALLOCATION).
     function totalICOMinted() external view returns (uint256) {
         return totalSoldRace;
     }
@@ -304,8 +324,28 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         );
     }
 
+    /// @notice Full purchase row including staked flag (UI / createStake).
+    function getPurchaseStakeStatus(uint256 purchaseId)
+        external
+        view
+        returns (bool staked, uint256 stakeIndex, uint256 principalUsdtIfStake)
+    {
+        require(purchaseId < _purchases.length, "RaceICO: bad id");
+        Purchase storage buy = _purchases[purchaseId];
+        staked = buy.staked;
+        stakeIndex = buy.stakeIndex;
+        principalUsdtIfStake = quoteStakePrincipal(buy.raceAmount);
+    }
+
     function getUserPurchaseIds(address user) external view returns (uint256[] memory) {
         return _userPurchaseIds[user];
+    }
+
+    function pendingStakeCount(address user) external view returns (uint256 count) {
+        uint256[] storage ids = _userPurchaseIds[user];
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (!_purchases[ids[i]].staked) count += 1;
+        }
     }
 
     function getUserAllocation(address user)
@@ -320,16 +360,24 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
             raceClaimed += buy.claimed;
             usdtPaid += buy.usdtPaid;
         }
-        raceLocked = 0;
+        raceLocked = userHeldRace[user];
     }
 
-    /// @notice Accidental RACE on this contract (should be 0 in mint-to-user model).
+    /// @notice RACE on this contract above user holds (sweepable by owner).
     function withdrawableUnsoldRace() public view returns (uint256) {
-        return raceToken.balanceOf(address(this));
+        uint256 bal = raceToken.balanceOf(address(this));
+        if (bal <= totalHeldRace) return 0;
+        return bal - totalHeldRace;
     }
 
     function withdrawableRaisedUsdt() public view returns (uint256) {
         return usdt.balanceOf(address(this));
+    }
+
+    /// @notice Stake principal at ICO-end price for a held race amount.
+    function quoteStakePrincipal(uint256 raceAmount) public view returns (uint256 principalUsdt) {
+        if (raceAmount == 0 || icoEndPriceUsdt == 0) return 0;
+        principalUsdt = (raceAmount * icoEndPriceUsdt) / (10 ** uint256(raceDecimals));
     }
 
     function setAdminWallet(address adminWallet_) external onlyOwner {
@@ -345,7 +393,6 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     }
 
     function isValidStakePlan(uint256 lockPeriod) public pure returns (bool) {
-        // ICO = fixed plans only. Flexible is post-ICO via RaceCommunityEngine.participate.
         return lockPeriod == LOCK_180 || lockPeriod == LOCK_365 || lockPeriod == LOCK_730
             || lockPeriod == LOCK_1095;
     }
@@ -412,20 +459,19 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         emit USDTDeposited(msg.sender, amount);
     }
 
-    /// @notice Sweep accidental RACE (ICO does not hold user allocations).
+    /// @notice Sweep RACE above user holds only (never touch held allocations).
     function withdrawAccidentalRACE(address to, uint256 amount) external onlyOwner nonReentrant {
         require(to != address(0), "RaceICO: zero to");
         require(amount > 0, "RaceICO: zero");
-        require(amount <= raceToken.balanceOf(address(this)), "RaceICO: exceeds balance");
+        require(amount <= withdrawableUnsoldRace(), "RaceICO: exceeds unsold");
         raceToken.safeTransfer(to, amount);
         emit AccidentalRACEWithdrawn(to, amount);
     }
 
-    /// @notice Alias kept for older admin UIs — same as withdrawAccidentalRACE.
     function withdrawUnsoldRACE(address to, uint256 amount) external onlyOwner nonReentrant {
         require(to != address(0), "RaceICO: zero to");
         require(amount > 0, "RaceICO: zero");
-        require(amount <= raceToken.balanceOf(address(this)), "RaceICO: exceeds unsold");
+        require(amount <= withdrawableUnsoldRace(), "RaceICO: exceeds unsold");
         raceToken.safeTransfer(to, amount);
         emit AccidentalRACEWithdrawn(to, amount);
     }
@@ -440,9 +486,9 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @notice Buy ICO RACE into a staking plan. Atomic: USDT→admin, mint→engine, openIcoStake.
+     * @notice Buy ICO RACE into contract hold (not user wallet, not stake yet).
      * @param usdtAmount USDT to spend (18 decimals).
-     * @param lockPeriod Fixed plan only: 180 / 365 / 730 / 1095 days (seconds). Flexible rejected.
+     * @param lockPeriod Fixed plan: 180 / 365 / 730 / 1095 days (seconds). Used later on createStake.
      */
     function purchase(uint256 usdtAmount, uint256 lockPeriod)
         external
@@ -475,9 +521,11 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         totalSoldRace += raceOut;
         totalRaisedUsdt += usdtAmount;
         userContributedUsdt[msg.sender] += usdtAmount;
+        userHeldRace[msg.sender] += raceOut;
+        totalHeldRace += raceOut;
 
         uint64 purchasedAt = uint64(block.timestamp);
-        uint64 unlockAtHint = lockPeriod == LOCK_FLEXIBLE ? purchasedAt : purchasedAt + uint64(lockPeriod);
+        uint64 unlockAtHint = purchasedAt + uint64(lockPeriod);
 
         purchaseId = _purchases.length;
         _purchases.push(
@@ -489,33 +537,100 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
                 priceUsdt: p.priceUsdt,
                 purchasedAt: purchasedAt,
                 unlockAt: unlockAtHint,
-                claimed: raceOut,
+                claimed: 0,
                 lockPeriod: lockPeriod,
-                stakeIndex: 0
+                stakeIndex: STAKE_NOT_CREATED,
+                staked: false
             })
         );
         _userPurchaseIds[msg.sender].push(purchaseId);
 
-        // Interactions — any failure reverts USDT + mint + stake
         usdt.safeTransferFrom(msg.sender, adminWallet, usdtAmount);
-        IRaceMintable(address(raceToken)).mint(stakingEngine, raceOut);
-        uint256 stakeIndex =
-            IRaceIcoStakeReceiver(stakingEngine).openIcoStake(msg.sender, usdtAmount, raceOut, lockPeriod, purchaseId);
-        _purchases[purchaseId].stakeIndex = stakeIndex;
+        IRaceMintable(address(raceToken)).mint(address(this), raceOut);
+        // Level income on ICO hold (USDT paid) — createStake will not pay again.
+        IRaceIcoStakeReceiver(stakingEngine).processIcoHold(msg.sender, usdtAmount, purchaseId);
 
         emit ICOPurchase(msg.sender, purchaseId, phaseId, usdtAmount, raceOut, p.priceUsdt, unlockAtHint, purchasedAt);
         emit ICOPurchased(purchaseId, msg.sender, phaseId, usdtAmount, raceOut, p.priceUsdt);
         emit UsdtTransferredToAdmin(msg.sender, adminWallet, usdtAmount, purchaseId);
-        emit RaceMintedToStaking(stakingEngine, msg.sender, purchaseId, raceOut, lockPeriod, stakeIndex);
+        emit RaceMintedToHold(msg.sender, purchaseId, raceOut, lockPeriod);
 
         if (p.sold == p.allocation) {
             _completePhase(phaseId);
         }
     }
 
-    /// @notice Principal is staked — no separate ICO claim.
+    /**
+     * @notice After ICO completes: move held RACE into Engine stake at icoEndPriceUsdt principal.
+     */
+    function createStake(uint256 purchaseId) external nonReentrant whenNotPaused returns (uint256 stakeIndex) {
+        stakeIndex = _createStake(purchaseId, msg.sender);
+    }
+
+    /**
+     * @notice Create stakes for multiple held purchases (same buyer).
+     */
+    function createStakes(uint256[] calldata purchaseIds)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256[] memory stakeIndexes)
+    {
+        stakeIndexes = new uint256[](purchaseIds.length);
+        for (uint256 i = 0; i < purchaseIds.length; i++) {
+            stakeIndexes[i] = _createStake(purchaseIds[i], msg.sender);
+        }
+    }
+
+    /// @notice Create stakes for every unstaked purchase of msg.sender.
+    function createAllStakes() external nonReentrant whenNotPaused returns (uint256 created) {
+        uint256[] storage ids = _userPurchaseIds[msg.sender];
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (!_purchases[ids[i]].staked) {
+                _createStake(ids[i], msg.sender);
+                created += 1;
+            }
+        }
+    }
+
+    /// @notice Principal is held/staked via engine — no free ICO claim to wallet.
     function claim(uint256) external pure {
-        revert("RaceICO: staked - use engine claim/withdraw");
+        revert("RaceICO: hold/stake - use createStake then engine claim");
+    }
+
+    function _createStake(uint256 purchaseId, address caller) internal returns (uint256 stakeIndex) {
+        require(icoCompleted, "RaceICO: ico active");
+        require(icoEndPriceUsdt > 0, "RaceICO: no end price");
+        require(stakingEngine != address(0), "RaceICO: no engine");
+        require(purchaseId < _purchases.length, "RaceICO: bad id");
+
+        Purchase storage buy = _purchases[purchaseId];
+        require(buy.buyer == caller, "RaceICO: not buyer");
+        require(!buy.staked, "RaceICO: already staked");
+        require(buy.raceAmount > 0, "RaceICO: zero race");
+
+        uint256 raceAmount = buy.raceAmount;
+        uint256 principalUsdt = quoteStakePrincipal(raceAmount);
+        require(principalUsdt > 0, "RaceICO: dust principal");
+        require(userHeldRace[caller] >= raceAmount, "RaceICO: hold mismatch");
+        require(totalHeldRace >= raceAmount, "RaceICO: total hold");
+
+        userHeldRace[caller] -= raceAmount;
+        totalHeldRace -= raceAmount;
+        buy.staked = true;
+        buy.claimed = raceAmount;
+
+        raceToken.safeTransfer(stakingEngine, raceAmount);
+        stakeIndex = IRaceIcoStakeReceiver(stakingEngine).openIcoStake(
+            caller, principalUsdt, raceAmount, buy.lockPeriod, purchaseId
+        );
+        buy.stakeIndex = stakeIndex;
+
+        // Unlock clock starts at stake creation (Engine also sets unlockAt = now + lock).
+        buy.unlockAt = uint64(block.timestamp) + uint64(buy.lockPeriod);
+
+        emit RaceMintedToStaking(stakingEngine, caller, purchaseId, raceAmount, buy.lockPeriod, stakeIndex);
+        emit ICOHoldStakeCreated(caller, purchaseId, principalUsdt, raceAmount, icoEndPriceUsdt, stakeIndex);
     }
 
     function _completePhase(uint8 phaseId) internal {
@@ -531,6 +646,7 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         if (phaseId == PHASE_COUNT) {
             icoCompleted = true;
             icoCompletedAt = p.completedAt;
+            icoEndPriceUsdt = phase3PriceUsdt;
             emit ICOCompleted(totalSoldRace, totalRaisedUsdt, icoCompletedAt);
         }
     }

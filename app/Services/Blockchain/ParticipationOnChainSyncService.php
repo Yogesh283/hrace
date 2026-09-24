@@ -209,7 +209,7 @@ class ParticipationOnChainSyncService
                 return ['ok' => false, 'reason' => __('Transaction is not a staking / ICO purchase.')];
             }
 
-            // RaceICO.purchase → Engine.openIcoStake emits ParticipationPurchased on Engine (not always tx.to).
+            // RaceICO.createStake → Engine.openIcoStake emits ParticipationPurchased on Engine (not always tx.to).
             $participationTopics = array_values(array_unique(array_filter([
                 $eventTopic,
                 '0x771e2f913fe17bca4c8610ec22f97692df4570133fa1f02f726012e653b14e81',

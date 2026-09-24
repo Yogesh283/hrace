@@ -95,7 +95,7 @@ function LevelToggle({ level, count, members, isOpen, onToggle }) {
             {isOpen ? (
                 <div className="border-t border-fintech-line/80 bg-slate-50/50 px-3 py-3 sm:px-4">
                     {members.length === 0 ? (
-                        <p className="py-4 text-center text-sm text-fintech-muted">No members at this level.</p>
+                        <p className="rx-empty">No members at this level.</p>
                     ) : (
                         <MemberTableScroll>
                             <table className="w-full min-w-[32rem] text-left text-xs sm:min-w-0 sm:text-sm">

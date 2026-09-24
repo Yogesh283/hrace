@@ -167,7 +167,7 @@ function DateFilterBar({
                                 navigateTransactions(filter_income_key, e.target.value);
                             }
                         }}
-                        className="min-h-[2.5rem] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-fintech-ink shadow-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        className="min-h-[2.75rem] rounded-lg border border-[#38BDF8]/35 bg-[#0F172A]/85 px-3 py-2 text-sm font-medium text-slate-100 shadow-sm focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]/30"
                     />
                     {!isToday && !isAllDates ? (
                         <button
@@ -340,7 +340,7 @@ export default function Transactions({
 
                 <div className="overflow-hidden rounded-xl border border-fintech-line bg-white shadow-sm">
                     {entries.length === 0 ? (
-                        <p className="px-4 py-8 text-center text-sm text-fintech-muted">
+                        <p className="rx-empty mx-3 my-3">
                             {activeDate === 'all'
                                 ? 'No transactions yet.'
                                 : `No transactions on ${filter_date_label ?? 'this date'}.`}

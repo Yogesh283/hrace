@@ -10,10 +10,26 @@ contract MockIcoStakeReceiver is IRaceIcoStakeReceiver {
     uint256 public lastRace;
     uint256 public lastLock;
     uint256 public lastPurchaseId;
+    uint256 public lastHoldUsdt;
+    uint256 public lastHoldPurchaseId;
+    bool public holdProcessed;
     bool public revertNext;
+    bool public revertHold;
 
     function setRevertNext(bool v) external {
         revertNext = v;
+    }
+
+    function setRevertHold(bool v) external {
+        revertHold = v;
+    }
+
+    function processIcoHold(address buyer, uint256 usdtPaid, uint256 icoPurchaseId) external {
+        require(!revertHold, "mock: hold fail");
+        lastBuyer = buyer;
+        lastHoldUsdt = usdtPaid;
+        lastHoldPurchaseId = icoPurchaseId;
+        holdProcessed = true;
     }
 
     function openIcoStake(

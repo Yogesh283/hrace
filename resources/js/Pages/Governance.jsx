@@ -1,3 +1,4 @@
+import MemberAlert from '@/Components/Member/MemberAlert';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import PanelCard from '@/Components/PanelCard';
@@ -214,16 +215,8 @@ export default function Governance({ governance }) {
                     </PrimaryButton>
                 </div>
 
-                {error ? (
-                    <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-                        {error}
-                    </p>
-                ) : null}
-                {status ? (
-                    <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
-                        {status}
-                    </p>
-                ) : null}
+                {error ? <MemberAlert variant="error">{error}</MemberAlert> : null}
+                {status ? <MemberAlert variant="success">{status}</MemberAlert> : null}
 
                 {meta ? (
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -257,7 +250,7 @@ export default function Governance({ governance }) {
 
                 <PanelCard title={`Proposals (${meta?.proposalCount ?? 0})`}>
                     {proposals.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No proposals loaded yet.</p>
+                        <p className="rx-empty">No proposals loaded yet.</p>
                     ) : (
                         <div className="space-y-3">
                             {proposals.map((p) => (

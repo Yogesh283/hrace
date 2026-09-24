@@ -19,7 +19,7 @@ import {IRaceRewardPriceOracle} from "./interfaces/IRaceRewardPriceOracle.sol";
  *      Stake daily rates (FINAL): Flexible=35bps (0.35%), 180=50bps, 365=70, 730=90, 1095=100.
  *      ROI is USD-notional (principalUsdt × bps); reward RACE mint size uses RaceRewardPriceOracle
  *      (NOT raw Pancake spot). Pancake remains for participate swaps / MLM USD→RACE path only.
- *      ICO openIcoStake: FIXED plans only (no Flexible). Flexible only via participate after RaceICO.icoCompleted.
+ *      ICO createStake → openIcoStake: FIXED plans only (no Flexible). Flexible only via participate after RaceICO.icoCompleted.
  *      Fixed maturity: settle reward → 10% RaceTreasury → 90% EMI escrow (30/30/rest @ +30/+60/+90d).
  *      Flexible: anytime withdrawStake (10% team rewards fee) — no EMI schedule.
  */
@@ -64,6 +64,9 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     /// @notice Per-user global claim frequency limit (successful wallet claims only).
     uint256 public constant CLAIM_COOLDOWN = 24 hours;
     mapping(address => uint256) public lastSuccessfulClaimAt;
+
+    /// @notice ICO purchaseId → level income already paid at hold (no double on createStake).
+    mapping(uint256 => bool) public icoHoldLevelIncomePaid;
 
     uint256 public totalLockedRace;
     uint256 public totalStakesCreated;
@@ -156,6 +159,12 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         uint256 lockPeriod,
         uint256 dailyRateBps,
         uint256 unlockAt
+    );
+    event ICOHoldLevelIncomeProcessed(
+        address indexed buyer,
+        uint256 indexed icoPurchaseId,
+        uint256 usdtPaid,
+        bool qualifying
     );
     event RewardCompounded(
         address indexed user,
@@ -265,22 +274,19 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     }
 
     /**
-     * @notice Atomic ICO delivery: RaceICO minted `raceAmount` to this contract, then calls this.
-     * @dev Buyer never receives spendable ICO principal. FIXED lock plans only — Flexible rejected.
-     *      Reward formula remains USD-notional: principalUsdt × dailyRateBps (approved architecture).
+     * @notice ICO buy/hold: L1–L10 level income + $50+ activation (USDT paid at buy).
+     * @dev Called from RaceICO.purchase. createStake must not pay level income again.
+     *      Post-ICO participate (swap) still pays level income at stake create time.
      */
-    function openIcoStake(
-        address buyer,
-        uint256 usdtPaid,
-        uint256 raceAmount,
-        uint256 lockPeriod,
-        uint256 icoPurchaseId
-    ) external onlyIco nonReentrant whenNotPaused returns (uint256 stakeIndex) {
+    function processIcoHold(address buyer, uint256 usdtPaid, uint256 icoPurchaseId)
+        external
+        onlyIco
+        nonReentrant
+        whenNotPaused
+    {
         require(buyer != address(0), "engine: zero buyer");
-        require(usdtPaid > 0 && raceAmount > 0, "engine: zero amounts");
-        require(lockPeriod != LOCK_FLEXIBLE, "engine: ico no flexible");
-        uint256 dailyRateBps = _dailyRateBps(lockPeriod);
-        require(dailyRateBps > 0, "engine: invalid lock");
+        require(usdtPaid > 0, "engine: zero usdt");
+        require(!icoHoldLevelIncomePaid[icoPurchaseId], "engine: hold paid");
 
         MemberInfo storage m = _members[buyer];
         if (!m.registered) {
@@ -299,14 +305,62 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
             }
             m.selfParticipationUsdt += usdtPaid;
             _updateRank(buyer);
+            _addTeamVolume(m.referrer, usdtPaid);
+            _payCommunityReferrals(buyer, usdtPaid);
+        }
+
+        icoHoldLevelIncomePaid[icoPurchaseId] = true;
+        emit ICOHoldLevelIncomeProcessed(buyer, icoPurchaseId, usdtPaid, qualifying);
+    }
+
+    /**
+     * @notice ICO createStake: RaceICO transfers `raceAmount` then calls this.
+     * @dev `usdtPaid` = end-price notional for ROI. Level income skipped if already paid at hold.
+     *      If hold step was skipped: pays level income here once (must not miss).
+     */
+    function openIcoStake(
+        address buyer,
+        uint256 usdtPaid,
+        uint256 raceAmount,
+        uint256 lockPeriod,
+        uint256 icoPurchaseId
+    ) external onlyIco nonReentrant whenNotPaused returns (uint256 stakeIndex) {
+        require(buyer != address(0), "engine: zero buyer");
+        require(usdtPaid > 0 && raceAmount > 0, "engine: zero amounts");
+        require(lockPeriod != LOCK_FLEXIBLE, "engine: ico no flexible");
+        require(raceToken.balanceOf(address(this)) >= totalLockedRace + raceAmount, "engine: race not funded");
+        uint256 dailyRateBps = _dailyRateBps(lockPeriod);
+        require(dailyRateBps > 0, "engine: invalid lock");
+
+        MemberInfo storage m = _members[buyer];
+        if (!m.registered) {
+            _register(buyer, address(0), false);
+        }
+
+        bool holdAlreadyPaid = icoHoldLevelIncomePaid[icoPurchaseId];
+        bool qualifying = usdtPaid >= QUALIFYING_PARTICIPATION_USDT;
+
+        if (!holdAlreadyPaid) {
+            if (qualifying) {
+                bool firstParticipation = !m.participationActive;
+                if (firstParticipation) {
+                    m.participationActive = true;
+                    m.participationAt = block.timestamp;
+                    if (m.referrer != address(0)) {
+                        _members[m.referrer].participationDirectCount += 1;
+                    }
+                }
+                m.selfParticipationUsdt += usdtPaid;
+                _updateRank(buyer);
+                _addTeamVolume(m.referrer, usdtPaid);
+                _payCommunityReferrals(buyer, usdtPaid);
+            }
+            icoHoldLevelIncomePaid[icoPurchaseId] = true;
         }
 
         uint256 stakeDailyRoiUsdt = (usdtPaid * dailyRateBps) / 10_000;
-        _addTeamVolume(m.referrer, usdtPaid);
         _addTeamDailyRoi(m.referrer, stakeDailyRoiUsdt);
 
-        // Flexible: unlockAt = now → withdraw anytime. Fixed: start + duration.
-        // (ICO path never reaches Flexible — rejected above.)
         uint256 unlockAt = lockPeriod == LOCK_FLEXIBLE ? block.timestamp : block.timestamp + lockPeriod;
         stakeIndex = _stakes[buyer].length;
 
@@ -325,10 +379,6 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
 
         totalLockedRace += raceAmount;
         totalStakesCreated += 1;
-
-        if (qualifying) {
-            _payCommunityReferrals(buyer, usdtPaid);
-        }
 
         emit ICOStakeCreated(
             buyer, stakeIndex, icoPurchaseId, usdtPaid, raceAmount, lockPeriod, dailyRateBps, unlockAt

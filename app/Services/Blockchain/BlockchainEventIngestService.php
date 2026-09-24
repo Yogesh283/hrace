@@ -119,6 +119,7 @@ class BlockchainEventIngestService
 
         $walletTopicIndex = match ($eventName) {
             'ICOPurchased', 'RaceMintedToStaking' => 2,
+            'RaceMintedToHold', 'ICOHoldStakeCreated', 'ICOHoldLevelIncomeProcessed' => 1,
             default => 1,
         };
         $wallet = isset($topics[$walletTopicIndex])
@@ -146,6 +147,10 @@ class BlockchainEventIngestService
 
         if ($eventName === 'ICOPurchased') {
             $this->storeIcoPurchase($topics, (string) ($log['data'] ?? ''), $txHash, $blockNumber, $userId);
+        }
+
+        if ($eventName === 'ICOHoldStakeCreated' || $eventName === 'RaceMintedToStaking') {
+            $this->markIcoPurchaseStaked($topics, $eventName);
         }
 
         $stakeIndexer = app(BlockchainEngineStakeIndexer::class);
@@ -229,8 +234,43 @@ class BlockchainEventIngestService
             'price' => $this->weiToToken($priceWei),
             'tx_hash' => $txHash,
             'block_number' => $blockNumber,
-            'status' => 'confirmed',
+            'status' => 'held',
         ]);
+    }
+
+    /**
+     * @param  list<string>  $topics
+     */
+    private function markIcoPurchaseStaked(array $topics, string $eventName): void
+    {
+        // RaceMintedToStaking(stakingEngine, buyer, purchaseId, ...) — purchaseId topic[2] when indexed last
+        // ICOHoldStakeCreated(buyer, purchaseId, ...) — buyer topic[1], purchaseId topic[2]
+        // RaceMintedToStaking: indexed stakingEngine[1], buyer[2], purchaseId[3]
+        $purchaseId = null;
+        if ($eventName === 'ICOHoldStakeCreated' && isset($topics[2])) {
+            $purchaseId = hexdec((string) $topics[2]);
+        } elseif ($eventName === 'RaceMintedToStaking' && isset($topics[3])) {
+            $purchaseId = hexdec((string) $topics[3]);
+        }
+        if ($purchaseId === null || $purchaseId < 0) {
+            return;
+        }
+
+        $wallet = '';
+        if ($eventName === 'ICOHoldStakeCreated' && isset($topics[1])) {
+            $wallet = '0x'.substr((string) $topics[1], 26);
+        } elseif ($eventName === 'RaceMintedToStaking' && isset($topics[2])) {
+            $wallet = '0x'.substr((string) $topics[2], 26);
+        }
+        if ($wallet === '') {
+            return;
+        }
+
+        IcoPurchase::query()
+            ->where('purchase_id', $purchaseId)
+            ->whereRaw('LOWER(wallet_address) = ?', [strtolower($wallet)])
+            ->whereIn('status', ['held', 'confirmed'])
+            ->update(['status' => 'staked']);
     }
 
     private function hexToDecimalString(string $hex64): string
@@ -277,6 +317,9 @@ class BlockchainEventIngestService
             '0x3bbaced029028afbe3622c5c505c56f82a87ba3bfd76b003656a0147f83db5ee' => 'ICOStakeCreated',
             '0x172683bc9e168fd8e43e442d0e5392595c48b43230044dee7c406e017e52c510' => 'RewardCompounded',
             '0x3a060e9b2a16c3554bd377e06cdca2024531405e6b5b6dbea7daf919843f9ba0' => 'RaceMintedToStaking',
+            '0x793b43ea5f4e3038b42540dc2b18dde24ac5a4210b9c127cec8a2bbb584f78bd' => 'RaceMintedToHold',
+            '0xb4a7005a50275606791edb4a5e7a4081452244e06750157198bfee3ab3716c90' => 'ICOHoldStakeCreated',
+            '0x0f25b0ab3e53033ae5ef9fbe8439c4c518ff4ac77430425dd2258a7f49ce7e1f' => 'ICOHoldLevelIncomeProcessed',
             '0x0f392fab93032b655a2790a0aa9babb8772dad4d3bf28e0b2f7f3b6a2ae6fae3' => 'StakeCompleted',
             '0x928d734f8511c4d99022a77537725f436b16d1f342edd1a5d66bc28432939580' => 'StakeMatured',
             '0xd6cbeb8fb06a3dc6bbdcb20549e0e06d2c36ce056c6e7c761a90103a6549910b' => 'MaturityFeePaid',

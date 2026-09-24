@@ -426,7 +426,7 @@ export default function Swap({
 
                 <PanelCard title="Recent swaps" icon="transactions" className="mt-6">
                     {swap_entries.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No swap transactions yet.</p>
+                        <p className="rx-empty">No swap transactions yet.</p>
                     ) : (
                         <div className="overflow-hidden rounded-xl border border-fintech-line bg-white">
                             <ul className="divide-y divide-fintech-line">

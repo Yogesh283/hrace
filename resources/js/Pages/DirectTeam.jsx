@@ -53,7 +53,7 @@ export default function DirectTeam({ direct_count: directCount = 0, directTeam: 
 
                 <PanelCard title={`Direct members (${directCount})`} icon="team">
                     {directTeam.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">
+                        <p className="rx-empty">
                             No direct referrals yet. Share your invite code so new members appear here.
                         </p>
                     ) : (

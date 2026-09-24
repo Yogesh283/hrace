@@ -48,9 +48,9 @@ export default function SelfHold({ self_hold_usd = '0.00', investments = [] }) {
 
                 <PanelCard title="Active packages" icon="investment">
                     {active.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">
+                        <p className="rx-empty">
                             No active hold yet.{' '}
-                            <Link href={route('investment')} className="font-semibold text-[#2563EB] hover:underline">
+                            <Link href={route('investment')} className="font-semibold text-sky-300 hover:underline">
                                 Record a package
                             </Link>
                             .

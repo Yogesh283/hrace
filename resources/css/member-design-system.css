@@ -1,0 +1,681 @@
+/*
+ * RACE member design system — tokens + dark-theme contrast safety net.
+ *
+ * Scope: `.member-portal--race` (all authenticated pages), `.rx-dark-scope`
+ * (portalled chrome such as modals / mobile header / bottom nav) and
+ * `.guest-race` (login / register).
+ *
+ * Pages were authored with light Tailwind utilities (bg-slate-50, text-sky-900…)
+ * and are re-skinned dark here. Every light surface maps to a dark tinted
+ * surface and every dark text colour maps to a readable light tint, so a
+ * text/background pair can never collapse to the same luminance.
+ */
+
+:root {
+    /* Surfaces */
+    --rx-ds-canvas: #0b1120;
+    --rx-ds-surface: rgba(15, 23, 42, 0.88);
+    --rx-ds-surface-2: rgba(30, 41, 59, 0.72);
+    --rx-ds-surface-sunken: rgba(2, 6, 23, 0.55);
+    --rx-ds-line: rgba(56, 189, 248, 0.22);
+    --rx-ds-line-strong: rgba(56, 189, 248, 0.4);
+
+    /* Text (contrast measured on #0f172a) */
+    --rx-ds-text-strong: #f8fafc; /* 17.9:1 */
+    --rx-ds-text: #e2e8f0; /* 14.5:1 */
+    --rx-ds-text-soft: #cbd5e1; /* 11.6:1 */
+    --rx-ds-text-muted: #b6c3d6; /* ~8.6:1 — captions still readable */
+    --rx-ds-placeholder: #94a3b8; /* 6.9:1 on input surfaces */
+    --rx-ds-link: #7dd3fc; /* 10.6:1 */
+
+    /* Type scale */
+    --rx-ds-fs-h1: clamp(1.25rem, 2.6vw, 1.75rem);
+    --rx-ds-fs-h2: clamp(1.05rem, 1.8vw, 1.35rem);
+    --rx-ds-fs-h3: 1rem;
+    --rx-ds-fs-body: 0.9375rem;
+    --rx-ds-fs-small: 0.8125rem;
+    --rx-ds-fs-label: 0.6875rem;
+    --rx-ds-fs-caption: 0.75rem;
+    --rx-ds-fs-button: 0.875rem;
+    --rx-ds-fs-table: 0.8125rem;
+    --rx-ds-lh-tight: 1.25;
+    --rx-ds-lh-body: 1.55;
+
+    /* Brand */
+    --rx-ds-primary: #2563eb;
+    --rx-ds-primary-strong: #1d4ed8;
+    --rx-ds-accent: #38bdf8;
+    --rx-ds-gold: #fbbf24;
+    /* White text stays >= 4.5:1 across the whole gradient */
+    --rx-ds-btn-grad: linear-gradient(135deg, #1d4ed8 0%, #2563eb 55%, #0369a1 100%);
+    --rx-ds-btn-grad-hover: linear-gradient(135deg, #1e40af 0%, #1d4ed8 55%, #075985 100%);
+
+    /* Semantic (fg on dark / tinted bg / border) */
+    --rx-ds-success: #6ee7b7;
+    --rx-ds-success-bg: rgba(16, 185, 129, 0.14);
+    --rx-ds-success-line: rgba(52, 211, 153, 0.45);
+    --rx-ds-danger: #fca5a5;
+    --rx-ds-danger-bg: rgba(239, 68, 68, 0.14);
+    --rx-ds-danger-line: rgba(248, 113, 113, 0.45);
+    --rx-ds-warning: #fcd34d;
+    --rx-ds-warning-bg: rgba(245, 158, 11, 0.14);
+    --rx-ds-warning-line: rgba(251, 191, 36, 0.45);
+    --rx-ds-info: #7dd3fc;
+    --rx-ds-info-bg: rgba(56, 189, 248, 0.12);
+    --rx-ds-info-line: rgba(56, 189, 248, 0.4);
+    --rx-ds-violet: #c4b5fd;
+    --rx-ds-violet-bg: rgba(139, 92, 246, 0.14);
+    --rx-ds-violet-line: rgba(167, 139, 250, 0.42);
+
+    /* Spacing */
+    --rx-ds-page-x: 0.75rem;
+    --rx-ds-section-gap: 1.25rem;
+    --rx-ds-card-pad: 1rem;
+    --rx-ds-touch: 2.75rem; /* 44px minimum touch target */
+
+    /* Radius / elevation */
+    --rx-ds-radius-sm: 0.625rem;
+    --rx-ds-radius-md: 0.875rem;
+    --rx-ds-radius-lg: 1.25rem;
+    --rx-ds-shadow-card: 0 12px 32px -18px rgba(0, 0, 0, 0.7);
+
+    /* Bottom nav — icon + label + safe breathing room */
+    --rx-ds-bottomnav-h: 5.65rem;
+}
+
+@media (min-width: 640px) {
+    :root {
+        --rx-ds-page-x: 1.25rem;
+        --rx-ds-section-gap: 1.5rem;
+        --rx-ds-card-pad: 1.25rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    :root {
+        --rx-ds-page-x: 2rem;
+        --rx-ds-card-pad: 1.5rem;
+    }
+}
+
+/* ─── Dark scope base (portalled chrome: modals, header, bottom nav) ─── */
+.rx-dark-scope {
+    color: var(--rx-ds-text);
+    --tw-ring-offset-color: #0b1120;
+}
+
+:is(.member-portal--race, .guest-race) {
+    --tw-ring-offset-color: #0b1120;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.ring-offset-1, .ring-offset-2, .ring-offset-4) {
+    --tw-ring-offset-color: #0b1120 !important;
+}
+
+/* ─── Text: base remaps also needed inside .rx-dark-scope ─── */
+.rx-dark-scope :is(.text-fintech-ink, .text-\[\#0F172A\], .text-\[\#0B1220\], .text-slate-900, .text-slate-800) {
+    color: var(--rx-ds-text-strong) !important;
+}
+
+.rx-dark-scope :is(.text-slate-700, .text-slate-600) {
+    color: var(--rx-ds-text-soft) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-fintech-muted, .text-slate-500, .text-\[\#64748B\]) {
+    color: var(--rx-ds-text-muted) !important;
+}
+
+.rx-dark-scope :is(.text-fintech-primary, .text-\[\#2563EB\]) {
+    color: #60a5fa !important;
+}
+
+/* slate-700 body copy was remapped to muted grey; soft reads better for paragraphs */
+.member-portal--race .text-slate-700 {
+    color: var(--rx-ds-text-soft) !important;
+}
+
+/* ─── Text: dark shades that previously had no dark-theme remap ─── */
+:is(.member-portal--race, .rx-dark-scope, .guest-race) :is(.text-gray-950, .text-gray-900, .text-gray-800, .text-black) {
+    color: var(--rx-ds-text-strong) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope, .guest-race) .text-gray-700 {
+    color: var(--rx-ds-text-soft) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope, .guest-race) :is(.text-gray-600, .text-gray-500, .text-slate-400, .text-\[\#9CA3AF\], .text-\[\#94A3B8\]) {
+    color: var(--rx-ds-text-muted) !important;
+}
+
+.guest-race :is(.text-slate-500, .text-slate-600, .text-fintech-muted) {
+    color: var(--rx-ds-text-muted) !important;
+}
+
+.guest-race :is(.text-slate-800, .text-slate-900, .text-gray-800, .text-gray-900, .text-fintech-ink) {
+    color: var(--rx-ds-text-strong) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-sky-600, .text-sky-700, .text-sky-800, .text-sky-900, .text-sky-950) {
+    color: var(--rx-ds-info) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900, .text-\[\#1D4ED8\], .text-\[\#1e40af\], .text-\[\#1e3a8a\]) {
+    color: #93c5fd !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-indigo-600, .text-indigo-700) {
+    color: #a5b4fc !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-violet-600, .text-violet-700, .text-violet-800, .text-violet-900, .text-violet-950) {
+    color: var(--rx-ds-violet) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope, .guest-race) :is(.text-red-500, .text-red-600) {
+    color: #f87171 !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope, .guest-race) :is(.text-red-700, .text-red-800, .text-red-900, .text-red-950, .text-rose-600, .text-rose-700, .text-rose-800, .text-rose-900) {
+    color: var(--rx-ds-danger) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-emerald-600, .text-emerald-700) {
+    color: #34d399 !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-emerald-800, .text-emerald-900, .text-emerald-950) {
+    color: var(--rx-ds-success) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-amber-600, .text-amber-700) {
+    color: var(--rx-ds-gold) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.text-amber-800, .text-amber-900, .text-amber-950) {
+    color: var(--rx-ds-warning) !important;
+}
+
+/* ─── Surfaces: neutral light backgrounds → dark surface ─── */
+:is(.member-portal--race, .rx-dark-scope) :is(
+    .bg-white,
+    .bg-white\/95,
+    .bg-white\/90,
+    .bg-white\/85,
+    .bg-white\/80,
+    .bg-white\/75,
+    .bg-white\/70,
+    .bg-white\/65,
+    .bg-gray-50,
+    .bg-gray-100,
+    .bg-slate-50,
+    .bg-slate-50\/50,
+    .bg-slate-50\/80,
+    .bg-slate-50\/90,
+    .bg-slate-100,
+    .bg-slate-100\/90,
+    .bg-fintech-soft,
+    .bg-fintech-soft\/40,
+    .bg-fintech-soft\/80
+) {
+    background-color: var(--rx-ds-surface-2) !important;
+    background-image: none;
+    border-color: var(--rx-ds-line);
+}
+
+/* Progress tracks / thin separators that used slate-200/300 */
+:is(.member-portal--race, .rx-dark-scope) :is(.bg-slate-200, .bg-slate-300\/50, .bg-gray-200) {
+    background-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+/* Semantic tints */
+:is(.member-portal--race, .rx-dark-scope) :is(.bg-sky-50, .bg-sky-50\/30, .bg-sky-50\/40, .bg-sky-50\/50, .bg-sky-50\/80, .bg-sky-50\/90, .bg-sky-100, .bg-blue-50, .bg-blue-100) {
+    background-color: var(--rx-ds-info-bg) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.bg-emerald-50, .bg-emerald-50\/50, .bg-emerald-50\/80, .bg-emerald-50\/90, .bg-emerald-50\/95, .bg-emerald-100, .bg-green-50, .bg-green-100) {
+    background-color: var(--rx-ds-success-bg) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.bg-amber-50, .bg-amber-50\/40, .bg-amber-100, .bg-yellow-50, .bg-yellow-100) {
+    background-color: var(--rx-ds-warning-bg) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.bg-red-50, .bg-red-50\/90, .bg-red-50\/95, .bg-red-100, .bg-rose-50, .bg-rose-100) {
+    background-color: var(--rx-ds-danger-bg) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.bg-violet-50, .bg-violet-50\/40, .bg-violet-100, .bg-purple-50) {
+    background-color: var(--rx-ds-violet-bg) !important;
+}
+
+/* Light gradient stops (never touch gradient *text*) */
+:is(.member-portal--race, .rx-dark-scope) :is(
+    .from-white,
+    .from-sky-50,
+    .from-sky-100\/80,
+    .from-emerald-50\/90
+):not(.bg-clip-text) {
+    --tw-gradient-from: rgba(15, 23, 42, 0.9) var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgba(15, 23, 42, 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.via-white, .via-white\/80, .via-sky-50, .via-sky-50\/80):not(.bg-clip-text) {
+    --tw-gradient-stops: var(--tw-gradient-from), rgba(15, 23, 42, 0.82) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(
+    .to-white,
+    .to-sky-50,
+    .to-sky-50\/50,
+    .to-sky-50\/80,
+    .to-slate-50,
+    .to-violet-50\/80,
+    .to-blue-100
+):not(.bg-clip-text) {
+    --tw-gradient-to: rgba(2, 6, 23, 0.78) var(--tw-gradient-to-position) !important;
+}
+
+/* Gradient text: a light stop must stay light */
+:is(.member-portal--race, .rx-dark-scope) .bg-clip-text.from-white {
+    --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important;
+    --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+    background-color: transparent !important;
+}
+
+/* Hover surfaces */
+:is(.member-portal--race, .rx-dark-scope) :is(
+    .hover\:bg-slate-50,
+    .hover\:bg-slate-100,
+    .hover\:bg-gray-50,
+    .hover\:bg-sky-50,
+    .hover\:bg-sky-100,
+    .hover\:bg-emerald-50,
+    .hover\:bg-red-50,
+    .hover\:bg-fintech-soft,
+    .hover\:bg-fintech-soft\/80
+):hover {
+    background-color: rgba(56, 189, 248, 0.1) !important;
+}
+
+/* Borders */
+:is(.member-portal--race, .rx-dark-scope) :is(.border-gray-200, .border-gray-300, .border-slate-300, .border-slate-100\/80, .border-slate-100\/90, .border-slate-200\/70, .border-slate-200\/80, .border-slate-200\/90, .border-sky-100, .border-sky-100\/60, .border-sky-200\/50, .border-sky-200\/70, .border-sky-200\/80, .border-sky-200\/90, .border-white\/95) {
+    border-color: var(--rx-ds-line) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.border-red-200, .border-red-200\/80, .border-rose-200\/80) {
+    border-color: var(--rx-ds-danger-line) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.border-emerald-200, .border-emerald-200\/50, .border-emerald-200\/80, .border-emerald-300) {
+    border-color: var(--rx-ds-success-line) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.border-amber-200, .border-amber-200\/80, .border-amber-300) {
+    border-color: var(--rx-ds-warning-line) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.border-violet-200, .border-violet-200\/80, .border-violet-200\/90) {
+    border-color: var(--rx-ds-violet-line) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.divide-slate-100, .divide-slate-200, .divide-gray-200) > :not([hidden]) ~ :not([hidden]) {
+    border-color: rgba(56, 189, 248, 0.14) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope) :is(.ring-slate-200, .ring-slate-200\/60, .ring-slate-200\/70, .ring-slate-200\/80, .ring-slate-200\/90, .ring-emerald-200, .ring-sky-100\/80, .ring-blue-200) {
+    --tw-ring-color: rgba(56, 189, 248, 0.25) !important;
+}
+
+/* ─── Tables ─── */
+.member-portal--race table thead tr:is(.bg-slate-100\/90, .bg-slate-100, .bg-slate-50),
+.member-portal--race table thead:is(.bg-fintech-soft, .bg-slate-50, .bg-slate-100) {
+    background-color: rgba(2, 11, 45, 0.92) !important;
+}
+
+.member-portal--race table thead th {
+    color: var(--rx-ds-text-soft);
+    font-size: var(--rx-ds-fs-label);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.member-portal--race table td {
+    color: var(--rx-ds-text);
+    font-size: var(--rx-ds-fs-table);
+    line-height: var(--rx-ds-lh-body);
+}
+
+/* Visible horizontal scroll affordance for wide tables / pill rows */
+.member-table-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(56, 189, 248, 0.45) transparent;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--rx-ds-radius-sm);
+}
+
+@media (max-width: 639px) {
+    .member-table-scroll table {
+        min-width: 36rem;
+        font-size: 0.8125rem;
+    }
+
+    .member-table-scroll th,
+    .member-table-scroll td {
+        padding-top: 0.7rem;
+        padding-bottom: 0.7rem;
+    }
+}
+
+.member-table-scroll::-webkit-scrollbar {
+    display: block;
+    height: 6px;
+}
+
+.member-table-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.45);
+}
+
+/* ─── Forms ─── */
+:is(.member-portal--race, .rx-dark-scope, .guest-race) :is(input, select, textarea):disabled {
+    opacity: 0.82;
+    cursor: not-allowed;
+    color: var(--rx-ds-text-soft) !important;
+    -webkit-text-fill-color: var(--rx-ds-text-soft) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope, .guest-race) :is(input[type='checkbox'], input[type='radio']) {
+    accent-color: var(--rx-ds-primary);
+}
+
+/* iOS zooms inputs below 16px on focus */
+@media (max-width: 639px) {
+    :is(.member-portal--race, .rx-dark-scope, .guest-race) :is(input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea) {
+        font-size: 16px !important;
+    }
+}
+
+/* ─── Buttons ─── */
+.member-portal--race .race-btn-primary,
+.member-portal--race button.bg-\[\#2563EB\] {
+    background: var(--rx-ds-btn-grad) !important;
+}
+
+:is(.member-portal--race, .rx-dark-scope, .guest-race) :is(button, [role='button'], a.inline-flex):disabled {
+    cursor: not-allowed;
+}
+
+/* ─── Focus visibility (keyboard only) ─── */
+:is(.member-portal--race, .rx-dark-scope, .guest-race, .rx-mobile-topbar, .rx-mobile-bottomnav, #member-sidebar) :is(a, button, summary, [role='button'], [tabindex]:not([tabindex='-1'])):focus-visible {
+    outline: 2px solid var(--rx-ds-accent) !important;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.25);
+}
+
+/* ─── Typography utilities ─── */
+:is(.member-portal--race, .guest-race) {
+    font-size: var(--rx-ds-fs-body);
+    line-height: var(--rx-ds-lh-body);
+}
+
+.rx-type-h1 {
+    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+    font-size: var(--rx-ds-fs-h1);
+    font-weight: 700;
+    line-height: var(--rx-ds-lh-tight);
+    color: var(--rx-ds-text-strong);
+    letter-spacing: -0.02em;
+}
+
+.rx-type-h2 {
+    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+    font-size: var(--rx-ds-fs-h2);
+    font-weight: 700;
+    line-height: var(--rx-ds-lh-tight);
+    color: var(--rx-ds-text-strong);
+}
+
+.rx-type-h3 {
+    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+    font-size: var(--rx-ds-fs-h3);
+    font-weight: 650;
+    line-height: 1.35;
+    color: var(--rx-ds-text-strong);
+}
+
+.rx-type-body {
+    font-size: var(--rx-ds-fs-body);
+    line-height: var(--rx-ds-lh-body);
+    color: var(--rx-ds-text);
+}
+
+.rx-type-small {
+    font-size: var(--rx-ds-fs-small);
+    line-height: 1.45;
+    color: var(--rx-ds-text-soft);
+}
+
+.rx-type-label {
+    font-size: var(--rx-ds-fs-label);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--rx-ds-text-muted);
+}
+
+.rx-type-caption {
+    font-size: var(--rx-ds-fs-caption);
+    line-height: 1.45;
+    color: var(--rx-ds-text-muted);
+}
+
+.rx-type-button {
+    font-size: var(--rx-ds-fs-button);
+    font-weight: 650;
+    line-height: 1.2;
+}
+
+/* ─── Empty / loading / status ─── */
+.rx-empty {
+    display: grid;
+    place-items: center;
+    gap: 0.35rem;
+    min-height: 6.5rem;
+    padding: 1.25rem 1rem;
+    text-align: center;
+    border: 1px dashed var(--rx-ds-line);
+    border-radius: var(--rx-ds-radius-md);
+    background: var(--rx-ds-surface-sunken);
+    color: var(--rx-ds-text-soft);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.rx-empty__title {
+    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--rx-ds-text-strong);
+}
+
+.rx-loading {
+    color: var(--rx-ds-text-soft);
+    font-size: 0.875rem;
+}
+
+.rx-alert {
+    border-radius: var(--rx-ds-radius-md);
+    border: 1px solid var(--rx-ds-info-line);
+    background: var(--rx-ds-info-bg);
+    color: var(--rx-ds-info);
+    padding: 0.9rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.rx-alert--success {
+    border-color: var(--rx-ds-success-line);
+    background: var(--rx-ds-success-bg);
+    color: var(--rx-ds-success);
+}
+
+.rx-alert--error {
+    border-color: var(--rx-ds-danger-line);
+    background: var(--rx-ds-danger-bg);
+    color: var(--rx-ds-danger);
+}
+
+.rx-alert--warning {
+    border-color: var(--rx-ds-warning-line);
+    background: var(--rx-ds-warning-bg);
+    color: var(--rx-ds-warning);
+}
+
+.rx-alert__title {
+    font-weight: 700;
+    color: inherit;
+    margin-bottom: 0.2rem;
+}
+
+/* ─── Bottom navigation (member, mobile) ─── */
+.rx-bottomnav {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 52;
+    padding: 0 max(0.65rem, env(safe-area-inset-right, 0px)) env(safe-area-inset-bottom, 0px) max(0.65rem, env(safe-area-inset-left, 0px));
+    background: linear-gradient(180deg, rgba(11, 17, 32, 0.98) 0%, #070b16 100%);
+    border-top: 1px solid rgba(56, 189, 248, 0.32);
+    box-shadow: 0 -12px 32px -14px rgba(0, 0, 0, 0.8);
+}
+
+.rx-bottomnav__list {
+    display: grid;
+    grid-template-columns: repeat(var(--rx-bottomnav-cols, 4), minmax(0, 1fr));
+    gap: 0.45rem;
+    max-width: 26rem;
+    margin: 0 auto;
+    padding: 0.55rem 0 0.6rem;
+}
+
+.rx-bottomnav__item {
+    display: flex;
+    min-width: 0;
+    min-height: var(--rx-ds-touch);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.38rem;
+    border-radius: 1.05rem;
+    padding: 0.3rem 0.15rem;
+    color: #b6c3d6;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: color 0.18s ease;
+}
+
+.rx-bottomnav__icon {
+    display: flex;
+    height: 2.7rem;
+    width: 2.7rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 1rem;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(30, 41, 59, 0.72);
+    color: #e2e8f0;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.rx-bottomnav__icon svg {
+    height: 1.4rem;
+    width: 1.4rem;
+}
+
+.rx-bottomnav__label {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: 'Poppins', 'Inter', system-ui, sans-serif;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: inherit;
+}
+
+.rx-bottomnav__item:hover .rx-bottomnav__icon {
+    border-color: rgba(56, 189, 248, 0.5);
+    color: #ffffff;
+}
+
+.rx-bottomnav__item:active .rx-bottomnav__icon {
+    transform: scale(0.94);
+}
+
+.rx-bottomnav__item[aria-current='page'] {
+    color: #ffffff;
+}
+
+.rx-bottomnav__item[aria-current='page'] .rx-bottomnav__icon {
+    height: 2.7rem;
+    width: 2.7rem;
+    border-color: rgba(125, 211, 252, 0.75);
+    background: var(--rx-ds-btn-grad);
+    color: #ffffff;
+    box-shadow: 0 8px 20px -8px rgba(37, 99, 235, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.rx-bottomnav__item[aria-current='page'] .rx-bottomnav__label {
+    font-weight: 700;
+    color: #ffffff;
+}
+
+@media (max-width: 359px) {
+    .rx-bottomnav__list {
+        gap: 0.28rem;
+        padding-inline: 0;
+    }
+
+    .rx-bottomnav__icon,
+    .rx-bottomnav__item[aria-current='page'] .rx-bottomnav__icon {
+        height: 2.45rem;
+        width: 2.45rem;
+    }
+
+    .rx-bottomnav__icon svg {
+        height: 1.28rem;
+        width: 1.28rem;
+    }
+
+    .rx-bottomnav__label {
+        font-size: 0.625rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rx-bottomnav__icon,
+    .rx-bottomnav__item {
+        transition: none;
+    }
+}
+
+/* ─── Background animation budget ───
+ * The member portal stacks a drifting grid, three blurred orbs, a scan-line
+ * layer and a particle field behind every page. Continuous animation of
+ * large fixed, blurred layers forces a repaint every frame; keep the look
+ * but render it static inside the portal and on auth pages.
+ */
+:is(.member-portal, .guest-race) :is(.rx-pro-orb, .rx-pro-scan, .race-particles, .rx-dp-particle),
+:is(.member-portal, .guest-race) .rx-pro-bg::before {
+    animation: none !important;
+}
+
+.member-portal .rx-pro-scan,
+.guest-race .rx-pro-scan {
+    display: none;
+}

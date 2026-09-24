@@ -12,15 +12,17 @@ import {
 import { formatTokenWei, friendlySwapError } from '@/lib/web3PancakeSwap';
 
 /**
- * RaceICO mint-to-stake helpers.
- * purchase(usdtAmount, lockPeriod) → USDT to admin, RACE mint to engine, openIcoStake.
- * Selectors verified against contracts/src/RaceICO.sol (Hardhat id()).
+ * RaceICO hold-then-stake helpers.
+ * purchase → USDT to admin, RACE mint+hold on ICO (not wallet, not stake).
+ * createStake / createAllStakes → after icoCompleted, open Engine stake at icoEndPrice.
  */
 const SELECTORS = {
     approve: '0x095ea7b3',
     allowance: '0xdd62ed3e',
     balanceOf: '0x70a08231',
     purchase: '0x70876c98', // purchase(uint256,uint256)
+    createStake: '0x1bf6ddae', // createStake(uint256)
+    createAllStakes: '0xbfe83d98', // createAllStakes()
     getCurrentPhase: '0xa3a40ea5',
     getPhase: '0xf12479ac',
     getUserAllocation: '0xb920ade2',
@@ -30,7 +32,12 @@ const SELECTORS = {
     icoCompleted: '0x204e8b17',
     totalICOSold: '0x4b76496f',
     adminWallet: '0x36b19cd7',
+    userHeldRace: '0xf884e36f',
+    pendingStakeCount: '0x0f29b783',
+    icoEndPriceUsdt: '0x43548e19',
 };
+
+const STAKE_NOT_CREATED = (1n << 256n) - 1n;
 
 export const ICO_STAKE_PLANS = [
     {
@@ -140,16 +147,26 @@ function decodePhase(hex) {
 
 function decodePurchase(hex) {
     const raw = (hex || '0x').replace(/^0x/, '');
+    const raceAmount = word(hex, 2);
+    const claimed = word(hex, 7);
+    const lockPeriod = word(hex, 9);
+    const stakeIndex = word(hex, 10);
+    const staked =
+        raceAmount > 0n && claimed === raceAmount && stakeIndex !== STAKE_NOT_CREATED;
     return {
         buyer: `0x${raw.slice(24, 64)}`,
         phaseId: Number(word(hex, 1)),
-        raceAmount: word(hex, 2),
+        raceAmount,
         usdtPaid: word(hex, 3),
         priceUsdt: word(hex, 4),
         purchasedAt: Number(word(hex, 5)),
         unlockAt: Number(word(hex, 6)),
-        claimed: word(hex, 7),
+        claimed,
         claimable: false,
+        lockPeriod: Number(lockPeriod),
+        stakeIndex: staked ? Number(stakeIndex) : null,
+        staked,
+        status: staked ? 'staked' : 'held',
     };
 }
 
@@ -226,7 +243,7 @@ export function friendlyIcoError(err) {
         }
         return msg.includes('ICO buy would fail')
             ? msg
-            : 'ICO purchase simulation failed. Stay on BSC Testnet, approve USDT, then try Buy & Stake again.';
+            : 'ICO simulation failed. Stay on BSC Testnet, approve USDT, then try again.';
     }
     if (lower.includes('transaction failed on chain')) {
         return msg;
@@ -351,9 +368,33 @@ export async function approveUsdtForIco({
     return txHash;
 }
 
+export async function readUserHeldRace({ icoContract, wallet, rpcUrl }) {
+    if (!wallet || !icoContract) return 0n;
+    return BigInt(
+        await ethCall({ to: icoContract, data: SELECTORS.userHeldRace + padAddress(wallet), rpcUrl }),
+    );
+}
+
+export async function readPendingStakeCount({ icoContract, wallet, rpcUrl }) {
+    if (!wallet || !icoContract) return 0;
+    return Number(
+        BigInt(
+            await ethCall({
+                to: icoContract,
+                data: SELECTORS.pendingStakeCount + padAddress(wallet),
+                rpcUrl,
+            }),
+        ),
+    );
+}
+
+export async function readIcoEndPriceUsdt({ icoContract, rpcUrl }) {
+    if (!icoContract) return 0n;
+    return BigInt(await ethCall({ to: icoContract, data: SELECTORS.icoEndPriceUsdt, rpcUrl }));
+}
+
 /**
- * RaceICO.purchase(usdtAmount, lockPeriod) — USDT→adminWallet, mint→engine, openIcoStake.
- * Does NOT approve; caller must ensure allowance (Buy & Stake auto-approves when needed).
+ * RaceICO.purchase — USDT→adminWallet, RACE mint+hold on ICO (stake later after ICO ends).
  */
 export async function purchaseIcoRace({
     walletAddress,
@@ -415,6 +456,83 @@ export async function purchaseIcoRace({
         await waitForConfirmations(txHash, { minConfirmations: waitConfirmations });
     }
 
+    return txHash;
+}
+
+/**
+ * After icoCompleted: create Engine stake from one held purchase (end-price principal).
+ */
+export async function createIcoStake({
+    walletAddress,
+    icoContract,
+    purchaseId,
+    chainId = getActiveChainId(),
+    waitConfirmations = 2,
+    rpcUrl = '',
+}) {
+    await ensureBscNetwork(chainId);
+    const id = BigInt(purchaseId ?? -1);
+    if (id < 0n) {
+        throw new Error('Invalid purchase id.');
+    }
+    const data = SELECTORS.createStake + padUint256(id);
+    const preflightRpc =
+        rpcUrl ||
+        (Number(chainId) === 97 ? 'https://bsc-testnet-rpc.publicnode.com' : '');
+    await assertIcoPurchaseWouldSucceed({
+        from: walletAddress,
+        icoContract,
+        data,
+        rpcUrl: preflightRpc,
+        lockPeriodSeconds: 0,
+        amountWei: 0n,
+    });
+    const txHash = await sendContractTx({
+        from: walletAddress,
+        to: icoContract,
+        data,
+        chainId,
+        gasFallback: 4_000_000,
+        minGas: 2_500_000,
+    });
+    if (waitConfirmations > 0) {
+        await waitForConfirmations(txHash, { minConfirmations: waitConfirmations });
+    }
+    return txHash;
+}
+
+/** Create stakes for every held (unstaked) purchase of the wallet. */
+export async function createAllIcoStakes({
+    walletAddress,
+    icoContract,
+    chainId = getActiveChainId(),
+    waitConfirmations = 2,
+    rpcUrl = '',
+}) {
+    await ensureBscNetwork(chainId);
+    const data = SELECTORS.createAllStakes;
+    const preflightRpc =
+        rpcUrl ||
+        (Number(chainId) === 97 ? 'https://bsc-testnet-rpc.publicnode.com' : '');
+    await assertIcoPurchaseWouldSucceed({
+        from: walletAddress,
+        icoContract,
+        data,
+        rpcUrl: preflightRpc,
+        lockPeriodSeconds: 0,
+        amountWei: 0n,
+    });
+    const txHash = await sendContractTx({
+        from: walletAddress,
+        to: icoContract,
+        data,
+        chainId,
+        gasFallback: 6_000_000,
+        minGas: 3_000_000,
+    });
+    if (waitConfirmations > 0) {
+        await waitForConfirmations(txHash, { minConfirmations: waitConfirmations });
+    }
     return txHash;
 }
 
@@ -517,7 +635,16 @@ function mapIcoRevertToUserMessage(reason) {
     const r = String(reason || '');
     const lower = r.toLowerCase();
     if (lower.includes(ORACLE_STALE_SELECTOR) || lower.includes('oraclestale')) {
-        return 'RACE price oracle is stale (not updated in 24h). Admin must refresh the testnet oracle price, then retry Buy & Stake.';
+        return 'RACE price oracle is stale (not updated in 24h). Admin must refresh the testnet oracle price, then retry.';
+    }
+    if (lower.includes('ico active') || lower.includes('no end price')) {
+        return 'ICO is still active. Create Your Stake unlocks after ICO completes.';
+    }
+    if (lower.includes('already staked')) {
+        return 'This purchase is already staked.';
+    }
+    if (lower.includes('not buyer')) {
+        return 'Only the buyer wallet can create this stake.';
     }
     if (lower.includes('bad plan')) {
         return 'Invalid stake plan. Select 180 / 365 / 730 / 1095 days.';

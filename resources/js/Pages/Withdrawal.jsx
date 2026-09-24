@@ -1,6 +1,7 @@
 import PrimaryButton from '@/Components/PrimaryButton';
 import PanelCard from '@/Components/PanelCard';
 import TextInput from '@/Components/TextInput';
+import MemberAlert from '@/Components/Member/MemberAlert';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import MemberTableScroll from '@/Components/Member/MemberTableScroll';
@@ -230,20 +231,20 @@ export default function Withdrawal({
 
                 <div className="mx-auto w-full min-w-0 max-w-lg">
                     {flash?.status ? (
-                        <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950 sm:text-sm">
+                        <MemberAlert variant="success" className="mb-3">
                             {flash.status}
-                        </p>
+                        </MemberAlert>
                     ) : null}
                     {flash?.error ? (
-                        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 sm:text-sm">
+                        <MemberAlert variant="error" className="mb-3">
                             {flash.error}
-                        </p>
+                        </MemberAlert>
                     ) : null}
 
                     {withdrawals_disabled ? (
-                        <p className="mb-3 rounded-lg border border-amber-400/70 bg-amber-950/50 px-3 py-2 text-xs text-amber-100 sm:text-sm">
+                        <MemberAlert variant="warning" className="mb-3">
                             Withdrawals are temporarily disabled for your account. Please contact support.
-                        </p>
+                        </MemberAlert>
                     ) : null}
 
                     {rate_limit?.enabled ? (
@@ -402,7 +403,7 @@ export default function Withdrawal({
 
                     <PanelCard title="Withdrawal history" icon="withdrawal" className="mt-5">
                         {withdrawals.length === 0 ? (
-                            <p className="text-sm text-fintech-muted">No withdrawal requests yet.</p>
+                            <p className="rx-empty">No withdrawal requests yet.</p>
                         ) : (
                             <div className="-mx-1 overflow-hidden rounded-xl border border-fintech-line bg-white sm:mx-0">
                                 <div className="divide-y divide-fintech-line md:hidden">

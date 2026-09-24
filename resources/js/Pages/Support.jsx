@@ -1,6 +1,7 @@
 import PanelCard from '@/Components/PanelCard';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
+import MemberAlert from '@/Components/Member/MemberAlert';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
@@ -67,15 +68,11 @@ export default function Support({ tickets = [] }) {
                 </MemberPageHero>
 
                 {flash?.status ? (
-                    <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/95 px-4 py-3 text-sm font-medium text-emerald-950">
-                        {flash.status}
-                    </div>
+                    <MemberAlert variant="success">{flash.status}</MemberAlert>
                 ) : null}
 
                 {flash?.error ? (
-                    <div className="rounded-xl border border-red-200/80 bg-red-50/95 px-4 py-3 text-sm font-medium text-red-900">
-                        {flash.error}
-                    </div>
+                    <MemberAlert variant="error">{flash.error}</MemberAlert>
                 ) : null}
 
                 <PanelCard title="New support ticket" icon="support">
@@ -98,7 +95,7 @@ export default function Support({ tickets = [] }) {
                             <textarea
                                 value={data.message}
                                 rows={5}
-                                className="mt-2 block w-full rounded-xl border border-[#2563EB]/35 bg-[#0F172A]/80 px-3 py-2.5 text-sm text-slate-100 shadow-sm caret-sky-300 placeholder:text-slate-500 focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]/30"
+                                className="mt-2 block w-full rounded-xl border border-[#2563EB]/35 bg-[#0F172A]/80 px-3 py-2.5 text-sm text-slate-100 shadow-sm caret-sky-300 placeholder:text-slate-300 focus:border-[#38BDF8] focus:outline-none focus:ring-2 focus:ring-[#38BDF8]/30"
                                 placeholder="Describe your complaint or question in detail…"
                                 onChange={(e) => setData('message', e.target.value)}
                                 required
@@ -119,7 +116,7 @@ export default function Support({ tickets = [] }) {
 
                 <PanelCard title="Your tickets" icon="transactions">
                     {tickets.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No tickets yet. Create one above.</p>
+                        <p className="rx-empty">No tickets yet. Create one above.</p>
                     ) : (
                         <ul className="divide-y divide-fintech-line rounded-xl border border-fintech-line bg-white">
                             {tickets.map((t) => (

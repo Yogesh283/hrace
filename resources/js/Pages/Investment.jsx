@@ -718,7 +718,7 @@ export default function Investment({
                         </MemberTableScroll>
                     ) : null}
                     {!onChain && investments.length === 0 ? (
-                        <p className="px-4 py-6 text-sm text-fintech-muted sm:px-5">
+                        <p className="rx-empty mx-3 my-3">
                             No participations yet. Open a position above.
                         </p>
                     ) : null}
@@ -726,7 +726,7 @@ export default function Investment({
                     communityEngineStakes?.length === 0 &&
                     blockchainParticipations?.length === 0 &&
                     investments.length === 0 ? (
-                        <p className="px-4 py-6 text-sm text-fintech-muted sm:px-5">
+                        <p className="rx-empty mx-3 my-3">
                             No participations yet. Open a position above or complete an ICO purchase.
                         </p>
                     ) : null}

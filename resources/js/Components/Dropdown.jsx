@@ -38,7 +38,7 @@ const Trigger = ({ children }) => {
 const Content = ({
     align = 'right',
     width = '48',
-    contentClasses = 'border border-fintech-line bg-white py-1 shadow-xl shadow-slate-900/10',
+    contentClasses = 'border border-[#38BDF8]/25 bg-[#0F172A] py-1 shadow-xl shadow-black/40',
     children,
 }) => {
     const { open, setOpen } = useContext(DropDownContext);
@@ -91,7 +91,7 @@ const DropdownLink = ({ className = '', children, ...props }) => {
         <Link
             {...props}
             className={
-                'block w-full px-4 py-2 text-start text-sm leading-5 text-fintech-ink transition duration-150 ease-in-out hover:bg-fintech-soft focus:bg-fintech-soft focus:outline-none ' +
+                'block min-h-[2.75rem] w-full px-4 py-2 text-start text-sm leading-5 text-slate-100 transition duration-150 ease-in-out hover:bg-white/5 focus:bg-white/5 focus:outline-none ' +
                 className
             }
         >

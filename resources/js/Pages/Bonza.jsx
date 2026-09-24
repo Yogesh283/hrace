@@ -118,7 +118,7 @@ export default function Bonza({ bonza: bonzaProp = {} }) {
 
                 {hasBonus ? (
                     <PanelCard title="Your +2% ROI bonus" icon="bonza" className="border-emerald-200/80 bg-emerald-50/50">
-                        <p className="text-sm text-emerald-900">
+                        <p className="text-sm text-emerald-200">
                             You receive <strong>+{b.direct_monthly_bonus_percent}% extra monthly ROI</strong> on your active
                             investment plan (credited daily with trading ROI). Active since{' '}
                             {b.bonza_direct_bonus_at

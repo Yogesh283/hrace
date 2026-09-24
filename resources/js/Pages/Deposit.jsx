@@ -292,7 +292,7 @@ export default function Deposit({
 
                 <PanelCard title="Recent deposits" icon="transactions" className="mt-6">
                     {deposit_entries.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No deposit transactions yet.</p>
+                        <p className="rx-empty">No deposit transactions yet.</p>
                     ) : (
                         <div className="space-y-3">
                             <div className="flex items-center justify-between gap-3 text-xs text-fintech-muted">

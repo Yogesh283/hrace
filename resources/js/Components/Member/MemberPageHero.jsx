@@ -60,13 +60,16 @@ export function MemberHeroLink({ href, children, ...props }) {
 export default function MemberPageHero({
     kicker,
     title,
+    subtitle = null,
     children,
     actions = null,
     variant = 'pdf',
     icon = null,
+    logoSrc = null,
     className = '',
 }) {
     const v = VARIANTS[variant] ?? VARIANTS.sky;
+    const description = children || subtitle;
 
     return (
         <div
@@ -83,6 +86,10 @@ export default function MemberPageHero({
                         {icon ? (
                             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/30 bg-white/15 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.25)] backdrop-blur-sm sm:h-14 sm:w-14 sm:rounded-[18px]">
                                 <MemberIcon name={icon} className="h-6 w-6 text-white sm:h-7 sm:w-7" />
+                            </span>
+                        ) : logoSrc ? (
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/30 bg-white/15 sm:h-14 sm:w-14">
+                                <img src={logoSrc} alt="" className="h-8 w-8 object-contain sm:h-9 sm:w-9" />
                             </span>
                         ) : null}
                         <div className="min-w-0 flex-1">
@@ -105,9 +112,9 @@ export default function MemberPageHero({
                         </div>
                     </div>
                 ) : null}
-                {children ? (
+                {description ? (
                     <div className={`mt-2 max-w-2xl text-sm leading-relaxed ${v.description}`}>
-                        {children}
+                        {description}
                     </div>
                 ) : null}
                 {actions ? <div className="mt-4 flex flex-wrap gap-2">{actions}</div> : null}

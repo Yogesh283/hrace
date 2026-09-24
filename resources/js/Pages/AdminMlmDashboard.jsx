@@ -392,7 +392,7 @@ export default function AdminMlmDashboard() {
                             <input
                                 type="search"
                                 placeholder="Search…"
-                                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.05] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-500 outline-none ring-blue-500/30 focus:ring-2 md:placeholder:text-slate-500"
+                                className="w-full rounded-xl border border-white/[0.08] bg-white/[0.05] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-slate-300 outline-none ring-blue-500/30 focus:ring-2 md:placeholder:text-slate-300"
                             />
                         </div>
                         <div className="ml-auto flex items-center gap-1 sm:gap-2">

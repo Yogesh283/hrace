@@ -119,13 +119,7 @@ export default function RaceToken({ raceTokenConfig = {} }) {
     ];
 
     return (
-        <AuthenticatedLayout
-            header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                    RACE Coin
-                </h2>
-            }
-        >
+        <AuthenticatedLayout pageTitle="Race coin" mobileFintechPageTitle="Race coin">
             <Head title="RACE Coin" />
             <MemberPageShell>
                 <MemberPageHero
@@ -208,7 +202,7 @@ export default function RaceToken({ raceTokenConfig = {} }) {
                                 href={route('ico')}
                                 className="rounded-xl border border-sky-500/30 bg-slate-900/50 px-4 py-3 text-sm font-semibold text-sky-200 hover:border-sky-400/50"
                             >
-                                ICO Buy & Stake
+                                ICO Buy RACE
                             </Link>
                             <Link
                                 href={route('investment')}

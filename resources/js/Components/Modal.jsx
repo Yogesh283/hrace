@@ -31,10 +31,10 @@ export default function Modal({
             <Dialog
                 as="div"
                 id="modal"
-                className="fixed inset-0 z-50 overflow-y-auto"
+                className="fixed inset-0 z-[120] overflow-y-auto"
                 onClose={close}
             >
-                <div className="relative flex min-h-full items-center justify-center p-4 sm:p-6">
+                <div className="relative flex min-h-full items-center justify-center p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-6">
                     <TransitionChild
                         enter="ease-out duration-300"
                         enterFrom="opacity-0"
@@ -43,7 +43,7 @@ export default function Modal({
                         leaveFrom="opacity-100"
                         leaveTo="opacity-0"
                     >
-                        <div className="fixed inset-0 bg-gray-500/75" aria-hidden="true" />
+                        <div className="fixed inset-0 bg-[#020617]/80 backdrop-blur-sm" aria-hidden="true" />
                     </TransitionChild>
 
                     <TransitionChild
@@ -55,7 +55,7 @@ export default function Modal({
                         leaveTo="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                     >
                         <DialogPanel
-                            className={`relative z-10 mx-auto w-full ${maxWidthClass} transform overflow-hidden rounded-lg bg-white shadow-xl transition-all`}
+                            className={`rx-dark-scope relative z-10 mx-auto max-h-[calc(100dvh-1.5rem)] w-full ${maxWidthClass} transform overflow-y-auto overscroll-contain rounded-2xl border border-[#38BDF8]/25 bg-[#0F172A] text-slate-100 shadow-[0_24px_64px_-16px_rgba(0,0,0,0.85)] transition-all`}
                         >
                             {children}
                         </DialogPanel>

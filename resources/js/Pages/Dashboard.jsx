@@ -197,7 +197,7 @@ function ReferralLinkCopyCard() {
                     type="button"
                     disabled={!referralLink}
                     onClick={copy}
-                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-sky-200/70 bg-gradient-to-r from-[#2563EB] to-[#38BDF8] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_28px_-6px_rgba(37,99,235,0.45)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[8.5rem]"
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-sky-200/70 bg-gradient-to-r from-[#2563EB] to-[#38BDF8] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_28px_-6px_rgba(37,99,235,0.45)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70 sm:min-w-[8.5rem]"
                 >
                     <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
                         <path

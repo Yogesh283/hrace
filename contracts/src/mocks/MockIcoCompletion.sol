@@ -23,4 +23,8 @@ contract MockIcoCompletion is IRaceIcoCompletion {
     ) external {
         IRaceIcoStakeReceiver(engine).openIcoStake(buyer, usdtPaid, raceAmount, lockPeriod, icoPurchaseId);
     }
+
+    function processIcoHoldFor(address engine, address buyer, uint256 usdtPaid, uint256 icoPurchaseId) external {
+        IRaceIcoStakeReceiver(engine).processIcoHold(buyer, usdtPaid, icoPurchaseId);
+    }
 }
