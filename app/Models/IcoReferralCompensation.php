@@ -10,6 +10,8 @@ class IcoReferralCompensation extends Model
 
     public const STATUS_PAID = 'paid';
 
+    protected $table = 'ico_referral_compensations';
+
     protected $fillable = [
         'ico_purchase_id',
         'sponsor_user_id',

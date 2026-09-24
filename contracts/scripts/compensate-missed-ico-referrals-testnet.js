@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const hre = require('hardhat');
-const { loadContractsEnv, looksLikePlaceholderKey } = require('./lib/loadContractsEnv');
+const { loadContractsEnv, envFirst, looksLikePlaceholderKey } = require('./lib/loadContractsEnv');
 
 const EXPORT = path.join(__dirname, '..', '..', 'storage', 'app', 'ico-referral-compensation-export.json');
 
@@ -42,17 +42,35 @@ async function main() {
     if (process.env.CONFIRM_TESTNET_COMPENSATION !== 'YES') {
         throw new Error('Set CONFIRM_TESTNET_COMPENSATION=YES to send RACE compensation transfers.');
     }
+    if (envFirst('DEPLOY_ENV') !== 'testnet') {
+        throw new Error('STOP: set DEPLOY_ENV=testnet in contracts/.env');
+    }
+    if (looksLikePlaceholderKey(process.env.DEPLOYER_PRIVATE_KEY)) {
+        throw new Error(
+            'STOP: DEPLOYER_PRIVATE_KEY missing in contracts/.env (payer wallet must hold ≥51 RACE on testnet).',
+        );
+    }
+
+    const signers = await hre.ethers.getSigners();
+    if (!signers || signers.length === 0) {
+        throw new Error('STOP: Hardhat has no accounts — check DEPLOYER_PRIVATE_KEY in contracts/.env');
+    }
+    const signer = signers[0];
 
     const manifest = JSON.parse(
         fs.readFileSync(path.join(__dirname, '..', 'deployments', 'bscTestnet', 'deployment.json'), 'utf8'),
     );
     const raceAddress = manifest.raceCoin;
-    const token = await hre.ethers.getContractAt(
-        ['function transfer(address to, uint256 amount) returns (bool)', 'function balanceOf(address) view returns (uint256)'],
-        raceAddress,
-    );
+    const token = (
+        await hre.ethers.getContractAt(
+            [
+                'function transfer(address to, uint256 amount) returns (bool)',
+                'function balanceOf(address) view returns (uint256)',
+            ],
+            raceAddress,
+        )
+    ).connect(signer);
 
-    const [signer] = await hre.ethers.getSigners();
     console.log('RACE', raceAddress);
     console.log('PAYER', signer.address);
 
@@ -76,12 +94,14 @@ async function main() {
         const receipt = await tx.wait();
         console.log('PAID', receipt.hash);
 
-        for (const line of bucket.line_items || []) {
-            const key = line.idempotency_key;
-            execSync(
-                `php artisan blockchain:compensate-missed-ico-referrals --mark-paid=${key}:${receipt.hash}`,
-                { cwd: path.join(__dirname, '..', '..'), stdio: 'inherit' },
-            );
+        const markPairs = (bucket.line_items || [])
+            .map((line) => `${line.idempotency_key}:${receipt.hash}`)
+            .join(',');
+        if (markPairs !== '') {
+            execSync(`php artisan blockchain:compensate-missed-ico-referrals --mark-paid=${markPairs}`, {
+                cwd: path.join(__dirname, '..', '..'),
+                stdio: 'inherit',
+            });
         }
     }
 
