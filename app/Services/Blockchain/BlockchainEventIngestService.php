@@ -163,6 +163,16 @@ class BlockchainEventIngestService
             $stakeIndexer->markStakeWithdrawn($topics, (string) ($log['data'] ?? ''), $contract);
         }
 
+        if ($eventName === 'CommunityReferralPaid') {
+            app(CommunityReferralIndexer::class)->ingestFromLog(
+                $topics,
+                (string) ($log['data'] ?? '0x'),
+                $txHash,
+                $blockNumber,
+                $logIndex,
+            );
+        }
+
         $vaultDecoder = app(IncomeVaultEventDecoder::class);
         $vaultName = $vaultDecoder->resolveName($topics[0] ?? null);
         $vaultContract = strtolower((string) config('income_vault.contract_address'));

@@ -58,6 +58,11 @@ return [
         'usdt' => env('USDT_CONTRACT_BEP20', '0x55d398326f99059ff775485246999027b3197955'),
     ],
 
+    /** Mirror CommunityReferralPaid into income_wallet_transactions (RACE asset, read-model only). */
+    'community_referral_mirror' => [
+        'enabled' => filter_var(env('BLOCKCHAIN_COMMUNITY_REFERRAL_MIRROR', true), FILTER_VALIDATE_BOOL),
+    ],
+
     'indexer' => [
         'enabled' => filter_var(env('BLOCKCHAIN_INDEXER_ENABLED', true), FILTER_VALIDATE_BOOL),
         'batch_size' => max(10, (int) env('BLOCKCHAIN_INDEXER_BATCH', 2000)),
