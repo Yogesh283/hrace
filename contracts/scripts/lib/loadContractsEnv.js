@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ENV_PATH = path.join(__dirname, '..', '..', '.env');
+const LARAVEL_ENV_PATH = path.join(__dirname, '..', '..', '..', '.env');
 
 function parseEnvFile(filePath) {
     if (!fs.existsSync(filePath)) return {};
@@ -109,7 +110,11 @@ function looksLikePlaceholderKey(pk) {
 }
 
 function loadContractsEnv() {
+    applyToProcessEnv(parseEnvFile(LARAVEL_ENV_PATH));
     applyToProcessEnv(parseEnvFile(ENV_PATH));
+    if (!process.env.DEPLOY_ENV && String(process.env.BSC_CHAIN_ID || '') === '97') {
+        process.env.DEPLOY_ENV = 'testnet';
+    }
     // Normalize aliases into canonical keys (only if canonical empty).
     const usdt = resolveUsdt();
     if (usdt && !process.env.USDT) process.env.USDT = usdt;

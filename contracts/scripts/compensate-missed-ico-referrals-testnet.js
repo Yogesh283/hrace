@@ -47,7 +47,7 @@ async function main() {
     }
     if (looksLikePlaceholderKey(process.env.DEPLOYER_PRIVATE_KEY)) {
         throw new Error(
-            'STOP: DEPLOYER_PRIVATE_KEY missing in contracts/.env (payer wallet must hold ≥51 RACE on testnet).',
+            'STOP: DEPLOYER_PRIVATE_KEY missing in contracts/.env or Laravel .env (payer wallet must hold ≥51 RACE on testnet).',
         );
     }
 
