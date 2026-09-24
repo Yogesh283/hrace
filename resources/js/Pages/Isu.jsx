@@ -1,3 +1,4 @@
+import IcoPhaseProgress from '@/Components/Ico/IcoPhaseProgress';
 import PanelCard from '@/Components/PanelCard';
 import Web3NetworkBanner from '@/Components/Web3NetworkBanner';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
@@ -47,6 +48,8 @@ const PHASE_LABELS = {
     2: { label: 'Phase 2', displayPrice: '$0.35' },
     3: { label: 'Phase 3', displayPrice: '$0.45' },
 };
+
+const ICO_PHASE_POLL_MS = 20_000;
 
 function shortenAddress(address) {
     if (!address || address.length < 10) return address || '—';
@@ -447,6 +450,37 @@ export default function Isu({
         refreshChainState();
     }, [refreshChainState]);
 
+    const refreshPhaseState = useCallback(async () => {
+        if (!contractsReady) return;
+        try {
+            const [phaseId, completed, allPhases, sold] = await Promise.all([
+                readIcoCurrentPhase({ icoContract, rpcUrl }),
+                readIcoCompleted({ icoContract, rpcUrl }),
+                readAllIcoPhases({ icoContract, rpcUrl }),
+                readTotalIcoSold({ icoContract, rpcUrl }),
+            ]);
+            setCurrentPhaseId(phaseId);
+            setIcoCompleted(completed);
+            setPhases(allPhases);
+            setTotalSold(sold);
+        } catch {
+            // Background poll: keep last on-chain snapshot; manual refresh surfaces errors.
+        }
+    }, [contractsReady, icoContract, rpcUrl]);
+
+    useEffect(() => {
+        if (!contractsReady) return undefined;
+        const timer = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            refreshPhaseState();
+        }, ICO_PHASE_POLL_MS);
+        return () => clearInterval(timer);
+    }, [contractsReady, refreshPhaseState]);
+
+    const scrollToBuy = useCallback(() => {
+        document.getElementById('ico-buy')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, []);
+
     useEffect(() => {
         let cancelled = false;
         async function runQuote() {
@@ -771,47 +805,17 @@ export default function Isu({
                     />
                 ) : null}
 
-                <div className="mt-6 grid gap-4 lg:grid-cols-3">
-                    {[1, 2, 3].map((id) => {
-                        const onChain = phases.find((p) => p.id === id);
-                        const meta = PHASE_LABELS[id];
-                        const isActive = currentPhaseId === id;
-                        return (
-                            <PanelCard
-                                key={id}
-                                className={`border ${isActive ? 'border-sky-400/60 ring-1 ring-sky-400/30' : 'border-fintech-line'}`}
-                            >
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                    {meta.label}
-                                    {isActive ? ' · Active' : ''}
-                                    {onChain?.completed ? ' · Sold out' : ''}
-                                </p>
-                                <p className="mt-2 text-2xl font-bold text-white">{meta.displayPrice} / RACE</p>
-                                <p className="mt-1 text-sm text-slate-300">Allocation: 200,000 RACE</p>
-                                {onChain && (
-                                    <div className="mt-3 space-y-1 text-xs text-slate-400">
-                                        <p>Sold: {formatTokenWei(onChain.sold, 18, 2)} RACE</p>
-                                        <p>Remaining: {formatTokenWei(onChain.remaining, 18, 2)} RACE</p>
-                                        <p>On-chain price: ${formatUsdPriceFromWei(onChain.priceUsdt)}</p>
-                                    </div>
-                                )}
-                            </PanelCard>
-                        );
-                    })}
-                </div>
+                <IcoPhaseProgress
+                    phases={phases}
+                    currentPhaseId={currentPhaseId}
+                    icoCompleted={icoCompleted}
+                    totalSold={totalSold}
+                    loading={loadingChain}
+                    canBuyNow={contractsReady && !icoCompleted}
+                    onBuy={scrollToBuy}
+                />
 
-                <div className="mt-4 rounded-xl border border-fintech-line bg-slate-950/40 p-4 text-sm text-slate-300">
-                    <p>
-                        Total ICO: <span className="font-semibold text-white">600,000 RACE</span>
-                        {' · '}
-                        Sold:{' '}
-                        <span className="font-semibold text-white">{formatTokenWei(totalSold, 18, 2)}</span>
-                        {icoCompleted ? ' · ICO completed' : ''}
-                        {loadingChain ? ' · refreshing…' : ''}
-                    </p>
-                </div>
-
-                <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                <div id="ico-buy" className="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-2">
                     <PanelCard title="Buy RACE">
                         <div className="space-y-4">
                             <div className="flex flex-wrap items-center justify-between gap-2">
