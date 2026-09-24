@@ -6,6 +6,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { RACE_BANNER_STAKING, RACE_LOGO_SRC } from '@/lib/brandAssets';
+import { notifyError, notifySuccess } from '@/lib/appNotify';
 import { configureWeb3Network, parseTokenAmount, syncBlockchainTx, TESTNET_MOCK_USDT } from '@/lib/web3Deposit';
 import { ensureEngineReferralBeforeStake } from '@/lib/web3Engine';
 import {
@@ -420,6 +421,7 @@ export default function Isu({
             }
         } catch (err) {
             setError(friendlyIcoError(err));
+            notifyError(friendlyIcoError(err), 'ICO');
         } finally {
             setLoadingChain(false);
         }
@@ -474,14 +476,25 @@ export default function Isu({
         };
     }, [contractsReady, icoContract, currentPhaseId, amountUsd, rpcUrl]);
 
+    const showIcoError = (errOrMsg) => {
+        const msg = typeof errOrMsg === 'string' ? errOrMsg : friendlyIcoError(errOrMsg);
+        setError(msg);
+        notifyError(msg, 'ICO');
+    };
+
+    const showIcoSuccess = (msg) => {
+        notifySuccess(msg, 'ICO');
+    };
+
     const connectWallet = async () => {
         setConnecting(true);
         setError('');
         try {
             const address = await connectWalletOnNetwork();
             setWalletAddress(address);
+            showIcoSuccess(`Wallet connected: ${address.slice(0, 6)}…${address.slice(-4)}`);
         } catch (err) {
-            setError(friendlyIcoError(err));
+            showIcoError(err);
         } finally {
             setConnecting(false);
         }
@@ -495,14 +508,14 @@ export default function Isu({
             await switchNetwork();
             return true;
         } catch (err) {
-            setError(friendlyIcoError(err));
+            showIcoError(err);
             return false;
         }
     };
 
     const onApprove = async () => {
         if (!walletAddress) {
-            setError('Connect your wallet first.');
+            showIcoError('Connect your wallet first.');
             return;
         }
         if (!(await ensureNetworkForTx())) {
@@ -521,8 +534,9 @@ export default function Isu({
                 waitConfirmations: 1,
             });
             await refreshChainState();
+            showIcoSuccess('USDT approved for ICO. Now tap Buy & Stake RACE.');
         } catch (err) {
-            setError(friendlyIcoError(err));
+            showIcoError(err);
         } finally {
             setBusy('');
         }
@@ -530,26 +544,30 @@ export default function Isu({
 
     const onBuy = async () => {
         if (!walletAddress) {
-            setError('Connect your wallet first.');
+            showIcoError('Connect your wallet first.');
             return;
         }
         if (!(await ensureNetworkForTx())) {
             return;
         }
         if (!currentPhaseId || icoCompleted) {
-            setError('No active ICO phase.');
+            showIcoError('No active ICO phase.');
+            return;
+        }
+        if (!hasSelectedLock || lockPeriodSeconds <= 0) {
+            showIcoError('Select a stake plan: 180 / 365 / 730 / 1095 days.');
             return;
         }
         if (quotedRace <= 0n) {
-            setError(quoteError || 'Enter a valid USDT amount.');
+            showIcoError(quoteError || 'Enter a valid USDT amount.');
             return;
         }
         if (activePhase && quotedRace > activePhase.remaining) {
-            setError('Not enough RACE remaining in this phase.');
+            showIcoError('Not enough RACE remaining in this phase.');
             return;
         }
         if (usdtBalance < amountWei) {
-            setError('Insufficient USDT balance.');
+            showIcoError('Insufficient USDT balance.');
             return;
         }
 
@@ -557,6 +575,26 @@ export default function Isu({
         setError('');
         setSuccess(null);
         try {
+            // Auto-approve when allowance is short so Buy & Stake is one flow.
+            const currentAllowance = await readErc20Allowance({
+                token: usdtContract,
+                owner: walletAddress,
+                spender: icoContract,
+            });
+            if (currentAllowance < amountWei) {
+                setBusy('approve');
+                notifySuccess('Confirm USDT approve in MetaMask…', 'ICO');
+                await approveUsdtForIco({
+                    walletAddress,
+                    icoContract,
+                    usdtContract,
+                    amountUsd,
+                    chainId: expectedChainId,
+                    waitConfirmations: 1,
+                });
+                await refreshChainState();
+            }
+
             if (engineContract) {
                 setBusy('register');
                 await ensureEngineReferralBeforeStake({
@@ -568,12 +606,9 @@ export default function Isu({
                     waitConfirmations: 1,
                 });
             }
-            const raceBefore = await readErc20BalanceOf({
-                token: raceToken,
-                wallet: walletAddress,
-                rpcUrl,
-            });
+
             setBusy('buy');
+            notifySuccess('Confirm Buy & Stake in MetaMask…', 'ICO');
             const txHash = await purchaseIcoRace({
                 walletAddress,
                 icoContract,
@@ -581,17 +616,9 @@ export default function Isu({
                 amountUsd,
                 lockPeriodSeconds,
                 chainId: expectedChainId,
-                waitConfirmations: 3,
+                waitConfirmations: 2,
             });
-            const raceAfter = await readErc20BalanceOf({
-                token: raceToken,
-                wallet: walletAddress,
-                rpcUrl,
-            });
-            // Principal must NOT increase wallet balance
-            if (raceAfter > raceBefore) {
-                // Reward dust unlikely mid-tx; still show stake created
-            }
+
             const priceLabel = activePhase
                 ? `$${formatUsdPriceFromWei(activePhase.priceUsdt)}`
                 : PHASE_LABELS[currentPhaseId]?.displayPrice || '—';
@@ -606,7 +633,11 @@ export default function Isu({
                 dailyRoi: selectedPlan?.daily_roi_percent || selectedPlan?.dailyRoiPercent || '—',
                 lockLabel: selectedPlan?.lock_label || selectedPlan?.lockLabel || '—',
             });
-            // Instant DB: blockchain_events + ico_purchases + stakes; then participation row.
+
+            showIcoSuccess(
+                `Stake created: ${amountUsd} USDT → ${formatTokenWei(quotedRace, 18, 4)} RACE locked on-chain. USDT sent to admin wallet. Tx ${txHash.slice(0, 10)}…`,
+            );
+
             try {
                 await syncBlockchainTx({ txHash });
                 await syncParticipationTx({
@@ -616,10 +647,14 @@ export default function Isu({
                 router.reload();
             } catch (syncErr) {
                 console.warn('ICO sync-tx / verify-onchain:', syncErr?.message || syncErr);
+                notifyError(
+                    `On-chain stake OK, but DB sync lagged: ${syncErr?.message || syncErr}. Indexer will catch up.`,
+                    'ICO sync',
+                );
             }
             await refreshChainState();
         } catch (err) {
-            setError(friendlyIcoError(err));
+            showIcoError(err);
         } finally {
             setBusy('');
         }
@@ -1067,6 +1102,7 @@ export default function Isu({
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));
+                                                            notifyError(friendlyEngineError(err), 'Stake');
                                                         } finally {
                                                             setBusy('');
                                                         }
@@ -1098,6 +1134,7 @@ export default function Isu({
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));
+                                                            notifyError(friendlyEngineError(err), 'Stake');
                                                         } finally {
                                                             setBusy('');
                                                         }
@@ -1134,6 +1171,7 @@ export default function Isu({
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));
+                                                            notifyError(friendlyEngineError(err), 'Stake');
                                                         } finally {
                                                             setBusy('');
                                                         }

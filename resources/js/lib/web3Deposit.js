@@ -266,14 +266,17 @@ export async function ensureBscNetwork(chainIdOverride) {
  * MetaMask alone can propose ~35M when estimate fails → "gas limit too high".
  */
 export const RPC_GAS_LIMIT_CAP = 16_000_000;
-export const DEFAULT_CONTRACT_GAS = 1_500_000;
+/** Fallback when estimate is unavailable (RPC flake) — ICO/Engine need headroom beyond simple ERC20. */
+export const DEFAULT_CONTRACT_GAS = 3_500_000;
 
 /**
  * Estimate gas with buffer, hard-capped under RPC max. Never returns block gas limit.
+ * If the call would revert, throws (do NOT send a doomed tx with fallback gas).
  * @returns {string} hex gas limit
  */
 export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CONTRACT_GAS } = {}) {
     let gas = Number(fallback) || DEFAULT_CONTRACT_GAS;
+    let estimated = false;
 
     try {
         const est = await window.ethereum.request({
@@ -283,9 +286,18 @@ export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CO
         if (est != null && est !== '') {
             gas = Number(BigInt(est));
             gas = Math.ceil(gas * 1.25);
+            estimated = true;
         }
-    } catch {
-        // Keep fallback — do not let wallet use uncapped block gas limit.
+    } catch (err) {
+        // Revert / execution failure — surface reason; do not broadcast with fallback gas.
+        const decoded = extractRpcRevertMessage(err);
+        if (decoded || isExecutionRevertError(err)) {
+            throw new Error(
+                decoded ||
+                    'Transaction would revert on-chain. Check allowance, stake plan, balance, and network.',
+            );
+        }
+        // RPC timeout / rate limit — keep fallback below.
     }
 
     if (!Number.isFinite(gas) || gas < 21_000) {
@@ -293,15 +305,86 @@ export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CO
     }
 
     gas = Math.min(Math.floor(gas), RPC_GAS_LIMIT_CAP);
+    if (!estimated && gas < fallback) {
+        gas = Math.min(Math.floor(fallback), RPC_GAS_LIMIT_CAP);
+    }
     return `0x${gas.toString(16)}`;
+}
+
+function isExecutionRevertError(err) {
+    const blob = JSON.stringify(err?.data ?? err?.error ?? err?.info ?? err?.message ?? '').toLowerCase();
+    return (
+        blob.includes('execution reverted') ||
+        blob.includes('revert') ||
+        err?.code === 3 ||
+        err?.data?.code === 3
+    );
+}
+
+/** Best-effort Solidity Error(string) / nested MetaMask revert text. */
+export function extractRpcRevertMessage(err) {
+    const nested =
+        err?.data?.message ||
+        err?.error?.message ||
+        err?.info?.error?.message ||
+        err?.data?.data?.message ||
+        '';
+    const candidates = [
+        typeof err?.data === 'string' ? err.data : null,
+        typeof err?.data?.data === 'string' ? err.data.data : null,
+        typeof err?.info?.error?.data === 'string' ? err.info.error.data : null,
+        typeof err?.data?.data?.data === 'string' ? err.data.data.data : null,
+    ].filter(Boolean);
+
+    for (const data of candidates) {
+        const decoded = decodeSolidityErrorString(data);
+        if (decoded) {
+            return decoded;
+        }
+    }
+
+    const msg = String(nested || err?.shortMessage || err?.reason || err?.message || '');
+    if (/execution reverted/i.test(msg) && msg.length < 200) {
+        const m = msg.match(/execution reverted:?\s*(.*)$/i);
+        if (m?.[1] && m[1] !== '0x') {
+            return m[1].replace(/^["']|["']$/g, '').trim();
+        }
+    }
+    return '';
+}
+
+function decodeSolidityErrorString(data) {
+    if (!data || typeof data !== 'string' || !data.startsWith('0x') || data.length < 10) {
+        return '';
+    }
+    const hex = data.slice(2).toLowerCase();
+    if (!hex.startsWith('08c379a0') || hex.length < 8 + 64 + 64) {
+        return '';
+    }
+    try {
+        const len = Number.parseInt(hex.slice(8 + 64, 8 + 128), 16);
+        if (!Number.isFinite(len) || len <= 0 || len > 256) {
+            return '';
+        }
+        const strHex = hex.slice(8 + 128, 8 + 128 + len * 2);
+        const bytes = strHex.match(/.{1,2}/g) || [];
+        return bytes.map((b) => String.fromCharCode(Number.parseInt(b, 16))).join('');
+    } catch {
+        return '';
+    }
 }
 
 /**
  * eth_sendTransaction with explicit gas so Custom RPC 0x61 does not reject.
  */
-export async function sendContractTx({ from, to, data, value, chainId }) {
+export async function sendContractTx({ from, to, data, value, chainId, gasFallback }) {
     await ensureBscNetwork(chainId);
-    const gas = await resolveGasLimitHex({ from, to, data });
+    const gas = await resolveGasLimitHex({
+        from,
+        to,
+        data,
+        fallback: gasFallback ?? DEFAULT_CONTRACT_GAS,
+    });
     const tx = { from, to, data, gas };
     if (value != null && value !== '' && value !== '0x0' && value !== '0x') {
         tx.value = value;
@@ -468,7 +551,13 @@ export async function waitForConfirmations(
 
         if (receipt) {
             if (receipt.status !== '0x1') {
-                throw new Error('Transaction failed on chain.');
+                const reason = await tryReplayRevertReason(txHash);
+                const short = txHash.slice(0, 10);
+                throw new Error(
+                    reason
+                        ? `Transaction failed on chain (${short}…): ${reason}`
+                        : `Transaction failed on chain (${short}…). Check explorer for revert reason.`,
+                );
             }
             break;
         }
@@ -503,6 +592,34 @@ export async function waitForConfirmations(
     throw new Error(
         `Waiting for ${minConfirmations} block confirmations. Try crediting again from Recent deposits shortly.`,
     );
+}
+
+async function tryReplayRevertReason(txHash) {
+    try {
+        const tx = await window.ethereum.request({
+            method: 'eth_getTransactionByHash',
+            params: [txHash],
+        });
+        if (!tx?.to || !tx?.from) {
+            return '';
+        }
+        await window.ethereum.request({
+            method: 'eth_call',
+            params: [
+                {
+                    from: tx.from,
+                    to: tx.to,
+                    data: tx.input || tx.data || '0x',
+                    value: tx.value || '0x0',
+                    gas: tx.gas || undefined,
+                },
+                tx.blockNumber || 'latest',
+            ],
+        });
+        return '';
+    } catch (err) {
+        return extractRpcRevertMessage(err) || '';
+    }
 }
 
 export async function verifyOnChainDeposit({ txHash, amountUsd, verifyUrl, extra = {} }) {

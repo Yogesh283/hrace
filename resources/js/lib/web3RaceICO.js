@@ -1,6 +1,7 @@
 import {
     assertOfficialUsdtContract,
     ensureBscNetwork,
+    extractRpcRevertMessage,
     friendlyNetworkSwitchMessage,
     getActiveChainId,
     isLikelyWrongNetworkError,
@@ -212,7 +213,10 @@ export function friendlyIcoError(err) {
         return 'ICO is paused.';
     }
     if (lower.includes('execution reverted') && !decoded) {
-        return 'ICO purchase reverted on-chain. Check USDT approve, stake plan (180/365/730/1095), and stay on BSC Testnet without switching accounts mid-tx.';
+        return 'ICO purchase would revert on-chain. Approve USDT first, pick 180/365/730/1095 days, stay on BSC Testnet.';
+    }
+    if (lower.includes('transaction failed on chain')) {
+        return msg;
     }
     if (isLikelyWrongNetworkError(msg)) {
         return friendlyNetworkSwitchMessage(getActiveChainId());
@@ -358,8 +362,8 @@ export async function approveUsdtForIco({
 }
 
 /**
- * Call RaceICO.purchase(usdtAmount) only — does NOT approve.
- * Mint-to-user: RACE goes to buyer wallet; USDT to admin.
+ * RaceICO.purchase(usdtAmount, lockPeriod) — USDT→adminWallet, mint→engine, openIcoStake.
+ * Does NOT approve; caller must ensure allowance (Buy & Stake auto-approves when needed).
  */
 export async function purchaseIcoRace({
     walletAddress,
@@ -390,11 +394,29 @@ export async function purchaseIcoRace({
         throw new Error('USDT allowance too low. Approve USDT first.');
     }
 
+    const data = SELECTORS.purchase + padUint256(amountWei) + padUint256(lock);
+
+    // Preflight: surface Solidity revert before MetaMask broadcast.
+    try {
+        await window.ethereum.request({
+            method: 'eth_call',
+            params: [{ from: walletAddress, to: icoContract, data }, 'latest'],
+        });
+    } catch (err) {
+        const reason = extractRpcRevertMessage(err);
+        throw new Error(
+            reason
+                ? `ICO buy would fail: ${reason}`
+                : friendlyIcoError(err) || 'ICO buy would revert on-chain. Check approve, plan, and phase.',
+        );
+    }
+
     const txHash = await sendContractTx({
         from: walletAddress,
         to: icoContract,
-        data: SELECTORS.purchase + padUint256(amountWei) + padUint256(lock),
+        data,
         chainId,
+        gasFallback: 5_000_000,
     });
 
     if (waitConfirmations > 0) {
