@@ -1,4 +1,5 @@
 import {
+    configureWeb3Network,
     connectWalletWithNetwork,
     getActiveChainId,
     isChainIdMatch,
@@ -19,7 +20,11 @@ export function useWalletNetwork({ expectedChainId } = {}) {
     const targetChainId = Number(
         expectedChainId ?? blockchain.chain_id ?? getActiveChainId(),
     );
-    const testnet = isTestnetMode() || targetChainId === 97;
+    const testnet = targetChainId === 97 || isTestnetMode();
+
+    useEffect(() => {
+        configureWeb3Network({ chainId: targetChainId });
+    }, [targetChainId]);
 
     const [chainHex, setChainHex] = useState(null);
     const [chainOk, setChainOk] = useState(true);

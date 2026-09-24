@@ -1,6 +1,9 @@
 /** Official Tether USD (USDT) on BSC mainnet — never use on Testnet. */
 export const OFFICIAL_USDT_BEP20 = '0x55d398326f99059ff775485246999027b3197955';
 
+/** Project TestnetMockUSDT (BSC Testnet) — when configured, wallet must be on chain 97. */
+export const TESTNET_MOCK_USDT = '0xe30fb617215c4eb5a0e4e6b1a5f537c0e28c8fec';
+
 export const BSC_TESTNET_CHAIN_ID = 97;
 export const BSC_TESTNET_CHAIN_HEX = '0x61';
 export const BSC_MAINNET_CHAIN_ID = 56;
@@ -81,6 +84,74 @@ export function getWrongNetworkMessage(targetChainId = activeChainId) {
         return WRONG_NETWORK_MESSAGE;
     }
     return 'Please switch MetaMask to BNB Smart Chain (Chain ID 56).';
+}
+
+function normalizeAddressForChain(address) {
+    if (!address || typeof address !== 'string') {
+        return '';
+    }
+    const trimmed = address.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+        return '';
+    }
+    return trimmed.toLowerCase();
+}
+
+/**
+ * Resolve chain id from Laravel Inertia blockchain props (handles Testnet USDT + is_testnet).
+ */
+export function resolvePageChainId(blockchain = {}) {
+    const usdt = normalizeAddressForChain(
+        blockchain.contracts?.usdt
+            || blockchain.ico?.usdt_contract
+            || blockchain.web3?.usdt_contract
+            || blockchain.token?.usdt_contract,
+    );
+    if (usdt === TESTNET_MOCK_USDT) {
+        return BSC_TESTNET_CHAIN_ID;
+    }
+
+    const fromProps = Number(blockchain.chain_id);
+    if (Number.isFinite(fromProps) && fromProps > 0) {
+        return fromProps;
+    }
+    if (blockchain.is_testnet) {
+        return BSC_TESTNET_CHAIN_ID;
+    }
+    return BSC_MAINNET_CHAIN_ID;
+}
+
+export function networkLabelForChainId(chainId = activeChainId) {
+    return Number(chainId) === BSC_TESTNET_CHAIN_ID
+        ? 'BSC Testnet (Chain ID 97)'
+        : 'BNB Smart Chain (Chain ID 56)';
+}
+
+export function friendlyNetworkSwitchMessage(chainId = activeChainId) {
+    return `Wrong network. Switch to ${networkLabelForChainId(chainId)}. ${getWrongNetworkMessage(chainId)}`;
+}
+
+export function isLikelyWrongNetworkError(message) {
+    const lower = String(message || '').toLowerCase();
+    if (!lower) {
+        return false;
+    }
+    if (lower.includes('wrong network')) {
+        return true;
+    }
+    if (/please switch metamask to bsc testnet/i.test(message)) {
+        return true;
+    }
+    if (/please switch metamask to bnb smart chain/i.test(message)) {
+        return true;
+    }
+    if (/switch to bsc testnet \(chain id 97\)/i.test(message)) {
+        return true;
+    }
+    if (/switch to bnb smart chain \(chain id 56\)/i.test(message)) {
+        return true;
+    }
+    return false;
 }
 
 function debugLog(payload) {
@@ -228,8 +299,8 @@ export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CO
 /**
  * eth_sendTransaction with explicit gas so Custom RPC 0x61 does not reject.
  */
-export async function sendContractTx({ from, to, data, value }) {
-    await ensureBscNetwork();
+export async function sendContractTx({ from, to, data, value, chainId }) {
+    await ensureBscNetwork(chainId);
     const gas = await resolveGasLimitHex({ from, to, data });
     const tx = { from, to, data, gas };
     if (value != null && value !== '' && value !== '0x0' && value !== '0x') {
@@ -455,6 +526,31 @@ export async function verifyOnChainDeposit({ txHash, amountUsd, verifyUrl, extra
 
     if (!response.ok) {
         throw new Error(payload.error || 'Deposit verification failed.');
+    }
+
+    return payload;
+}
+
+/**
+ * Instant DB index for Engine/ICO/Vault logs from one confirmed tx.
+ * Writes blockchain_events (+ ico_purchases / stakes when present).
+ */
+export async function syncBlockchainTx({ txHash, syncUrl = '/blockchain/sync-tx' }) {
+    const response = await fetch(syncUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': getCsrfToken(),
+        },
+        body: JSON.stringify({ tx_hash: txHash }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload.error || 'Could not sync transaction to database.');
     }
 
     return payload;

@@ -1,9 +1,9 @@
 import {
     assertOfficialUsdtContract,
     ensureBscNetwork,
-    getWrongNetworkMessage,
+    friendlyNetworkSwitchMessage,
     getActiveChainId,
-    isTestnetMode,
+    isLikelyWrongNetworkError,
     parseTokenAmount,
     sendContractTx,
     waitForConfirmations,
@@ -191,17 +191,14 @@ export function friendlyIcoError(err) {
     if (lower.includes('paused') || lower.includes('enforcedpause')) {
         return 'ICO is paused.';
     }
-    if (
-        lower.includes('wrong network')
-        || lower.includes('switch metamask')
-        || lower.includes('chain id 97')
-        || lower.includes('chain id 56')
-        || lower.includes('bsc testnet')
-    ) {
-        const label = isTestnetMode() || getActiveChainId() === 97 ? 'BSC Testnet (Chain ID 97)' : 'BNB Smart Chain (Chain ID 56)';
-        return `Wrong network. Switch to ${label}. ${getWrongNetworkMessage()}`;
+    if (isLikelyWrongNetworkError(msg)) {
+        return friendlyNetworkSwitchMessage(getActiveChainId());
     }
-    return friendlySwapError(err) || msg || 'ICO transaction failed.';
+    const swapMsg = friendlySwapError(err);
+    if (swapMsg && isLikelyWrongNetworkError(swapMsg)) {
+        return friendlyNetworkSwitchMessage(getActiveChainId());
+    }
+    return swapMsg || msg || 'ICO transaction failed.';
 }
 
 export async function readIcoAdminWallet({ icoContract, rpcUrl }) {
@@ -296,15 +293,17 @@ export async function approveUsdtForIco({
     icoContract,
     usdtContract,
     amountUsd,
+    chainId = getActiveChainId(),
     waitConfirmations = 1,
 }) {
     assertOfficialUsdtContract(usdtContract);
-    await ensureBscNetwork();
+    await ensureBscNetwork(chainId);
     const amountWei = parseTokenAmount(amountUsd, 18);
     const txHash = await sendContractTx({
         from: walletAddress,
         to: usdtContract,
         data: SELECTORS.approve + padAddress(icoContract) + padUint256(amountWei),
+        chainId,
     });
     if (waitConfirmations > 0) {
         await waitForConfirmations(txHash, { minConfirmations: waitConfirmations });
@@ -322,10 +321,11 @@ export async function purchaseIcoRace({
     usdtContract,
     amountUsd,
     lockPeriodSeconds,
+    chainId = getActiveChainId(),
     waitConfirmations = 3,
 }) {
     assertOfficialUsdtContract(usdtContract);
-    await ensureBscNetwork();
+    await ensureBscNetwork(chainId);
 
     const amountWei = parseTokenAmount(amountUsd, 18);
     const lock = BigInt(lockPeriodSeconds ?? 0);
@@ -342,6 +342,7 @@ export async function purchaseIcoRace({
         from: walletAddress,
         to: icoContract,
         data: SELECTORS.purchase + padUint256(amountWei) + padUint256(lock),
+        chainId,
     });
 
     if (waitConfirmations > 0) {

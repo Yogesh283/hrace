@@ -29,9 +29,9 @@ final class BlockchainContractPayload
             'enabled' => $onChainEnabled && $contract !== '',
             'on_chain_enabled' => $onChainEnabled,
             'blockchain_only' => $blockchainOnly,
-            'chain_id' => (int) config('blockchain.chain_id', 56),
-            'network' => (string) config('blockchain.network', ((int) config('blockchain.chain_id', 56)) === 97 ? 'bsc_testnet' : 'bsc'),
-            'is_testnet' => (int) config('blockchain.chain_id', 56) === 97,
+            'chain_id' => BlockchainMode::effectiveChainId(),
+            'network' => (string) config('blockchain.network', BlockchainMode::effectiveChainId() === 97 ? 'bsc_testnet' : 'bsc'),
+            'is_testnet' => BlockchainMode::effectiveChainId() === 97,
             'engine_contract' => $engine,
             'participation_contract' => $participation,
             'contract' => $contract,
@@ -59,7 +59,7 @@ final class BlockchainContractPayload
         $raceToken = (string) config('blockchain.contracts.race_token', '');
         $pancakeRouter = (string) config('blockchain.contracts.pancake_router', '');
         $usdt = (string) config('blockchain.contracts.usdt', '');
-        $chainId = (int) config('blockchain.chain_id', 56);
+        $chainId = BlockchainMode::effectiveChainId();
         $engineAddress = (string) ($engine['engine_contract'] ?? '');
         $networkName = match ($chainId) {
             97 => 'BNB Smart Chain Testnet',

@@ -6,7 +6,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { RACE_BANNER_STAKING, RACE_LOGO_SRC } from '@/lib/brandAssets';
-import { parseTokenAmount } from '@/lib/web3Deposit';
+import { configureWeb3Network, parseTokenAmount, syncBlockchainTx, TESTNET_MOCK_USDT } from '@/lib/web3Deposit';
 import { ensureEngineReferralBeforeStake } from '@/lib/web3Engine';
 import {
     approveUsdtForIco,
@@ -176,6 +176,39 @@ export default function Isu({
                 engineContract !== ''),
     );
 
+    const expectedChainId = useMemo(() => {
+        const usdt = (usdtContract || '').trim().toLowerCase();
+        if (usdt === TESTNET_MOCK_USDT) {
+            return 97;
+        }
+        const fromIco = Number(icoConfig?.chain_id);
+        if (Number.isFinite(fromIco) && fromIco > 0) {
+            return fromIco;
+        }
+        const fromBlockchain = Number(blockchain?.chain_id);
+        if (Number.isFinite(fromBlockchain) && fromBlockchain > 0) {
+            return fromBlockchain;
+        }
+        if (icoConfig?.is_testnet ?? blockchain?.is_testnet) {
+            return 97;
+        }
+        return 56;
+    }, [
+        usdtContract,
+        icoConfig?.chain_id,
+        icoConfig?.is_testnet,
+        blockchain?.chain_id,
+        blockchain?.is_testnet,
+    ]);
+
+    useEffect(() => {
+        configureWeb3Network({
+            chainId: expectedChainId,
+            usdtContract,
+            rpcUrl,
+        });
+    }, [expectedChainId, usdtContract, rpcUrl]);
+
     const {
         chainOk,
         switching: networkSwitching,
@@ -184,7 +217,7 @@ export default function Isu({
         connectWallet: connectWalletOnNetwork,
         connectedLabel,
         switchButtonLabel,
-    } = useWalletNetwork({ expectedChainId: icoConfig?.chain_id ?? blockchain?.chain_id });
+    } = useWalletNetwork({ expectedChainId });
 
     useEffect(() => {
         if (!import.meta.env.DEV) {
@@ -474,6 +507,7 @@ export default function Isu({
                 icoContract,
                 usdtContract,
                 amountUsd,
+                chainId: expectedChainId,
                 waitConfirmations: 1,
             });
             await refreshChainState();
@@ -520,6 +554,7 @@ export default function Isu({
                     engineContract,
                     rpcUrl,
                     sponsorWallet: on_chain_sponsor_wallet,
+                    chainId: expectedChainId,
                     waitConfirmations: 1,
                 });
             }
@@ -535,6 +570,7 @@ export default function Isu({
                 usdtContract,
                 amountUsd,
                 lockPeriodSeconds,
+                chainId: expectedChainId,
                 waitConfirmations: 3,
             });
             const raceAfter = await readErc20BalanceOf({
@@ -560,15 +596,16 @@ export default function Isu({
                 dailyRoi: selectedPlan?.daily_roi_percent || selectedPlan?.dailyRoiPercent || '—',
                 lockLabel: selectedPlan?.lock_label || selectedPlan?.lockLabel || '—',
             });
-            // Index ICO → Engine stake so Member ID / participation flips Active ($50+).
+            // Instant DB: blockchain_events + ico_purchases + stakes; then participation row.
             try {
+                await syncBlockchainTx({ txHash });
                 await syncParticipationTx({
                     txHash,
                     verifyUrl: '/participation/verify-onchain',
                 });
                 router.reload();
             } catch (syncErr) {
-                console.warn('ICO verify-onchain:', syncErr?.message || syncErr);
+                console.warn('ICO sync-tx / verify-onchain:', syncErr?.message || syncErr);
             }
             await refreshChainState();
         } catch (err) {
@@ -1004,11 +1041,19 @@ export default function Isu({
                                                         setBusy(`stake-${stake.index}`);
                                                         setError('');
                                                         try {
-                                                            await claimOnChainReward({
+                                                            const txHash = await claimOnChainReward({
                                                                 walletAddress,
                                                                 engineContract,
                                                                 stakeIndex: stake.index,
                                                             });
+                                                            try {
+                                                                await syncBlockchainTx({ txHash });
+                                                            } catch (syncErr) {
+                                                                console.warn(
+                                                                    'claim sync-tx:',
+                                                                    syncErr?.message || syncErr,
+                                                                );
+                                                            }
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));
@@ -1027,11 +1072,19 @@ export default function Isu({
                                                         setBusy(`stake-${stake.index}`);
                                                         setError('');
                                                         try {
-                                                            await compoundOnChainReward({
+                                                            const txHash = await compoundOnChainReward({
                                                                 walletAddress,
                                                                 engineContract,
                                                                 stakeIndex: stake.index,
                                                             });
+                                                            try {
+                                                                await syncBlockchainTx({ txHash });
+                                                            } catch (syncErr) {
+                                                                console.warn(
+                                                                    'compound sync-tx:',
+                                                                    syncErr?.message || syncErr,
+                                                                );
+                                                            }
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));
@@ -1055,11 +1108,19 @@ export default function Isu({
                                                         setBusy(`stake-${stake.index}`);
                                                         setError('');
                                                         try {
-                                                            await withdrawOnChainStake({
+                                                            const txHash = await withdrawOnChainStake({
                                                                 walletAddress,
                                                                 engineContract,
                                                                 stakeIndex: stake.index,
                                                             });
+                                                            try {
+                                                                await syncBlockchainTx({ txHash });
+                                                            } catch (syncErr) {
+                                                                console.warn(
+                                                                    'withdraw sync-tx:',
+                                                                    syncErr?.message || syncErr,
+                                                                );
+                                                            }
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));

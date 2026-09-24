@@ -22,7 +22,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { RACE_BANNER_TOKEN, RACE_LOGO_SRC } from '@/lib/brandAssets';
 import { linkWalletToAccount } from '@/lib/walletAccountLink';
-import { parseTokenAmount } from '@/lib/web3Deposit';
+import { parseTokenAmount, syncBlockchainTx } from '@/lib/web3Deposit';
 import {
     claimOnChainMaturityEmi,
     claimOnChainReward,
@@ -35,6 +35,7 @@ import {
     readStakeCount,
     withdrawOnChainStake,
 } from '@/lib/web3Engine';
+import { syncParticipationTx } from '@/lib/web3Participation';
 import { readIcoCompleted } from '@/lib/web3RaceICO';
 import {
     applySlippage,
@@ -521,6 +522,15 @@ export default function RaceToken({ raceTokenConfig = {} }) {
                 lockSeconds: selectedTier.seconds ?? 0,
             });
             setStakeTx(txHash);
+            try {
+                await syncBlockchainTx({ txHash });
+                await syncParticipationTx({
+                    txHash,
+                    verifyUrl: '/participation/verify-onchain',
+                });
+            } catch (syncErr) {
+                console.warn('RaceToken participate sync:', syncErr?.message || syncErr);
+            }
             await refreshStakes();
             await refreshMarket();
         } catch (err) {
@@ -539,6 +549,11 @@ export default function RaceToken({ raceTokenConfig = {} }) {
         try {
             const txHash = await claimOnChainReward({ walletAddress, engineContract, stakeIndex });
             setStakeTx(txHash);
+            try {
+                await syncBlockchainTx({ txHash });
+            } catch (syncErr) {
+                console.warn('RaceToken claim sync:', syncErr?.message || syncErr);
+            }
             await refreshStakes();
         } catch (err) {
             setStakeError(friendlyEngineError(err));
@@ -556,6 +571,11 @@ export default function RaceToken({ raceTokenConfig = {} }) {
         try {
             const txHash = await withdrawOnChainStake({ walletAddress, engineContract, stakeIndex });
             setStakeTx(txHash);
+            try {
+                await syncBlockchainTx({ txHash });
+            } catch (syncErr) {
+                console.warn('RaceToken withdraw sync:', syncErr?.message || syncErr);
+            }
             await refreshStakes();
             await refreshMarket();
         } catch (err) {
@@ -597,6 +617,11 @@ export default function RaceToken({ raceTokenConfig = {} }) {
                 emiNumber,
             });
             setStakeTx(txHash);
+            try {
+                await syncBlockchainTx({ txHash });
+            } catch (syncErr) {
+                console.warn('RaceToken EMI sync:', syncErr?.message || syncErr);
+            }
             await refreshStakes();
             await refreshMarket();
         } catch (err) {

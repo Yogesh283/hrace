@@ -273,8 +273,8 @@ export function friendlySwapError(error) {
     if (code === 4001 || /user rejected|denied|cancelled/i.test(message)) {
         return 'Transaction rejected in your wallet.';
     }
-    if (/wrong network|chain/i.test(message)) {
-        return 'Please switch to BNB Smart Chain (BSC) in your wallet.';
+    if (/wrong network|please switch metamask to bsc testnet|please switch metamask to bnb smart chain/i.test(message)) {
+        return message;
     }
     if (/insufficient funds/i.test(message)) {
         return 'Insufficient BNB for network gas fees.';

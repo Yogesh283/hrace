@@ -13,6 +13,8 @@ import {
     purchaseOnChainParticipation,
     withdrawOnChainStake,
 } from '@/lib/web3Engine';
+import { syncBlockchainTx } from '@/lib/web3Deposit';
+import { syncParticipationTx } from '@/lib/web3Participation';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 
@@ -228,6 +230,15 @@ export default function Investment({
                 sponsorWallet: on_chain_sponsor_wallet,
                 rpcUrl: engineConfig.rpc_url || blockchain?.rpc_url || '',
             });
+            try {
+                await syncBlockchainTx({ txHash });
+                await syncParticipationTx({
+                    txHash,
+                    verifyUrl: '/participation/verify-onchain',
+                });
+            } catch (syncErr) {
+                console.warn('participate sync:', syncErr?.message || syncErr);
+            }
             setOnChainStatus('Transaction sent. Daily RACE rewards pay directly to your wallet from the smart contract.');
             router.reload({ only: ['investments', 'blockchainParticipations', 'communityEngineStakes', 'memberActivation', 'web3Engine'] });
         } catch (err) {

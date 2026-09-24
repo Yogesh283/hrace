@@ -1,6 +1,7 @@
 import {
     assertOfficialUsdtContract,
     ensureBscNetwork,
+    getActiveChainId,
     parseTokenAmount,
     sendContractTx,
     waitForConfirmations,
@@ -122,10 +123,15 @@ async function ethCall({ to, data, rpcUrl }) {
     return (await viaRpc()) ?? (await viaWallet()) ?? '0x0';
 }
 
-export async function registerOnChain({ walletAddress, engineContract, referrer }) {
-    await ensureBscNetwork();
+export async function registerOnChain({
+    walletAddress,
+    engineContract,
+    referrer,
+    chainId = getActiveChainId(),
+}) {
+    await ensureBscNetwork(chainId);
     const data = encodeRegister(referrer);
-    return sendContractTx({ from: walletAddress, to: engineContract, data });
+    return sendContractTx({ from: walletAddress, to: engineContract, data, chainId });
 }
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -165,9 +171,10 @@ export async function ensureEngineReferralBeforeStake({
     engineContract,
     rpcUrl,
     sponsorWallet,
+    chainId = getActiveChainId(),
     waitConfirmations: confirmCount = 1,
 }) {
-    await ensureBscNetwork();
+    await ensureBscNetwork(chainId);
 
     const self = normalizeWalletAddress(walletAddress);
     if (!self || !engineContract) {
@@ -210,6 +217,7 @@ export async function ensureEngineReferralBeforeStake({
         walletAddress: self,
         engineContract,
         referrer,
+        chainId,
     });
     if (confirmCount > 0) {
         await waitForConfirmations(txHash, confirmCount);
@@ -655,8 +663,8 @@ export function friendlyEngineError(error) {
     if (code === 4001 || /user rejected|denied|cancelled/i.test(message)) {
         return 'Transaction rejected in your wallet.';
     }
-    if (/wrong network|chain/i.test(message)) {
-        return 'Please switch to BNB Smart Chain (BSC) in your wallet.';
+    if (/wrong network|please switch metamask to bsc testnet|please switch metamask to bnb smart chain/i.test(message)) {
+        return message;
     }
     if (/insufficient funds/i.test(message)) {
         return 'Insufficient BNB for network gas fees.';
