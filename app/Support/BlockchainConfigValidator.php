@@ -25,7 +25,11 @@ final class BlockchainConfigValidator
         $chainId = (int) config('blockchain.chain_id', 56);
         $usdt = strtolower(trim((string) config('blockchain.contracts.usdt', '')));
         $engine = strtolower(trim((string) config('blockchain.contracts.community_engine', '')));
-        $deprecatedEngine = '0xc0d9dee1476d67379069444a7e5f1b340f91f4e9';
+        $deprecatedEngines = [
+            '0xc0d9dee1476d67379069444a7e5f1b340f91f4e9',
+            '0xbddea78d9ef21bf7e8577de8bfe599e5dd0456ef',
+            '0x04a510c5a8b8204c234c0582fbc0ac8e171c7d77',
+        ];
 
         if ($chainId === 97) {
             if ($usdt !== '' && $usdt === self::MAINNET_USDT) {
@@ -33,9 +37,9 @@ final class BlockchainConfigValidator
                     'BLOCKCHAIN CONFIG: BSC_CHAIN_ID=97 but USDT is mainnet address — refused.',
                 );
             }
-            if ($engine === $deprecatedEngine) {
+            if ($engine !== '' && in_array($engine, $deprecatedEngines, true)) {
                 throw new \RuntimeException(
-                    'BLOCKCHAIN CONFIG: RACE_COMMUNITY_ENGINE_CONTRACT still points to deprecated engine 0xc0D9… — update after C-1 redeploy.',
+                    'BLOCKCHAIN CONFIG: RACE_COMMUNITY_ENGINE_CONTRACT still points to a deprecated engine — update after Engine redeploy.',
                 );
             }
 

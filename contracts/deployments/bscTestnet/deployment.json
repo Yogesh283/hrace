@@ -10,7 +10,7 @@
   "raceAutoLiquidity": "0xafC443895FAb63F4221B50Cc9dceB46ce925F146",
   "raceStaking": "0xA31C053767034C86BaB132B53686AAb7898255A3",
   "raceRewardVault": "0x44aB7B654dAA8184C7B43CAcB69994969A926ca4",
-  "raceCommunityEngine": "0xbdDeA78d9Ef21BF7E8577de8BFe599E5dd0456ef",
+  "raceCommunityEngine": "0xa0791fAe5FFa14d0eBBA7e2c4F4710342dFDdD5D",
   "raceParticipation": "0x9BF2E3405c0cB666C6664BD7651dab3F656fEDA5",
   "raceICO": "0x9C227938885f5fE4f91826EC6dB37ea54AC31C73",
   "raceRewardPriceOracle": "0xB5A67CD0D32Ed0D5021827b1C5d6bfd1C401556a",
@@ -95,17 +95,101 @@
       "txHash": "0xfab5a9d548c21df694d87e9bb027b6f9967a547e386114f30843ebcf02115fec",
       "status": "SUCCESS",
       "block": 130723078
+    },
+    {
+      "action": "newEngine.transferOwnership(MultiSig) direct from deployer",
+      "txHash": "0xffdaef0fde0d42ee1188c5885ba5f5ecc23c319ea11bb5aeab63cab24ac51ecc",
+      "status": "SUCCESS",
+      "block": 132854098
+    },
+    {
+      "action": "newEngine.setIcoContract",
+      "txHash": "0x2fd5b85e33f28d0f248b5ad3979bade90565d047ad808943cf47ef0ea361d90a",
+      "status": "SUCCESS",
+      "block": 132857935
+    },
+    {
+      "action": "newEngine.setRewardPriceOracle",
+      "txHash": "0xcc3e4e569a99a8512d8788e42bf865b30bd773e8d27610656ec7398d499d870a",
+      "status": "SUCCESS",
+      "block": 132857942
+    },
+    {
+      "action": "newEngine.setMaturityTreasury",
+      "txHash": "0x4db25c3f28073ec78fe3250d68bf2526b027d96715d0f55314fc3c23bddfb4e2",
+      "status": "SUCCESS",
+      "block": 132857950
+    },
+    {
+      "action": "newEngine.lockMaturityTreasury",
+      "txHash": "0x3b96e4528a53d216df6500fe4012c0e8576ac4a06fc95fe54022aee4fbe2f7bc",
+      "status": "SUCCESS",
+      "block": 132857957
+    },
+    {
+      "action": "vault.setEngine(new) submit",
+      "txHash": "0x4adf2d3dd05a94a943bac1f2fbdc1dbc311893bbb4ffe8b870671468bab84935",
+      "status": "SUCCESS",
+      "block": 132858020
+    },
+    {
+      "action": "vault.setEngine(new) confirm 1",
+      "txHash": "0xbf64259bbb24af04327255a577ed2bd53888be897c8df668e5761c2bb3759597",
+      "status": "SUCCESS",
+      "block": 132858030
+    },
+    {
+      "action": "vault.setEngine(new) confirm 2",
+      "txHash": "0xa24ad97c7e5d2749e8901bc4ceeb4f41f49b621f04e7213ba44107517d612cf9",
+      "status": "SUCCESS",
+      "block": 132858046
+    },
+    {
+      "action": "vault.setEngine(new) confirm 3",
+      "txHash": "0x54c9d4a8278d359e67cc27d22c77ef0ec509f95dea96e616c4a475b3e93c1be4",
+      "status": "SUCCESS",
+      "block": 132858055
+    },
+    {
+      "action": "ico.setStakingEngine(new) submit",
+      "txHash": "0xb0509c65985e43153def317588dae75995ea291e0122d6b71bfa280b2548d1d3",
+      "status": "SUCCESS",
+      "block": 132858144
+    },
+    {
+      "action": "ico.setStakingEngine(new) confirm 1",
+      "txHash": "0xa7235021566f6406d6a33381300b2ec651ff192aec09e5faa1b40af9e4669440",
+      "status": "SUCCESS",
+      "block": 132858157
+    },
+    {
+      "action": "ico.setStakingEngine(new) confirm 2",
+      "txHash": "0x3a321e2e3fa6e8e3950df31ead9f788d057939bad7c29a39c1a18534c1af0412",
+      "status": "SUCCESS",
+      "block": 132858168
+    },
+    {
+      "action": "ico.setStakingEngine(new) confirm 3",
+      "txHash": "0x7135b2cea537024874bf2b93219043c9baa0bd08a56b5da688f83c3ee160a3a6",
+      "status": "SUCCESS",
+      "block": 132858177
+    },
+    {
+      "action": "newEngine.transferOwnership(MultiSig) direct from deployer",
+      "txHash": "0xe5ddc2fa0fec96a835bd203832a751d54c4229ed372b095090eb061fdfd754dd",
+      "status": "SUCCESS",
+      "block": 132858187
     }
   ],
   "linkages": {
-    "vaultEngine": "0xbdDeA78d9Ef21BF7E8577de8BFe599E5dd0456ef",
-    "icoStakingEngine": "0xbdDeA78d9Ef21BF7E8577de8BFe599E5dd0456ef",
+    "vaultEngine": "0xa0791fAe5FFa14d0eBBA7e2c4F4710342dFDdD5D",
+    "icoStakingEngine": "0xa0791fAe5FFa14d0eBBA7e2c4F4710342dFDdD5D",
     "engineOracle": "0xB5A67CD0D32Ed0D5021827b1C5d6bfd1C401556a",
     "raceCoinMinterIco": true,
     "raceCoinMinterVault": true
   },
   "note": "C-1 engine redeploy — claim policy bytecode live. Legacy engine deprecated. TESTNET ONLY.",
-  "raceCommunityEngineDeprecated": "0xc0D9Dee1476D67379069444A7e5f1b340f91F4E9",
-  "c1EngineRedeployAt": "2026-09-14T07:40:42.828Z",
-  "c1EngineRedeployBlock": 130944412
+  "raceCommunityEngineDeprecated": "0x04a510c5A8B8204C234c0582FBC0ac8e171c7d77",
+  "c1EngineRedeployAt": "2026-09-24T06:58:30.484Z",
+  "c1EngineRedeployBlock": 132858194
 }

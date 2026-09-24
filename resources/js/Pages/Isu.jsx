@@ -597,14 +597,29 @@ export default function Isu({
 
             if (engineContract) {
                 setBusy('register');
-                await ensureEngineReferralBeforeStake({
-                    walletAddress,
-                    engineContract,
-                    rpcUrl,
-                    sponsorWallet: on_chain_sponsor_wallet,
-                    chainId: expectedChainId,
-                    waitConfirmations: 1,
-                });
+                try {
+                    const reg = await ensureEngineReferralBeforeStake({
+                        walletAddress,
+                        engineContract,
+                        rpcUrl,
+                        sponsorWallet: on_chain_sponsor_wallet,
+                        chainId: expectedChainId,
+                        waitConfirmations: 1,
+                    });
+                    if (reg?.sponsorPendingOnboarding) {
+                        notifySuccess(
+                            'Sponsor not active on this Engine yet — stake will still complete. Level income starts after sponsor Buy & Stake ($50+).',
+                            'ICO',
+                        );
+                    }
+                } catch (regErr) {
+                    // Never block ICO Buy & Stake on referral wiring — openIcoStake can auto-register.
+                    console.warn('ensureEngineReferralBeforeStake', regErr);
+                    notifySuccess(
+                        'On-chain sponsor link skipped — continuing Buy & Stake. Level income may need sponsor activation.',
+                        'ICO',
+                    );
+                }
             }
 
             setBusy('buy');

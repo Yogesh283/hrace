@@ -12,8 +12,6 @@ import {IRaceRewardVault} from "./interfaces/IRaceRewardVault.sol";
 import {IRaceIcoStakeReceiver} from "./interfaces/IRaceIcoStakeReceiver.sol";
 import {IRaceIcoCompletion} from "./interfaces/IRaceIcoCompletion.sol";
 import {IRaceRewardPriceOracle} from "./interfaces/IRaceRewardPriceOracle.sol";
-import {PancakePrice} from "./libraries/PancakePrice.sol";
-
 /**
  * @title RaceCommunityEngine
  * @notice Single on-chain entry point for RACE Community Rewards (PDF program).
@@ -383,7 +381,9 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     // ─── Registry ───────────────────────────────────────────────────────────
 
     function register(address referrer) external whenNotPaused {
-        _register(msg.sender, referrer, false);
+        // Allow binding a not-yet-registered sponsor (testnet / late upline onboard).
+        // Referral pay still requires upline participationActive ($50+).
+        _register(msg.sender, referrer, true);
     }
 
     function participate(uint256 usdtAmount, uint256 lockPeriod) external nonReentrant whenNotPaused {
@@ -966,8 +966,15 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         rewardVault.pay(to, raceAmount);
     }
 
+    /// @dev USDT→RACE for vault mint payouts (referrals / leadership).
+    ///      Uses reward oracle — NOT Pancake spot — so ICO/referral works pre-listing
+    ///      when no USDT/RACE pool exists (Pancake getAmountsOut would silent-revert).
     function _usdtToRace(uint256 usdtAmount) internal view returns (uint256) {
-        return PancakePrice.usdtToRace(pancakeRouter, address(usdt), address(raceToken), usdtAmount);
+        if (usdtAmount == 0) {
+            return 0;
+        }
+        uint256 price = _rewardRacePriceUsdt();
+        return (usdtAmount * 1e18) / price;
     }
 
     function _swapUsdtToRace(uint256 usdtAmount) internal returns (uint256 raceReceived) {

@@ -199,32 +199,68 @@ export async function ensureEngineReferralBeforeStake({
     }
 
     let referrer = ZERO_ADDRESS;
+    let sponsorPendingOnboarding = false;
     if (sponsor) {
         const sponsorRegistered = await readIsRegistered({
             walletAddress: sponsor,
             engineContract,
             rpcUrl,
         });
-        if (!sponsorRegistered) {
-            throw new Error(
-                'Your sponsor must register on-chain first (Staking page — connect their wallet once). Then retry ICO or stake.',
-            );
+        if (sponsorRegistered) {
+            referrer = sponsor;
+        } else {
+            // New Engine may allow unregistered referrer; older bytecode requires registered upline.
+            // Try binding sponsor first; fall back to zero so Buy & Stake is never blocked.
+            referrer = sponsor;
+            sponsorPendingOnboarding = true;
         }
-        referrer = sponsor;
     }
 
-    const txHash = await registerOnChain({
-        walletAddress: self,
-        engineContract,
-        referrer,
-        chainId,
-    });
-    if (confirmCount > 0) {
-        await waitForConfirmations(txHash, confirmCount);
+    try {
+        const txHash = await registerOnChain({
+            walletAddress: self,
+            engineContract,
+            referrer,
+            chainId,
+        });
+        if (confirmCount > 0) {
+            await waitForConfirmations(txHash, confirmCount);
+        }
+        memberStateCache = { key: '', value: null, at: 0 };
+        return {
+            ok: true,
+            registered: true,
+            txHash,
+            sponsorBound: !isZeroAddress(referrer),
+            sponsorPendingOnboarding,
+        };
+    } catch (err) {
+        const msg = String(err?.message || err || '');
+        if (
+            sponsorPendingOnboarding &&
+            /referrer not registered|engine: referrer/i.test(msg)
+        ) {
+            console.warn('Engine rejects unregistered sponsor — registering without referrer so ICO can proceed');
+            const txHash = await registerOnChain({
+                walletAddress: self,
+                engineContract,
+                referrer: ZERO_ADDRESS,
+                chainId,
+            });
+            if (confirmCount > 0) {
+                await waitForConfirmations(txHash, confirmCount);
+            }
+            memberStateCache = { key: '', value: null, at: 0 };
+            return {
+                ok: true,
+                registered: true,
+                txHash,
+                sponsorBound: false,
+                sponsorPendingOnboarding: true,
+            };
+        }
+        throw err;
     }
-    memberStateCache = { key: '', value: null, at: 0 };
-
-    return { ok: true, registered: true, txHash, sponsorBound: !isZeroAddress(referrer) };
 }
 
 export async function readReferrerOf({ walletAddress, engineContract, rpcUrl }) {
