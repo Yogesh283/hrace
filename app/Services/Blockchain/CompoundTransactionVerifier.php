@@ -107,7 +107,7 @@ class CompoundTransactionVerifier
 
     private function topicToAddress(string $topic): string
     {
-        $hex = strtolower(ltrim($topic, '0x'));
+        $hex = \App\Support\Hex::stripPrefix($topic);
         if (strlen($hex) < 40) {
             return '';
         }
@@ -117,7 +117,7 @@ class CompoundTransactionVerifier
 
     private function readUint256At(string $dataHex, int $wordIndex): string
     {
-        $raw = ltrim($dataHex, '0x');
+        $raw = \App\Support\Hex::stripPrefix($dataHex);
         if ($raw === '') {
             return '0';
         }
@@ -127,8 +127,6 @@ class CompoundTransactionVerifier
             return '0';
         }
 
-        return function_exists('gmp_init')
-            ? gmp_strval(gmp_init($slice, 16), 10)
-            : (string) hexdec($slice);
+        return \App\Support\Hex::wordToDecimal($slice);
     }
 }

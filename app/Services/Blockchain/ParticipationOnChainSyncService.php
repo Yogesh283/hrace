@@ -231,7 +231,7 @@ class ParticipationOnChainSyncService
                     continue;
                 }
 
-                $indexedUser = '0x'.substr((string) ($topics[1] ?? ''), 26);
+                $indexedUser = '0x'.substr(\App\Support\Hex::stripPrefix((string) ($topics[1] ?? '')), -40);
                 if (strtolower($indexedUser) !== $fromWallet) {
                     return ['ok' => false, 'reason' => __('Staking event wallet mismatch.')];
                 }
@@ -258,20 +258,22 @@ class ParticipationOnChainSyncService
      */
     private function decodeParticipationPurchasedData(string $hexData): ?array
     {
-        $hex = strtolower(ltrim($hexData, '0x'));
+        // ParticipationPurchased(address indexed user, uint256 stakeIndex, uint256 usdtPaid,
+        //   uint256 raceStaked, uint256 lockPeriod, uint256 dailyRateBps) → 5 data words.
+        $hex = \App\Support\Hex::stripPrefix($hexData);
         if (strlen($hex) < 64 * 5) {
             return null;
         }
 
         $words = str_split($hex, 64);
-        $stakeIndex = (int) hexdec($words[0]);
-        $principalWei = hexdec($words[1]);
-        $lockSeconds = (int) hexdec($words[3]);
-        $dailyBps = (int) hexdec($words[4]);
+        $stakeIndex = (int) \App\Support\Hex::wordToDecimal($words[0]);
+        $principalWei = \App\Support\Hex::wordToDecimal($words[1]);
+        $lockSeconds = (int) \App\Support\Hex::wordToDecimal($words[3]);
+        $dailyBps = (int) \App\Support\Hex::wordToDecimal($words[4]);
 
         return [
             'stake_index' => $stakeIndex,
-            'principal_usdt' => (float) bcdiv((string) $principalWei, bcpow('10', '18', 0), 8),
+            'principal_usdt' => (float) bcdiv($principalWei, bcpow('10', '18', 0), 8),
             'lock_seconds' => $lockSeconds,
             'daily_rate_bps' => $dailyBps,
         ];
