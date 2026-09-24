@@ -1,4 +1,13 @@
-import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, sendContractTx, waitForConfirmations } from '@/lib/web3Deposit';
+import {
+    assertOfficialUsdtContract,
+    ensureBscNetwork,
+    getWrongNetworkMessage,
+    getActiveChainId,
+    isTestnetMode,
+    parseTokenAmount,
+    sendContractTx,
+    waitForConfirmations,
+} from '@/lib/web3Deposit';
 import { formatTokenWei, friendlySwapError } from '@/lib/web3PancakeSwap';
 
 /**
@@ -182,8 +191,15 @@ export function friendlyIcoError(err) {
     if (lower.includes('paused') || lower.includes('enforcedpause')) {
         return 'ICO is paused.';
     }
-    if (lower.includes('wrong network') || lower.includes('chain')) {
-        return 'Wrong network. Switch to BNB Smart Chain.';
+    if (
+        lower.includes('wrong network')
+        || lower.includes('switch metamask')
+        || lower.includes('chain id 97')
+        || lower.includes('chain id 56')
+        || lower.includes('bsc testnet')
+    ) {
+        const label = isTestnetMode() || getActiveChainId() === 97 ? 'BSC Testnet (Chain ID 97)' : 'BNB Smart Chain (Chain ID 56)';
+        return `Wrong network. Switch to ${label}. ${getWrongNetworkMessage()}`;
     }
     return friendlySwapError(err) || msg || 'ICO transaction failed.';
 }
