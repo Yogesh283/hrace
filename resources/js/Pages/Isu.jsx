@@ -617,6 +617,7 @@ export default function Isu({
                 lockPeriodSeconds,
                 chainId: expectedChainId,
                 waitConfirmations: 2,
+                rpcUrl,
             });
 
             const priceLabel = activePhase

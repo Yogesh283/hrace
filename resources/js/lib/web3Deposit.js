@@ -336,6 +336,21 @@ export function extractRpcRevertMessage(err) {
         typeof err?.data?.data?.data === 'string' ? err.data.data.data : null,
     ].filter(Boolean);
 
+    // Deep-scan JSON for Error(string) payloads (MetaMask nests oddly).
+    try {
+        const blob = JSON.stringify(err ?? {});
+        const match = blob.match(/0x08c379a0[a-fA-F0-9]+/);
+        if (match?.[0]) {
+            candidates.unshift(match[0].startsWith('0x') ? match[0] : `0x${match[0]}`);
+        }
+        const quoted = blob.match(/execution reverted:?\s*\\?"([^"\\]+)\\?"/i);
+        if (quoted?.[1] && quoted[1] !== '0x') {
+            return quoted[1];
+        }
+    } catch {
+        // ignore
+    }
+
     for (const data of candidates) {
         const decoded = decodeSolidityErrorString(data);
         if (decoded) {
@@ -346,7 +361,7 @@ export function extractRpcRevertMessage(err) {
     const msg = String(nested || err?.shortMessage || err?.reason || err?.message || '');
     if (/execution reverted/i.test(msg) && msg.length < 200) {
         const m = msg.match(/execution reverted:?\s*(.*)$/i);
-        if (m?.[1] && m[1] !== '0x') {
+        if (m?.[1] && m[1] !== '0x' && m[1].trim() !== '') {
             return m[1].replace(/^["']|["']$/g, '').trim();
         }
     }

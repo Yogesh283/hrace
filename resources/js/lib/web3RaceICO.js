@@ -213,7 +213,9 @@ export function friendlyIcoError(err) {
         return 'ICO is paused.';
     }
     if (lower.includes('execution reverted') && !decoded) {
-        return 'ICO purchase would revert on-chain. Approve USDT first, pick 180/365/730/1095 days, stay on BSC Testnet.';
+        return msg.includes('ICO buy would fail')
+            ? msg
+            : 'ICO purchase simulation failed. Stay on BSC Testnet, approve USDT, then try Buy & Stake again.';
     }
     if (lower.includes('transaction failed on chain')) {
         return msg;
@@ -226,29 +228,6 @@ export function friendlyIcoError(err) {
         return friendlyNetworkSwitchMessage(getActiveChainId());
     }
     return swapMsg || msg || 'ICO transaction failed.';
-}
-
-/** Decode Solidity Error(string) payload from MetaMask / RPC revert data. */
-function decodeSolidityErrorString(data) {
-    if (!data || typeof data !== 'string' || !data.startsWith('0x') || data.length < 10) {
-        return '';
-    }
-    const hex = data.slice(2).toLowerCase();
-    // Error(string) selector = 0x08c379a0
-    if (!hex.startsWith('08c379a0') || hex.length < 8 + 64 + 64) {
-        return '';
-    }
-    try {
-        const len = Number.parseInt(hex.slice(8 + 64, 8 + 128), 16);
-        if (!Number.isFinite(len) || len <= 0 || len > 256) {
-            return '';
-        }
-        const strHex = hex.slice(8 + 128, 8 + 128 + len * 2);
-        const bytes = strHex.match(/.{1,2}/g) || [];
-        return bytes.map((b) => String.fromCharCode(Number.parseInt(b, 16))).join('');
-    } catch {
-        return '';
-    }
 }
 
 export async function readIcoAdminWallet({ icoContract, rpcUrl }) {
@@ -373,6 +352,7 @@ export async function purchaseIcoRace({
     lockPeriodSeconds,
     chainId = getActiveChainId(),
     waitConfirmations = 3,
+    rpcUrl = '',
 }) {
     assertOfficialUsdtContract(usdtContract);
     await ensureBscNetwork(chainId);
@@ -389,6 +369,7 @@ export async function purchaseIcoRace({
         token: usdtContract,
         owner: walletAddress,
         spender: icoContract,
+        rpcUrl,
     });
     if (allowance < amountWei) {
         throw new Error('USDT allowance too low. Approve USDT first.');
@@ -396,20 +377,13 @@ export async function purchaseIcoRace({
 
     const data = SELECTORS.purchase + padUint256(amountWei) + padUint256(lock);
 
-    // Preflight: surface Solidity revert before MetaMask broadcast.
-    try {
-        await window.ethereum.request({
-            method: 'eth_call',
-            params: [{ from: walletAddress, to: icoContract, data }, 'latest'],
-        });
-    } catch (err) {
-        const reason = extractRpcRevertMessage(err);
-        throw new Error(
-            reason
-                ? `ICO buy would fail: ${reason}`
-                : friendlyIcoError(err) || 'ICO buy would revert on-chain. Check approve, plan, and phase.',
-        );
-    }
+    // Preflight with enough gas. MetaMask eth_call without gas often returns empty "0x" revert (OOG noise).
+    await assertIcoPurchaseWouldSucceed({
+        from: walletAddress,
+        icoContract,
+        data,
+        rpcUrl,
+    });
 
     const txHash = await sendContractTx({
         from: walletAddress,
@@ -424,6 +398,118 @@ export async function purchaseIcoRace({
     }
 
     return txHash;
+}
+
+const PREFLIGHT_GAS = '0x4c4b40'; // 5_000_000
+
+async function assertIcoPurchaseWouldSucceed({ from, icoContract, data, rpcUrl }) {
+    const tx = { from, to: icoContract, data, gas: PREFLIGHT_GAS };
+
+    // Prefer public RPC — cleaner revert strings than MetaMask Internal JSON-RPC.
+    if (rpcUrl) {
+        try {
+            const response = await fetch(rpcUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'eth_call',
+                    params: [tx, 'latest'],
+                }),
+            });
+            const payload = await response.json();
+            if (payload?.error) {
+                const reason =
+                    decodeSolidityErrorString(String(payload.error.data || '')) ||
+                    String(payload.error.message || '');
+                throw new Error(
+                    mapIcoRevertToUserMessage(reason) ||
+                        `ICO buy would fail: ${reason || 'execution reverted'}`,
+                );
+            }
+            return;
+        } catch (err) {
+            if (String(err?.message || '').startsWith('ICO buy would fail') || String(err?.message || '').startsWith('Invalid') || String(err?.message || '').includes('RaceICO:')) {
+                throw err;
+            }
+            // RPC flake — fall through to MetaMask.
+        }
+    }
+
+    try {
+        await window.ethereum.request({
+            method: 'eth_call',
+            params: [tx, 'latest'],
+        });
+    } catch (err) {
+        const reason = extractRpcRevertMessage(err);
+        // Empty "0x" / Internal JSON-RPC with no reason is often MetaMask OOG noise when gas was missing.
+        // With gas set above, a real require() should decode; if still empty, do not hard-block — sendContractTx estimate will catch real reverts.
+        if (reason) {
+            throw new Error(mapIcoRevertToUserMessage(reason) || `ICO buy would fail: ${reason}`);
+        }
+        const soft = String(err?.message || err?.data?.message || '');
+        if (/execution reverted/i.test(soft) && !/0x\s*$/i.test(soft) && soft.length > 40) {
+            throw new Error(friendlyIcoError(err));
+        }
+        // Ambiguous MetaMask noise — proceed; estimateGas in sendContractTx is the hard gate.
+    }
+}
+
+function mapIcoRevertToUserMessage(reason) {
+    const r = String(reason || '');
+    const lower = r.toLowerCase();
+    if (lower.includes('bad plan')) {
+        return 'Invalid stake plan. Select 180 / 365 / 730 / 1095 days.';
+    }
+    if (lower.includes('phase sold out') || lower.includes('phase usdt cap')) {
+        return 'This ICO phase is sold out or over the USDT cap.';
+    }
+    if (lower.includes('total sold out') || lower.includes('completed')) {
+        return 'ICO allocation is complete.';
+    }
+    if (lower.includes('phase inactive') || lower.includes('no active phase')) {
+        return 'No active ICO phase.';
+    }
+    if (lower.includes('transfer amount exceeds allowance') || lower.includes('allowance')) {
+        return 'USDT allowance too low. Approve USDT first.';
+    }
+    if (lower.includes('transfer amount exceeds balance') || lower.includes('insufficient')) {
+        return 'Insufficient USDT balance.';
+    }
+    if (lower.includes('paused')) {
+        return 'ICO is paused.';
+    }
+    if (r.startsWith('RaceICO:') || r.startsWith('engine:') || r.startsWith('RaceCoin:')) {
+        return r;
+    }
+    return '';
+}
+
+/** Decode Solidity Error(string) — shared with friendlyIcoError. */
+function decodeSolidityErrorString(data) {
+    if (!data || typeof data !== 'string') {
+        return '';
+    }
+    let hex = data.startsWith('0x') ? data.slice(2) : data;
+    hex = hex.toLowerCase();
+    const idx = hex.indexOf('08c379a0');
+    if (idx < 0 || hex.length < idx + 8 + 64 + 64) {
+        return '';
+    }
+    hex = hex.slice(idx);
+    try {
+        const len = Number.parseInt(hex.slice(8 + 64, 8 + 128), 16);
+        if (!Number.isFinite(len) || len <= 0 || len > 256) {
+            return '';
+        }
+        const strHex = hex.slice(8 + 128, 8 + 128 + len * 2);
+        const bytes = strHex.match(/.{1,2}/g) || [];
+        return bytes.map((b) => String.fromCharCode(Number.parseInt(b, 16))).join('');
+    } catch {
+        return '';
+    }
 }
 
 export function formatUsdPriceFromWei(priceWei, usdtDecimals = 18) {
