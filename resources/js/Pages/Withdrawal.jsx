@@ -102,7 +102,34 @@ function WithdrawalRowMobile({ row }) {
     );
 }
 
+function RaceWithdrawalPanel({ raceLevelIncome }) {
+    const race = Number(raceLevelIncome?.race ?? 0);
+    const usdt = Number(raceLevelIncome?.usdt ?? 0);
+    return (
+        <div className="mx-auto w-full min-w-0 max-w-lg space-y-3">
+            <div className="rounded-xl border border-fintech-line bg-white px-4 py-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-fintech-primary">
+                    Level income received (RACE coin)
+                </p>
+                <p className="mt-1 text-2xl font-bold text-fintech-ink">
+                    {race.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} RACE
+                </p>
+                <p className="mt-1 text-xs text-fintech-muted">
+                    ≈ {usdt.toLocaleString(undefined, { style: 'currency', currency: 'USD' })} USDT value at payout time
+                </p>
+            </div>
+            <p className="rounded-lg border border-sky-400/50 bg-[#0a1838]/80 px-3 py-2 text-xs leading-relaxed text-sky-100 sm:text-sm">
+                Income is paid only in <strong className="text-white">RACE coin</strong>, not USDT. RACE is sent directly to
+                your connected wallet in the same transaction when your downline stakes, so there is nothing to request here —
+                you withdraw / transfer RACE from your own wallet. Stake principal is also returned as RACE from the Staking
+                page.
+            </p>
+        </div>
+    );
+}
+
 export default function Withdrawal({
+    race_level_income = null,
     balance_usd = '0.00',
     income_policy = {
         accrued_reward_usd: '0.0000',
@@ -136,7 +163,8 @@ export default function Withdrawal({
     },
     withdrawals = [],
 }) {
-    const { auth, flash } = usePage().props;
+    const { auth, flash, blockchain } = usePage().props;
+    const raceOnlyIncome = Boolean(blockchain?.blockchain_only);
     const withdrawalAddressLocked = Boolean((wallet_address ?? auth?.user?.wallet_address ?? '').trim());
     const walletBalance = Number(
         balance_usd ?? auth?.user?.user_wallet?.balance_usd ?? auth?.user?.balance_usd ?? 0,
@@ -184,6 +212,15 @@ export default function Withdrawal({
             <Head title="Withdrawal" />
 
             <MemberPageShell contentClassName="space-y-5 sm:space-y-6">
+                {raceOnlyIncome ? (
+                    <>
+                        <MemberPageHero kicker="Payouts" title="Withdraw RACE" variant="pdf" icon="withdrawal">
+                            All income is paid in RACE coin (value shown in USDT for reference).
+                        </MemberPageHero>
+                        <RaceWithdrawalPanel raceLevelIncome={race_level_income} />
+                    </>
+                ) : (
+                <>
                 <MemberPageHero kicker="Payouts" title="Withdraw USDT" variant="pdf" icon="withdrawal">
                     {percent}% Team Reward (L1–L10) plus Admin Fee ($
                     {adminFlat} under ${adminPercentFrom} / {adminPercent}% at ${adminPercentFrom}+). Max{' '}
@@ -418,6 +455,8 @@ export default function Withdrawal({
                         )}
                     </PanelCard>
                 </div>
+                </>
+                )}
             </MemberPageShell>
         </AuthenticatedLayout>
     );

@@ -35,6 +35,52 @@ function formatUsd(n, withSign = false) {
     return abs;
 }
 
+function formatRace(n) {
+    const v = Number(n);
+    if (Number.isNaN(v)) {
+        return '—';
+    }
+    return `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(v)} RACE`;
+}
+
+function isRaceRow(row) {
+    return row?.asset === 'RACE';
+}
+
+function RowAmount({ row, align = 'right' }) {
+    if (isRaceRow(row)) {
+        return (
+            <div className={align === 'right' ? 'text-right' : ''}>
+                <p className="font-mono text-sm font-bold tabular-nums text-emerald-600">+ {formatRace(row.amount_race)}</p>
+                <p className="font-mono text-[11px] font-medium tabular-nums text-slate-500">
+                    ≈ {formatUsd(row.amount_usd)} USDT
+                </p>
+            </div>
+        );
+    }
+    const pos = Number(row.amount_usd) >= 0;
+    return (
+        <p
+            className={`font-mono text-sm font-bold tabular-nums ${pos ? 'text-emerald-600' : 'text-red-600'} ${
+                align === 'right' ? 'text-right' : ''
+            }`}
+        >
+            {formatUsd(row.amount_usd, true)}
+        </p>
+    );
+}
+
+function FromMember({ row }) {
+    if (!row.from_member) {
+        return null;
+    }
+    return (
+        <span className="mt-1 inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+            From: {row.from_member}
+        </span>
+    );
+}
+
 function formatRowDate(createdAt, { dateOnly = false } = {}) {
     if (!createdAt) {
         return '—';
@@ -156,9 +202,6 @@ function DateFilterBar({
 }
 
 function TransactionRowMobile({ row, typeLabels }) {
-    const amt = Number(row.amount_usd);
-    const pos = amt >= 0;
-
     return (
         <div className="px-4 py-3.5">
             <div className="flex items-start justify-between gap-3">
@@ -169,26 +212,33 @@ function TransactionRowMobile({ row, typeLabels }) {
                     <p className="mt-1 text-[13px] font-semibold leading-snug text-fintech-ink">
                         {row.income_name ?? typeLabel(row.entry_type, typeLabels)}
                     </p>
-                    {row.level_label ? (
-                        <span className="mt-1 inline-flex rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-800">
-                            {row.level_label}
-                        </span>
-                    ) : null}
-                    {row.detail ? (
+                    <div className="flex flex-wrap items-center gap-1">
+                        {row.level_label ? (
+                            <span className="mt-1 inline-flex rounded-full bg-sky-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-800">
+                                {row.level_label}
+                            </span>
+                        ) : null}
+                        <FromMember row={row} />
+                    </div>
+                    {row.detail && !row.from_member ? (
                         <p className="mt-1 text-xs leading-snug text-slate-500">{row.detail}</p>
                     ) : null}
                 </div>
-                <p
-                    className={`shrink-0 font-mono text-sm font-bold tabular-nums ${
-                        pos ? 'text-emerald-600' : 'text-red-600'
-                    }`}
-                >
-                    {formatUsd(row.amount_usd, true)}
-                </p>
+                <div className="shrink-0">
+                    <RowAmount row={row} />
+                </div>
             </div>
             <p className="mt-2 text-[10px] text-slate-400">
                 {formatRowDate(row.created_at)}
                 {row.balance_after_usd != null ? ` · Bal ${formatUsd(row.balance_after_usd)}` : ''}
+                {row.tx_url ? (
+                    <>
+                        {' · '}
+                        <a href={row.tx_url} target="_blank" rel="noreferrer" className="font-semibold text-sky-600 hover:underline">
+                            View tx
+                        </a>
+                    </>
+                ) : null}
             </p>
         </div>
     );
@@ -204,6 +254,7 @@ export default function Transactions({
     filter_date_label = 'Today',
     max_date = null,
     day_total_usd = null,
+    race_level_income = null,
 }) {
     const { incomeHub } = usePage().props;
     const typeLabels = incomeHub?.type_labels ?? {};
@@ -243,6 +294,15 @@ export default function Transactions({
                     }
                     icon="transactions"
                 />
+
+                {race_level_income && Number(race_level_income.race) > 0 ? (
+                    <MemberStatCard
+                        label="Level income received (RACE coin)"
+                        value={formatRace(race_level_income.race)}
+                        hint={`≈ ${formatUsd(race_level_income.usdt)} USDT value · RACE is credited straight to your wallet at stake time`}
+                        icon="transactions"
+                    />
+                ) : null}
 
                 <DateFilterBar
                     filter_date={activeDate}
@@ -309,8 +369,6 @@ export default function Transactions({
                                         </thead>
                                         <tbody className="divide-y divide-fintech-line text-fintech-muted">
                                             {entries.map((r) => {
-                                                const amt = Number(r.amount_usd);
-                                                const pos = amt >= 0;
                                                 return (
                                                     <tr key={r.id} className="hover:bg-fintech-soft/80">
                                                         <td className="whitespace-nowrap px-4 py-3 text-fintech-muted">
@@ -332,22 +390,33 @@ export default function Transactions({
                                                             </div>
                                                         </td>
                                                         <td className="hidden max-w-[14rem] px-4 py-3 text-xs leading-snug text-slate-600 lg:table-cell">
-                                                            {r.detail ?? '—'}
+                                                            {r.from_member ? (
+                                                                <span className="font-semibold text-amber-800">From: {r.from_member}</span>
+                                                            ) : (
+                                                                r.detail ?? '—'
+                                                            )}
                                                         </td>
-                                                        <td
-                                                            className={`whitespace-nowrap px-4 py-3 font-medium ${
-                                                                pos ? 'text-emerald-600' : 'text-red-600'
-                                                            }`}
-                                                        >
-                                                            {formatUsd(r.amount_usd, true)}
+                                                        <td className="whitespace-nowrap px-4 py-3">
+                                                            <RowAmount row={r} align="left" />
                                                         </td>
                                                         <td className="hidden whitespace-nowrap px-4 py-3 text-fintech-ink xl:table-cell">
-                                                            {formatUsd(r.balance_after_usd)}
+                                                            {r.balance_after_usd != null ? formatUsd(r.balance_after_usd) : '—'}
                                                         </td>
                                                         <td className="hidden max-w-[8rem] truncate px-4 py-3 font-mono text-xs text-fintech-muted xl:table-cell">
-                                                            {r.reference_type && r.reference_id
-                                                                ? `${r.reference_type} #${r.reference_id}`
-                                                                : '—'}
+                                                            {r.tx_url ? (
+                                                                <a
+                                                                    href={r.tx_url}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="font-semibold text-sky-600 hover:underline"
+                                                                >
+                                                                    View tx
+                                                                </a>
+                                                            ) : r.reference_type && r.reference_id ? (
+                                                                `${r.reference_type} #${r.reference_id}`
+                                                            ) : (
+                                                                '—'
+                                                            )}
                                                         </td>
                                                     </tr>
                                                 );
