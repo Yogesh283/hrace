@@ -72,11 +72,8 @@ const memberNav = [
     { routeKey: 'dashboard', label: 'Dashboard', iconKey: 'dashboard' },
     { routeKey: 'profile.edit', label: 'Profile', iconKey: 'profile.edit' },
     { routeKey: 'swap', label: 'Swap', iconKey: 'swap' },
-    { routeKey: 'governance', label: 'Governance', iconKey: 'leadership' },
-    { routeKey: 'deposit', label: 'Deposit (Race coin)', iconKey: 'deposit' },
     { routeKey: 'race-token', label: 'Race coin', iconKey: 'race-token' },
     { routeKey: 'ico', label: 'ICO', iconKey: 'isu' },
-    { routeKey: 'lending', label: 'Lending & Borrowing', iconKey: 'investment' },
     { routeKey: 'investment', label: 'Staking', iconKey: 'investment' },
     {
         routeKey: 'transactions',
