@@ -17,6 +17,7 @@
     "mint:testnet-usdt": "hardhat run scripts/mint-testnet-usdt.js --network bscTestnet",
     "transfer:testnet-tbnb": "hardhat run scripts/transfer-testnet-tbnb.js --network bscTestnet",
     "complete:testnet-postdeploy": "hardhat run scripts/complete-testnet-postdeploy.js --network bscTestnet",
+    "oracle:heartbeat-testnet": "hardhat run scripts/oracle-heartbeat-testnet.js --network bscTestnet",
     "redeploy:engine-c1-testnet": "hardhat run scripts/redeploy-engine-c1-testnet.js --network bscTestnet",
     "verify:engine-testnet": "hardhat run scripts/verify-engine-bytecode-testnet.js --network bscTestnet",
     "deploy:income-vault-testnet": "hardhat run scripts/deploy-income-vault-testnet.js --network bscTestnet",

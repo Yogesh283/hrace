@@ -212,7 +212,18 @@ export function friendlyIcoError(err) {
     if (lower.includes('paused') || lower.includes('enforcedpause')) {
         return 'ICO is paused.';
     }
+    if (
+        lower.includes('0x04578698')
+        || lower.includes('oraclestale')
+        || String(encoded).toLowerCase().includes('0x04578698')
+    ) {
+        return mapIcoRevertToUserMessage('OracleStale');
+    }
     if (lower.includes('execution reverted') && !decoded) {
+        const mapped = mapIcoRevertToUserMessage(msg);
+        if (mapped) {
+            return mapped;
+        }
         return msg.includes('ICO buy would fail')
             ? msg
             : 'ICO purchase simulation failed. Stay on BSC Testnet, approve USDT, then try Buy & Stake again.';
@@ -499,9 +510,15 @@ async function assertIcoPurchaseWouldSucceed({ from, icoContract, data, rpcUrl, 
     }
 }
 
+/** Custom errors from RaceRewardPriceOracle (reward mint / level income during ICO). */
+const ORACLE_STALE_SELECTOR = '0x04578698';
+
 function mapIcoRevertToUserMessage(reason) {
     const r = String(reason || '');
     const lower = r.toLowerCase();
+    if (lower.includes(ORACLE_STALE_SELECTOR) || lower.includes('oraclestale')) {
+        return 'RACE price oracle is stale (not updated in 24h). Admin must refresh the testnet oracle price, then retry Buy & Stake.';
+    }
     if (lower.includes('bad plan')) {
         return 'Invalid stake plan. Select 180 / 365 / 730 / 1095 days.';
     }
