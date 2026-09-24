@@ -168,10 +168,30 @@ function decodeUintArray(hex) {
 export { formatTokenWei, friendlySwapError };
 
 export function friendlyIcoError(err) {
-    const msg = String(err?.shortMessage || err?.reason || err?.message || err || '');
+    const nested =
+        err?.data?.message ||
+        err?.error?.message ||
+        err?.info?.error?.message ||
+        err?.data?.data?.message ||
+        '';
+    const encoded =
+        typeof err?.data === 'string'
+            ? err.data
+            : typeof err?.data?.data === 'string'
+              ? err.data.data
+              : typeof err?.info?.error?.data === 'string'
+                ? err.info.error.data
+                : '';
+    const decoded = decodeSolidityErrorString(encoded);
+    const msg = String(
+        decoded || nested || err?.shortMessage || err?.reason || err?.message || err || '',
+    );
     const lower = msg.toLowerCase();
     if (err?.code === 4001 || lower.includes('user rejected') || lower.includes('user denied')) {
         return 'Transaction rejected in wallet.';
+    }
+    if (lower.includes('bad plan')) {
+        return 'Invalid stake plan. Select 180 / 365 / 730 / 1095 days and try again.';
     }
     if (lower.includes('insufficient funds') || lower.includes('insufficient balance')) {
         return 'Insufficient USDT or BNB for gas.';
@@ -191,6 +211,9 @@ export function friendlyIcoError(err) {
     if (lower.includes('paused') || lower.includes('enforcedpause')) {
         return 'ICO is paused.';
     }
+    if (lower.includes('execution reverted') && !decoded) {
+        return 'ICO purchase reverted on-chain. Check USDT approve, stake plan (180/365/730/1095), and stay on BSC Testnet without switching accounts mid-tx.';
+    }
     if (isLikelyWrongNetworkError(msg)) {
         return friendlyNetworkSwitchMessage(getActiveChainId());
     }
@@ -199,6 +222,29 @@ export function friendlyIcoError(err) {
         return friendlyNetworkSwitchMessage(getActiveChainId());
     }
     return swapMsg || msg || 'ICO transaction failed.';
+}
+
+/** Decode Solidity Error(string) payload from MetaMask / RPC revert data. */
+function decodeSolidityErrorString(data) {
+    if (!data || typeof data !== 'string' || !data.startsWith('0x') || data.length < 10) {
+        return '';
+    }
+    const hex = data.slice(2).toLowerCase();
+    // Error(string) selector = 0x08c379a0
+    if (!hex.startsWith('08c379a0') || hex.length < 8 + 64 + 64) {
+        return '';
+    }
+    try {
+        const len = Number.parseInt(hex.slice(8 + 64, 8 + 128), 16);
+        if (!Number.isFinite(len) || len <= 0 || len > 256) {
+            return '';
+        }
+        const strHex = hex.slice(8 + 128, 8 + 128 + len * 2);
+        const bytes = strHex.match(/.{1,2}/g) || [];
+        return bytes.map((b) => String.fromCharCode(Number.parseInt(b, 16))).join('');
+    } catch {
+        return '';
+    }
 }
 
 export async function readIcoAdminWallet({ icoContract, rpcUrl }) {
@@ -329,6 +375,12 @@ export async function purchaseIcoRace({
 
     const amountWei = parseTokenAmount(amountUsd, 18);
     const lock = BigInt(lockPeriodSeconds ?? 0);
+    const validLocks = new Set(ICO_STAKE_PLANS.map((p) => BigInt(p.lockPeriodSeconds)));
+    if (!validLocks.has(lock)) {
+        throw new Error(
+            'Invalid stake plan. Select 180 / 365 / 730 / 1095 days (lock must be in seconds).',
+        );
+    }
     const allowance = await readErc20Allowance({
         token: usdtContract,
         owner: walletAddress,

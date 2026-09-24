@@ -310,9 +310,19 @@ export default function Isu({
         }
     }, [stakePlans, planId]);
 
-    const lockPeriodSeconds = Number(
-        selectedPlan?.seconds ?? selectedPlan?.lockPeriodSeconds ?? 0,
-    );
+    const lockPeriodSeconds = useMemo(() => {
+        const fromCanonical = ICO_STAKE_PLANS.find((p) => String(p.id) === String(planId));
+        if (fromCanonical?.lockPeriodSeconds) {
+            return Number(fromCanonical.lockPeriodSeconds);
+        }
+        const raw = Number(selectedPlan?.lockPeriodSeconds ?? selectedPlan?.seconds ?? 0);
+        // Guard: days mistaken for seconds (e.g. 180) must not be sent on-chain.
+        if (raw > 0 && raw < 86400) {
+            const byDays = ICO_STAKE_PLANS.find((p) => Number(p.id) === raw);
+            return Number(byDays?.lockPeriodSeconds ?? 0);
+        }
+        return raw;
+    }, [planId, selectedPlan]);
 
     const activePhase = useMemo(
         () => phases.find((p) => p.id === currentPhaseId) ?? null,
