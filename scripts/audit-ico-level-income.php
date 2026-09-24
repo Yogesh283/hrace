@@ -24,12 +24,7 @@ const ICO_STAKE_CREATED_TOPIC = '0x3bbaced029028afbe3622c5c505c56f82a87ba3bfd76b
 
 function rpcUrl(): string
 {
-    $urls = config('blockchain.rpc_urls', []);
-    if ($urls !== []) {
-        return (string) $urls[0];
-    }
-
-    return (string) config('blockchain.rpc_url', 'https://bsc-testnet.publicnode.com');
+    return \App\Support\BlockchainRpc::primaryRpcUrl();
 }
 
 function ethGetTransactionReceipt(string $txHash): ?array
@@ -66,7 +61,7 @@ function countLogsByTopic(?array $receipt, string $topic0): int
 }
 
 echo '=== ICO Level Income Audit ==='.PHP_EOL;
-echo 'chain_id='.config('blockchain.chain_id').PHP_EOL;
+echo 'chain_id='.\App\Support\BlockchainMode::effectiveChainId().PHP_EOL;
 echo 'engine='.config('blockchain.contracts.community_engine').PHP_EOL;
 echo 'ico='.config('blockchain.contracts.ico').PHP_EOL;
 echo 'rpc='.rpcUrl().PHP_EOL.PHP_EOL;

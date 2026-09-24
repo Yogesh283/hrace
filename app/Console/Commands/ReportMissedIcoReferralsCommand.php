@@ -71,12 +71,7 @@ class ReportMissedIcoReferralsCommand extends Command
 
     private function rpcUrl(): string
     {
-        $urls = config('blockchain.rpc_urls', []);
-        if ($urls !== []) {
-            return (string) $urls[0];
-        }
-
-        return (string) config('blockchain.rpc_url', 'https://bsc-testnet.publicnode.com');
+        return \App\Support\BlockchainRpc::primaryRpcUrl();
     }
 
     private function ethGetTransactionReceipt(string $txHash): ?array

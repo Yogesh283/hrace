@@ -26,18 +26,11 @@ final class BscJsonRpcClient
 
     public static function fromConfig(): self
     {
-        $urls = config('blockchain.indexer.rpc_urls', []);
-        if (! is_array($urls) || $urls === []) {
-            $urls = config('blockchain.rpc_urls', []);
-        }
-        if (! is_array($urls) || $urls === []) {
-            $primary = (string) config('blockchain.rpc_url', '');
-            $urls = $primary !== '' ? [$primary] : [];
-        }
+        $urls = \App\Support\BlockchainRpc::effectiveRpcUrls();
 
         return new self(
             $urls,
-            (int) config('blockchain.chain_id', 56),
+            \App\Support\BlockchainMode::effectiveChainId(),
             max(5, (int) config('blockchain.indexer.rpc_timeout', 25)),
             max(1, min(5, (int) config('blockchain.indexer.rpc_retries', 3))),
         );
