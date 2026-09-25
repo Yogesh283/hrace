@@ -61,6 +61,11 @@ function shortenAddress(address) {
     return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+function quoteRaceFromPrice(usdtWei, priceUsdt) {
+    if (!usdtWei || !priceUsdt || priceUsdt === 0n) return 0n;
+    return (usdtWei * (10n ** 18n)) / priceUsdt;
+}
+
 function InfoRow({ label, value, mono = false }) {
     return (
         <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between">
@@ -328,9 +333,14 @@ export default function Isu({
     }, [planId, selectedPlan]);
 
     const activePhase = useMemo(
-        () => phases.find((p) => p.id === currentPhaseId) ?? null,
+        () =>
+            phases.find((p) => p.id === currentPhaseId) ||
+            phases.find((p) => p.started && !p.completed) ||
+            null,
         [phases, currentPhaseId],
     );
+
+    const quotePhase = activePhase || phases.find((p) => p.id === 1) || null;
 
     const amountWei = useMemo(() => {
         try {
@@ -340,6 +350,11 @@ export default function Isu({
             return 0n;
         }
     }, [amountUsd]);
+
+    const localQuotedRace = useMemo(
+        () => quoteRaceFromPrice(amountWei, quotePhase?.priceUsdt ?? 0n),
+        [amountWei, quotePhase?.priceUsdt],
+    );
 
     const needsApprove = amountWei > 0n && allowance < amountWei;
     const hasSelectedLock = lockPeriodSeconds > 0 && Boolean(selectedPlan);
@@ -369,27 +384,39 @@ export default function Isu({
             setTotalSold(sold);
 
             if (walletAddress) {
-                const [usdtBal, raceBal, allow, history, held, pending, endPrice] = await Promise.all([
-                    readErc20BalanceOf({ token: usdtContract, wallet: walletAddress, rpcUrl }),
-                    readErc20BalanceOf({ token: raceToken, wallet: walletAddress, rpcUrl }),
-                    readErc20Allowance({
-                        token: usdtContract,
-                        owner: walletAddress,
-                        spender: icoContract,
+                try {
+                    const [usdtBal, raceBal, allow, held, pending, endPrice] = await Promise.all([
+                        readErc20BalanceOf({ token: usdtContract, wallet: walletAddress, rpcUrl }),
+                        readErc20BalanceOf({ token: raceToken, wallet: walletAddress, rpcUrl }),
+                        readErc20Allowance({
+                            token: usdtContract,
+                            owner: walletAddress,
+                            spender: icoContract,
+                            rpcUrl,
+                        }),
+                        readUserHeldRace({ icoContract, wallet: walletAddress, rpcUrl }),
+                        readPendingStakeCount({ icoContract, wallet: walletAddress, rpcUrl }),
+                        readIcoEndPriceUsdt({ icoContract, rpcUrl }),
+                    ]);
+                    setUsdtBalance(usdtBal);
+                    setRaceBalance(raceBal);
+                    setAllowance(allow);
+                    setHeldRace(held);
+                    setPendingStakes(pending);
+                    setIcoEndPrice(endPrice);
+                } catch (walletErr) {
+                    console.warn('ICO wallet snapshot:', walletErr?.message || walletErr);
+                }
+                try {
+                    const history = await readUserIcoPurchases({
+                        icoContract,
+                        wallet: walletAddress,
                         rpcUrl,
-                    }),
-                    readUserIcoPurchases({ icoContract, wallet: walletAddress, rpcUrl }),
-                    readUserHeldRace({ icoContract, wallet: walletAddress, rpcUrl }),
-                    readPendingStakeCount({ icoContract, wallet: walletAddress, rpcUrl }),
-                    readIcoEndPriceUsdt({ icoContract, rpcUrl }),
-                ]);
-                setUsdtBalance(usdtBal);
-                setRaceBalance(raceBal);
-                setAllowance(allow);
-                setPurchases(history.slice().reverse());
-                setHeldRace(held);
-                setPendingStakes(pending);
-                setIcoEndPrice(endPrice);
+                    });
+                    setPurchases(history.slice().reverse());
+                } catch (historyErr) {
+                    console.warn('ICO purchase history:', historyErr?.message || historyErr);
+                }
                 try {
                     const policy = await readClaimPolicyState({
                         walletAddress,
@@ -490,22 +517,23 @@ export default function Isu({
         let cancelled = false;
         async function runQuote() {
             setQuoteError('');
-            if (!contractsReady || !currentPhaseId || !amountUsd || Number(amountUsd) <= 0) {
+            const phaseId = currentPhaseId || quotePhase?.id || 0;
+            if (!contractsReady || !phaseId || !amountUsd || Number(amountUsd) <= 0) {
                 setQuotedRace(0n);
                 return;
             }
             try {
                 const out = await quoteIcoRaceOut({
                     icoContract,
-                    phaseId: currentPhaseId,
+                    phaseId,
                     usdtAmount: amountUsd,
                     rpcUrl,
                 });
                 if (!cancelled) setQuotedRace(out);
             } catch (err) {
                 if (!cancelled) {
-                    setQuotedRace(0n);
-                    setQuoteError(friendlyIcoError(err));
+                    setQuotedRace(localQuotedRace);
+                    setQuoteError(localQuotedRace > 0n ? '' : friendlyIcoError(err));
                 }
             }
         }
@@ -513,7 +541,7 @@ export default function Isu({
         return () => {
             cancelled = true;
         };
-    }, [contractsReady, icoContract, currentPhaseId, amountUsd, rpcUrl]);
+    }, [contractsReady, icoContract, currentPhaseId, quotePhase?.id, amountUsd, rpcUrl, localQuotedRace]);
 
     const showIcoError = (errOrMsg) => {
         const msg = typeof errOrMsg === 'string' ? errOrMsg : friendlyIcoError(errOrMsg);
@@ -589,11 +617,12 @@ export default function Isu({
             showIcoError('Select a stake plan: 180 / 365 / 730 / 1095 days.');
             return;
         }
-        if (quotedRace <= 0n) {
+        const raceOut = quotedRace > 0n ? quotedRace : localQuotedRace;
+        if (raceOut <= 0n) {
             showIcoError(quoteError || 'Enter a valid USDT amount.');
             return;
         }
-        if (activePhase && quotedRace > activePhase.remaining) {
+        if (activePhase && raceOut > activePhase.remaining) {
             showIcoError('Not enough RACE remaining in this phase.');
             return;
         }
@@ -644,7 +673,7 @@ export default function Isu({
             setSuccess({
                 txHash,
                 usdtPaid: amountUsd,
-                raceStaked: formatTokenWei(quotedRace, 18, 4),
+                raceStaked: formatTokenWei(raceOut, 18, 4),
                 price: priceLabel,
                 phase: currentPhaseId,
                 plan: selectedPlan?.label || '—',
@@ -653,7 +682,7 @@ export default function Isu({
             });
 
             showIcoSuccess(
-                `Bought ${formatTokenWei(quotedRace, 18, 4)} RACE (held). No level income on hold. After ICO completes → Create Your Stake (level income then). Tx ${txHash.slice(0, 10)}…`,
+                `Bought ${formatTokenWei(raceOut, 18, 4)} RACE (held). No level income on hold. After ICO completes → Create Your Stake (level income then). Tx ${txHash.slice(0, 10)}…`,
             );
 
             try {
@@ -686,7 +715,8 @@ export default function Isu({
             showIcoError('You Active Stake After Complete ICO.');
             return;
         }
-        if (pendingStakes <= 0 && heldRace <= 0n) {
+        const hasUnstakedPurchase = purchases.some((row) => !row.staked);
+        if (pendingStakes <= 0 && heldRace <= 0n && !hasUnstakedPurchase) {
             showIcoError('No held ICO RACE to stake.');
             return;
         }
@@ -785,6 +815,13 @@ export default function Isu({
               };
           });
 
+    const heldFromHistory = historyRows
+        .filter((row) => !row.staked)
+        .reduce((sum, row) => sum + (row.raceAmount || 0n), 0n);
+    const displayHeldRace = heldRace > 0n ? heldRace : heldFromHistory;
+    const displayQuotedRace = quotedRace > 0n ? quotedRace : localQuotedRace;
+    const hasHeldPosition = displayHeldRace > 0n || pendingStakes > 0 || historyRows.some((row) => !row.staked);
+
     return (
         <AuthenticatedLayout pageTitle="ICO" mobileFintechPageTitle="ICO">
             <Head title="RACE ICO" />
@@ -809,11 +846,32 @@ export default function Isu({
                 <div id="ico-buy" className="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-2">
                     <PanelCard title="Buy RACE">
                         <div className="space-y-4">
-                            <div>
-                                <p className="text-xs uppercase text-slate-400">Wallet</p>
-                                <p className="font-mono text-sm text-slate-100">
+                            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                    Your wallet
+                                </p>
+                                <p className="mt-1 font-mono text-sm text-white">
                                     {walletAddress ? shortenAddress(walletAddress) : 'Not connected'}
                                 </p>
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <p className="text-xs uppercase text-slate-400">USDT balance</p>
+                                        <p className="text-xl font-bold text-white">
+                                            {formatTokenWei(usdtBalance, 18, 4)}{' '}
+                                            <span className="text-sm font-medium text-slate-400">USDT</span>
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs uppercase text-slate-400">Wallet RACE</p>
+                                        <p className="text-xl font-bold text-white">
+                                            {formatTokenWei(raceBalance, 18, 4)}{' '}
+                                            <span className="text-sm font-medium text-slate-400">RACE</span>
+                                        </p>
+                                        <p className="text-[11px] text-slate-500">
+                                            Claims only — ICO principal stays held until stake
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
 
                             <InfoRow
@@ -823,29 +881,26 @@ export default function Isu({
                                         ? `${PHASE_LABELS[currentPhaseId]?.label || currentPhaseId}`
                                         : icoCompleted
                                           ? 'Completed'
-                                          : 'None active'
+                                          : quotePhase
+                                            ? `${PHASE_LABELS[quotePhase.id]?.label || quotePhase.id}`
+                                            : 'None active'
                                 }
                             />
                             <InfoRow
                                 label="Current price"
                                 value={
-                                    activePhase
-                                        ? `$${formatUsdPriceFromWei(activePhase.priceUsdt)} / RACE`
+                                    quotePhase
+                                        ? `$${formatUsdPriceFromWei(quotePhase.priceUsdt)} / RACE`
                                         : '—'
                                 }
                             />
                             <InfoRow
                                 label="Phase remaining"
                                 value={
-                                    activePhase
-                                        ? `${formatTokenWei(activePhase.remaining, 18, 2)} RACE`
+                                    quotePhase
+                                        ? `${formatTokenWei(quotePhase.remaining ?? 0n, 18, 2)} RACE`
                                         : '—'
                                 }
-                            />
-                            <InfoRow label="Your USDT" value={`${formatTokenWei(usdtBalance, 18, 4)} USDT`} />
-                            <InfoRow
-                                label="Wallet RACE (claims only — not ICO principal)"
-                                value={`${formatTokenWei(raceBalance, 18, 4)} RACE`}
                             />
 
                             <label className="block">
@@ -916,17 +971,26 @@ export default function Isu({
                                 />
                             </label>
 
-                            <InfoRow
-                                label="Estimated RACE"
-                                value={
-                                    quotedRace > 0n
-                                        ? `${formatTokenWei(quotedRace, 18, 4)} RACE`
-                                        : quoteError || '—'
-                                }
-                            />
+                            <div className="rounded-xl border border-brand/30 bg-brand/[0.07] p-3">
+                                <p className="text-xs font-bold uppercase tracking-wide text-brand">
+                                    You will receive
+                                </p>
+                                <p className="mt-1 text-2xl font-bold text-white">
+                                    {displayQuotedRace > 0n
+                                        ? `${formatTokenWei(displayQuotedRace, 18, 4)} RACE`
+                                        : quoteError || 'Enter USDT amount'}
+                                </p>
+                                <p className="mt-1 text-sm text-slate-300">
+                                    For {amountUsd || '0'} USDT
+                                    {quotePhase
+                                        ? ` at $${formatUsdPriceFromWei(quotePhase.priceUsdt)} / RACE`
+                                        : ''}
+                                </p>
+                            </div>
 
                             <p className="text-xs text-slate-500">
-                                Price from RaceICO. Principal RACE goes into your staking position — no ICO claim.
+                                Price from RaceICO. Bought RACE stays held in the ICO contract until you create
+                                stake after ICO completes.
                             </p>
 
                             {error && (
@@ -962,22 +1026,6 @@ export default function Isu({
                             )}
 
                             <div className="flex flex-wrap gap-3">
-                                {!icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
-                                    <PrimaryButton type="button" disabled>
-                                        You Active Stake After Complete ICO
-                                    </PrimaryButton>
-                                ) : null}
-                                {icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
-                                    <PrimaryButton
-                                        type="button"
-                                        onClick={() => onCreateStake(null)}
-                                        disabled={!walletAddress || !contractsReady || busy !== ''}
-                                    >
-                                        {busy === 'create-all' || busy === 'register'
-                                            ? 'Creating stake…'
-                                            : 'Create Your Stake'}
-                                    </PrimaryButton>
-                                ) : null}
                                 {!icoCompleted && needsApprove ? (
                                     <PrimaryButton
                                         type="button"
@@ -1009,21 +1057,44 @@ export default function Isu({
                                     Refresh
                                 </button>
                             </div>
-                            {icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
-                                <p className="mt-3 text-xs text-emerald-200/90">
-                                    Held: {formatTokenWei(heldRace, 18, 4)} RACE
-                                    {icoEndPrice > 0n
-                                        ? ` · Stake at $${formatUsdPriceFromWei(icoEndPrice)} (ICO end price)`
-                                        : ''}
-                                    . Claim income from the next day after stake.
+
+                            <div className="rounded-xl border border-amber-400/30 bg-amber-950/20 p-3">
+                                <p className="text-xs font-bold uppercase tracking-wide text-amber-200">
+                                    After ICO — Create Your Stake
                                 </p>
-                            ) : null}
-                            {!icoCompleted ? (
-                                <p className="mt-3 text-xs text-slate-400">
-                                    Bought RACE stays held in the ICO contract (not your wallet). You Active
-                                    Stake After Complete ICO. Level income pays when you create the stake.
+                                <p className="mt-2 text-lg font-bold text-white">
+                                    Held: {formatTokenWei(displayHeldRace, 18, 4)} RACE
                                 </p>
-                            ) : null}
+                                <p className="mt-1 text-sm text-slate-300">
+                                    {icoCompleted
+                                        ? hasHeldPosition
+                                            ? `ICO is complete. Create your stake${
+                                                  icoEndPrice > 0n
+                                                      ? ` at $${formatUsdPriceFromWei(icoEndPrice)}`
+                                                      : ''
+                                              }. Level income starts after stake.`
+                                            : 'No held RACE yet. Buy first, then create stake here after ICO.'
+                                        : 'This button stays disabled until ICO completes. Bought RACE stays held — not in your wallet.'}
+                                </p>
+                                {icoCompleted && hasHeldPosition ? (
+                                    <PrimaryButton
+                                        type="button"
+                                        className="mt-3"
+                                        onClick={() => onCreateStake(null)}
+                                        disabled={!walletAddress || !contractsReady || busy !== ''}
+                                    >
+                                        {busy === 'create-all' || busy === 'register'
+                                            ? 'Creating stake…'
+                                            : 'Create Your Stake'}
+                                    </PrimaryButton>
+                                ) : (
+                                    <PrimaryButton type="button" className="mt-3" disabled>
+                                        {icoCompleted
+                                            ? 'No held RACE to stake'
+                                            : 'Create Stake — unlocks after ICO'}
+                                    </PrimaryButton>
+                                )}
+                            </div>
                         </div>
                     </PanelCard>
 
