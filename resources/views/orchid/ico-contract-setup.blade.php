@@ -155,10 +155,13 @@
     const confirmBtn = document.getElementById('ico-confirm-btn');
     const startStatus = document.getElementById('ico-start-status');
     const startSel = '0x1c9ed381';
+    const startPhaseData = startSel + padUint(1);
     const submitSel = 'c6427474';
     const confirmSel = 'c01a8c84';
     const txCountSel = '0xb77bf600';
     const isSignerSel = '0x7df73e27';
+    const getTxSel = '0x33ea3dc8';
+    const isConfirmedSel = '0x80f59a65';
     const multiSig = @json($multisig_contract ?? '');
     const signers = (@json($multisig_signers ?? [])).map((s) => String(s).toLowerCase());
 
@@ -170,6 +173,53 @@
         const raw = String(innerData || '').replace(/^0x/, '');
         const padBytes = (32 - ((raw.length / 2) % 32)) % 32;
         return '0x' + submitSel + padAddr(to) + padUint(0) + padUint(96) + padUint(raw.length / 2) + raw + '00'.repeat(padBytes);
+    }
+
+    async function ethCall(to, data) {
+        return window.ethereum.request({
+            method: 'eth_call',
+            params: [{ to: to, data: data }, 'latest'],
+        });
+    }
+
+    async function waitReceipt(hash) {
+        for (let i = 0; i < 40; i++) {
+            const receipt = await window.ethereum.request({
+                method: 'eth_getTransactionReceipt',
+                params: [hash],
+            });
+            if (receipt && receipt.blockNumber) {
+                if (receipt.status === '0x0') {
+                    throw new Error('Transaction reverted: ' + hash);
+                }
+                return receipt;
+            }
+            await new Promise((r) => setTimeout(r, 3000));
+        }
+        throw new Error('Transaction not mined yet. Wait and tap Confirm. Hash: ' + hash);
+    }
+
+    async function findPendingStartPhase() {
+        const count = BigInt(await ethCall(multiSig, txCountSel) || '0x0');
+        let best = null;
+        for (let i = 0; i < count; i++) {
+            const raw = await ethCall(multiSig, getTxSel + padUint(i));
+            if (!raw || raw === '0x') continue;
+            const hex = raw.replace(/^0x/, '').padStart(320, '0');
+            const to = ('0x' + hex.slice(24, 64)).toLowerCase();
+            const executed = BigInt('0x' + hex.slice(192, 256)) === 1n;
+            const confirmations = Number(BigInt('0x' + hex.slice(256, 320)));
+            const dataOffset = Number(BigInt('0x' + hex.slice(128, 192))) * 2;
+            const dataLen = Number(BigInt('0x' + hex.slice(dataOffset, dataOffset + 64))) * 2;
+            const data = '0x' + hex.slice(dataOffset + 64, dataOffset + 64 + dataLen);
+            if (executed) continue;
+            if (to !== String(raceIco).toLowerCase()) continue;
+            if (data.toLowerCase() !== startPhaseData.toLowerCase()) continue;
+            if (!best || confirmations > best.confirmations) {
+                best = { id: String(i), confirmations: confirmations };
+            }
+        }
+        return best;
     }
 
     async function connectSigner() {
@@ -205,23 +255,30 @@
         startBtn.addEventListener('click', async function () {
             try {
                 const from = await connectSigner();
-                setStartStatus(@json(__('Submitting Phase 1 to Multisig… Confirm in TokenPocket. To address must be Multisig, not RaceICO.')));
-                const inner = startSel + padUint(1);
-                const tx = await window.ethereum.request({
+                const pending = await findPendingStartPhase();
+                if (pending) {
+                    window.localStorage.setItem('race.multisig.phase1.txId', pending.id);
+                    setStartStatus(
+                        @json(__('Phase 1 is already submitted. Do NOT submit again. Switch to another signer and tap Confirm Phase 1. Multisig id:')) +
+                            ' ' + pending.id + ' · confirms ' + pending.confirmations + '/3',
+                    );
+                    return;
+                }
+                setStartStatus(@json(__('Submitting Phase 1 to Multisig… Confirm in TokenPocket. To address must be the Multisig.')));
+                const hash = await window.ethereum.request({
                     method: 'eth_sendTransaction',
                     params: [{
                         from: from,
                         to: multiSig,
-                        data: encodeSubmit(raceIco, inner),
+                        data: encodeSubmit(raceIco, startPhaseData),
                     }],
                 });
-                const countHex = await window.ethereum.request({
-                    method: 'eth_call',
-                    params: [{ to: multiSig, data: txCountSel }, 'latest'],
-                });
-                const txId = (BigInt(countHex || '0x0') - 1n).toString();
+                setStartStatus(@json(__('Waiting for submit to mine…')) + ' ' + hash);
+                await waitReceipt(hash);
+                const created = await findPendingStartPhase();
+                const txId = created ? created.id : '0';
                 window.localStorage.setItem('race.multisig.phase1.txId', txId);
-                setStartStatus(@json(__('Submit OK. Now switch TokenPocket to a SECOND signer and tap Confirm Phase 1. Tx:')) + ' ' + tx + ' · id ' + txId);
+                setStartStatus(@json(__('Submit OK. Switch TokenPocket to a SECOND signer and tap Confirm Phase 1. id:')) + ' ' + txId);
             } catch (err) {
                 setStartStatus(err && err.message ? err.message : String(err));
             }
@@ -232,28 +289,42 @@
         confirmBtn.addEventListener('click', async function () {
             try {
                 const from = await connectSigner();
-                let txId = window.localStorage.getItem('race.multisig.phase1.txId');
-                if (txId == null || txId === '') {
-                    const countHex = await window.ethereum.request({
-                        method: 'eth_call',
-                        params: [{ to: multiSig, data: txCountSel }, 'latest'],
-                    });
-                    const count = BigInt(countHex || '0x0');
-                    if (count <= 0n) {
-                        throw new Error(@json(__('No Multisig tx yet. First tap Submit Phase 1 from one signer.')));
-                    }
-                    txId = (count - 1n).toString();
+                const pending = await findPendingStartPhase();
+                if (!pending) {
+                    throw new Error(@json(__('No pending Phase 1 Multisig tx. Tap Submit Phase 1 first from one signer.')));
                 }
-                setStartStatus(@json(__('Confirming Phase 1… Confirm in TokenPocket.')) + ' id ' + txId);
-                const tx = await window.ethereum.request({
+                const alreadyHex = await ethCall(
+                    multiSig,
+                    isConfirmedSel + padUint(pending.id) + padAddr(from),
+                );
+                if (BigInt(alreadyHex || '0x0') === 1n) {
+                    setStartStatus(
+                        @json(__('This wallet already confirmed. Switch TokenPocket to another signer and tap Confirm again. id:')) +
+                            ' ' + pending.id + ' · ' + pending.confirmations + '/3',
+                    );
+                    return;
+                }
+                window.localStorage.setItem('race.multisig.phase1.txId', pending.id);
+                setStartStatus(@json(__('Confirming the SAME Phase 1 Multisig tx…')) + ' id ' + pending.id + ' · ' + pending.confirmations + '/3');
+                const hash = await window.ethereum.request({
                     method: 'eth_sendTransaction',
                     params: [{
                         from: from,
                         to: multiSig,
-                        data: '0x' + confirmSel + padUint(txId),
+                        data: '0x' + confirmSel + padUint(pending.id),
                     }],
                 });
-                setStartStatus(@json(__('Confirm sent. Switch to the NEXT signer and tap Confirm again until 3 confirms. Tx:')) + ' ' + tx);
+                setStartStatus(@json(__('Waiting for confirm to mine…')) + ' ' + hash);
+                await waitReceipt(hash);
+                const after = await findPendingStartPhase();
+                if (!after) {
+                    setStartStatus(@json(__('Phase 1 should now be started. Refresh this page and check RaceICO phase = 1.')));
+                    return;
+                }
+                setStartStatus(
+                    @json(__('Confirm saved. Switch to the NEXT signer and tap Confirm again. Still need 3 wallets on the SAME id:')) +
+                        ' ' + after.id + ' · ' + after.confirmations + '/3',
+                );
             } catch (err) {
                 setStartStatus(err && err.message ? err.message : String(err));
             }
