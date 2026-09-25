@@ -22,12 +22,12 @@ class ContractWatchScreen extends Screen
 
     public function name(): ?string
     {
-        return __('Contracts watch');
+        return __('Contracts detail');
     }
 
     public function description(): ?string
     {
-        return __('Live addresses and on-chain status for ICO, staking, income hold, vault, and token. Read-only.');
+        return __('All contract addresses with live status — ICO reserve, staking, income hold, vault, Multisig. Read-only.');
     }
 
     /**

@@ -24,8 +24,14 @@ class ContractWatchServiceTest extends TestCase
         $this->assertArrayHasKey('live', $snap);
         $this->assertArrayHasKey('events', $snap);
         $this->assertArrayHasKey('explorer', $snap);
+        $this->assertArrayHasKey('catalog', $snap);
+        $this->assertArrayHasKey('readiness', $snap);
+        $this->assertArrayHasKey('reports', $snap);
+        $this->assertArrayHasKey('member_flow', $snap);
         $this->assertArrayHasKey('race_ico', $snap['addresses']);
         $this->assertArrayHasKey('income_hold', $snap['addresses']);
         $this->assertArrayHasKey('community_engine', $snap['addresses']);
+        $this->assertNotEmpty($snap['catalog']);
+        $this->assertArrayHasKey('ico_buys', $snap['reports']);
     }
 }

@@ -109,7 +109,7 @@ Route::screen('data/blockchain', BlockchainOverviewScreen::class)
     ->name('platform.data.blockchain-overview')
     ->breadcrumbs(fn (Trail $trail) => $trail
         ->parent('platform.index')
-        ->push(__('Blockchain overview'), route('platform.data.blockchain-overview')));
+        ->push(__('All contracts & reports'), route('platform.data.blockchain-overview')));
 Route::screen('data/blockchain-stakes', BlockchainStakesListScreen::class)
     ->name('platform.data.blockchain-stakes')
     ->breadcrumbs(fn (Trail $trail) => $trail

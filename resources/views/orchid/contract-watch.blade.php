@@ -2,6 +2,8 @@
     $explorer = $explorer ?? 'https://bscscan.com';
     $addr = $addresses ?? [];
     $live = $live ?? [];
+    $catalog = $catalog ?? [];
+    $readiness = $readiness ?? [];
     $labels = [
         'race_token' => 'Race token',
         'race_ico' => 'RaceICO (sale)',
@@ -18,6 +20,7 @@
         'development_treasury' => 'Development treasury',
         'marketing_treasury' => 'Marketing treasury',
         'operations_treasury' => 'Operations treasury',
+        'fee_admin_wallet' => 'Fee admin wallet',
     ];
 @endphp
 
@@ -105,35 +108,69 @@
     </div>
 @endif
 
-<h5 class="mb-2">{{ __('Contract addresses (visible only)') }}</h5>
+@if (!empty($readiness))
+    <h5 class="mb-2">{{ __('Live-test readiness') }}</h5>
+    <ul class="mb-3 small">
+        @foreach ($readiness as $row)
+            <li>{{ $row['ok'] ? '✓' : '✗' }} {{ $row['label'] }}</li>
+        @endforeach
+    </ul>
+@endif
+
+<h5 class="mb-2">{{ __('All contracts — role + live status') }}</h5>
 <div class="table-responsive rx-admin-table-wrap mb-3">
     <table class="table rx-admin-table table-sm mb-0">
         <thead>
             <tr>
                 <th>{{ __('Name') }}</th>
+                <th>{{ __('What it does') }}</th>
+                <th>{{ __('Live now') }}</th>
                 <th>{{ __('Address') }}</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
-            @foreach ($labels as $key => $label)
-                @php $value = trim((string) ($addr[$key] ?? '')); @endphp
-                <tr>
-                    <td>{{ $label }}</td>
-                    <td>
-                        @if ($value !== '')
-                            <code class="rx-bc-addr user-select-all">{{ $value }}</code>
-                        @else
-                            <span class="text-muted">{{ __('Not set') }}</span>
-                        @endif
-                    </td>
-                    <td>
-                        @if ($value !== '')
-                            <a href="{{ $explorer }}/address/{{ $value }}" target="_blank" rel="noopener">{{ __('Watch') }}</a>
-                        @endif
-                    </td>
-                </tr>
-            @endforeach
+            @if (!empty($catalog))
+                @foreach ($catalog as $row)
+                    <tr>
+                        <td><strong>{{ $row['label'] }}</strong></td>
+                        <td class="small">{{ $row['role'] }}</td>
+                        <td class="small">{{ $row['status'] }}</td>
+                        <td>
+                            @if ($row['address'] !== '')
+                                <code class="rx-bc-addr user-select-all">{{ $row['address'] }}</code>
+                            @else
+                                <span class="text-muted">{{ __('Not set') }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($row['explorer_url'] !== '')
+                                <a href="{{ $row['explorer_url'] }}" target="_blank" rel="noopener">{{ __('Watch') }}</a>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            @else
+                @foreach ($labels as $key => $label)
+                    @php $value = trim((string) ($addr[$key] ?? '')); @endphp
+                    <tr>
+                        <td>{{ $label }}</td>
+                        <td colspan="2" class="text-muted">—</td>
+                        <td>
+                            @if ($value !== '')
+                                <code class="rx-bc-addr user-select-all">{{ $value }}</code>
+                            @else
+                                <span class="text-muted">{{ __('Not set') }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if ($value !== '')
+                                <a href="{{ $explorer }}/address/{{ $value }}" target="_blank" rel="noopener">{{ __('Watch') }}</a>
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            @endif
         </tbody>
     </table>
 </div>
