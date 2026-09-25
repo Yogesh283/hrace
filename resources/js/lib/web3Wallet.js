@@ -75,6 +75,7 @@ export const RECOMMENDED_WALLETS = [
 const announced = new Map();
 let selectedProvider = null;
 let listening = false;
+const WALLET_SESSION_KEY = 'race.wallet.session';
 
 function isLikelyMobile() {
     if (typeof navigator === 'undefined') {
@@ -260,8 +261,129 @@ export function openWalletDeepLink(wallet) {
     window.open(target, '_blank', 'noopener,noreferrer');
 }
 
-export function selectWalletProvider(provider) {
+export function readWalletSession() {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+    try {
+        const raw = window.localStorage.getItem(WALLET_SESSION_KEY);
+        if (!raw) {
+            return null;
+        }
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+export function hasWalletSession() {
+    return Boolean(selectedProvider || readWalletSession());
+}
+
+export function rememberBoundAddress(address) {
+    const saved = readWalletSession();
+    if (!saved) {
+        return;
+    }
+    rememberWalletChoice(saved, address);
+}
+
+export function rememberWalletChoice(wallet, address = '') {
+    if (typeof window === 'undefined' || !wallet) {
+        return;
+    }
+    const prev = readWalletSession() || {};
+    const next = {
+        rdns: wallet.rdns || prev.rdns || '',
+        uuid: wallet.id || wallet.uuid || prev.uuid || '',
+        name: wallet.name || prev.name || '',
+        address: String(address || prev.address || '').toLowerCase(),
+    };
+    try {
+        window.localStorage.setItem(WALLET_SESSION_KEY, JSON.stringify(next));
+    } catch {
+        // Ignore quota / private-mode failures.
+    }
+}
+
+export function clearWalletSession() {
+    selectedProvider = null;
+    if (typeof window === 'undefined') {
+        return;
+    }
+    try {
+        window.localStorage.removeItem(WALLET_SESSION_KEY);
+    } catch {
+        // ignore
+    }
+}
+
+function matchPersistedWallet() {
+    const saved = readWalletSession();
+    if (!saved) {
+        return null;
+    }
+    const wallets = listInjectedWallets();
+    return (
+        wallets.find((wallet) => {
+            if (saved.rdns && wallet.rdns && saved.rdns === wallet.rdns) {
+                return true;
+            }
+            if (saved.uuid && wallet.id && saved.uuid === wallet.id) {
+                return true;
+            }
+            if (
+                saved.name &&
+                wallet.name &&
+                String(saved.name).toLowerCase() === String(wallet.name).toLowerCase()
+            ) {
+                return true;
+            }
+            return false;
+        }) || null
+    );
+}
+
+export function restorePersistedProvider() {
+    if (selectedProvider) {
+        return selectedProvider;
+    }
+    const match = matchPersistedWallet();
+    if (match?.provider) {
+        selectedProvider = match.provider;
+        return selectedProvider;
+    }
+    return null;
+}
+
+export async function findWalletByAddress(address) {
+    const target = String(address || '').toLowerCase();
+    if (!target) {
+        return null;
+    }
+    const wallets = listInjectedWallets();
+    for (const wallet of wallets) {
+        if (!wallet?.provider?.request) {
+            continue;
+        }
+        try {
+            const accounts = await wallet.provider.request({ method: 'eth_accounts' });
+            if ((accounts || []).some((item) => String(item).toLowerCase() === target)) {
+                return wallet;
+            }
+        } catch {
+            // Provider not ready or locked — try the next one.
+        }
+    }
+    return null;
+}
+
+export function selectWalletProvider(provider, wallet = null) {
     selectedProvider = provider || null;
+    if (provider && wallet) {
+        rememberWalletChoice(wallet);
+    }
 }
 
 export function getWalletProvider() {
@@ -271,8 +393,13 @@ export function getWalletProvider() {
     if (selectedProvider) {
         return selectedProvider;
     }
+    const restored = restorePersistedProvider();
+    if (restored) {
+        return restored;
+    }
     const wallets = listInjectedWallets();
     if (wallets.length === 1) {
+        selectWalletProvider(wallets[0].provider, wallets[0]);
         return wallets[0].provider;
     }
     if (wallets.length === 0) {
@@ -297,24 +424,48 @@ export async function walletRequest(args) {
     return requireWalletProvider().request(args);
 }
 
-export function pickInjectedWallet() {
+export async function resolveSessionWallet({ boundAddress = '', allowPicker = true } = {}) {
     if (selectedProvider) {
-        return Promise.resolve({
+        return {
             id: 'selected',
             name: 'Connected wallet',
             icon: '',
             provider: selectedProvider,
             ready: true,
-        });
+        };
     }
 
-    if (typeof window === 'undefined') {
-        const wallets = listInjectedWallets();
-        if (wallets[0]) {
-            selectWalletProvider(wallets[0].provider);
-            return Promise.resolve(wallets[0]);
+    restorePersistedProvider();
+    if (selectedProvider) {
+        return {
+            id: 'persisted',
+            name: readWalletSession()?.name || 'Connected wallet',
+            icon: '',
+            provider: selectedProvider,
+            ready: true,
+        };
+    }
+
+    if (boundAddress) {
+        const byAddress = await findWalletByAddress(boundAddress);
+        if (byAddress?.provider) {
+            selectWalletProvider(byAddress.provider, byAddress);
+            rememberWalletChoice(byAddress, boundAddress);
+            return { ...byAddress, ready: true };
         }
-        return Promise.resolve(null);
+    }
+
+    const wallets = listInjectedWallets();
+    if (wallets.length === 1) {
+        selectWalletProvider(wallets[0].provider, wallets[0]);
+        if (boundAddress) {
+            rememberWalletChoice(wallets[0], boundAddress);
+        }
+        return { ...wallets[0], ready: true };
+    }
+
+    if (!allowPicker || typeof window === 'undefined') {
+        return null;
     }
 
     return new Promise((resolve) => {
@@ -324,4 +475,24 @@ export function pickInjectedWallet() {
             }),
         );
     });
+}
+
+/**
+ * First login/register may open the picker. After a wallet is bound / saved,
+ * reuse that provider — never ask the member to choose again until logout.
+ */
+export function pickInjectedWallet(options = {}) {
+    const boundAddress = options.boundAddress || readWalletSession()?.address || '';
+    const allowPicker = options.allowPicker === true || (!boundAddress && !hasWalletSession() && options.allowPicker !== false);
+
+    if (typeof window === 'undefined') {
+        const wallets = listInjectedWallets();
+        if (wallets[0]) {
+            selectWalletProvider(wallets[0].provider, wallets[0]);
+            return Promise.resolve(wallets[0]);
+        }
+        return Promise.resolve(null);
+    }
+
+    return resolveSessionWallet({ boundAddress, allowPicker });
 }

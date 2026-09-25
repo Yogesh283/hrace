@@ -846,9 +846,11 @@ export default function Isu({
                                         {walletAddress ? shortenAddress(walletAddress) : 'Not connected'}
                                     </p>
                                 </div>
-                                <PrimaryButton type="button" onClick={connectWallet} disabled={connecting || networkSwitching}>
-                                    {connecting || networkSwitching ? 'Connecting…' : walletAddress ? 'Refresh wallet' : 'Connect wallet'}
-                                </PrimaryButton>
+                                {!boundWallet ? (
+                                    <PrimaryButton type="button" onClick={connectWallet} disabled={connecting || networkSwitching}>
+                                        {connecting || networkSwitching ? 'Connecting…' : 'Connect wallet'}
+                                    </PrimaryButton>
+                                ) : null}
                             </div>
 
                             <InfoRow
