@@ -260,6 +260,7 @@ export default function Isu({
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(null);
+    const [buyMoreOpen, setBuyMoreOpen] = useState(false);
 
     const [currentPhaseId, setCurrentPhaseId] = useState(0);
     const [icoCompleted, setIcoCompleted] = useState(false);
@@ -510,7 +511,12 @@ export default function Isu({
     }, [contractsReady, refreshPhaseState]);
 
     const scrollToBuy = useCallback(() => {
-        document.getElementById('ico-buy')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setBuyMoreOpen(true);
+        requestAnimationFrame(() => {
+            const target =
+                document.getElementById('ico-buy-more') || document.getElementById('ico-buy');
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     }, []);
 
     useEffect(() => {
@@ -582,7 +588,6 @@ export default function Isu({
         }
         setBusy('approve');
         setError('');
-        setSuccess(null);
         try {
             await approveUsdtForIco({
                 walletAddress,
@@ -671,15 +676,17 @@ export default function Isu({
                 : PHASE_LABELS[currentPhaseId]?.displayPrice || '—';
 
             setSuccess({
+                kind: 'purchase',
                 txHash,
                 usdtPaid: amountUsd,
-                raceStaked: formatTokenWei(raceOut, 18, 4),
+                raceHeld: formatTokenWei(raceOut, 18, 4),
                 price: priceLabel,
                 phase: currentPhaseId,
                 plan: selectedPlan?.label || '—',
                 dailyRoi: selectedPlan?.daily_roi_percent || selectedPlan?.dailyRoiPercent || '—',
                 lockLabel: selectedPlan?.lock_label || selectedPlan?.lockLabel || '—',
             });
+            setBuyMoreOpen(false);
 
             showIcoSuccess(
                 `Bought ${formatTokenWei(raceOut, 18, 4)} RACE (held). No level income on hold. After ICO completes → Create Your Stake (level income then). Tx ${txHash.slice(0, 10)}…`,
@@ -821,6 +828,175 @@ export default function Isu({
     const displayHeldRace = heldRace > 0n ? heldRace : heldFromHistory;
     const displayQuotedRace = quotedRace > 0n ? quotedRace : localQuotedRace;
     const hasHeldPosition = displayHeldRace > 0n || pendingStakes > 0 || historyRows.some((row) => !row.staked);
+    const showPostBuyHold = hasHeldPosition || success?.kind === 'purchase';
+
+    const renderBuyForm = (opts = {}) => (
+        <div
+            id={opts.boxed ? 'ico-buy-more' : undefined}
+            className={
+                opts.boxed
+                    ? 'scroll-mt-24 space-y-4 rounded-xl border border-sky-500/25 bg-slate-950/50 p-4'
+                    : 'space-y-4'
+            }
+        >
+            {opts.title ? (
+                <div>
+                    <p className="text-sm font-semibold text-white">{opts.title}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                        Separate from your held ICO position. New buy stays held until ICO completes.
+                    </p>
+                </div>
+            ) : null}
+
+            <InfoRow
+                label="Current phase"
+                value={
+                    currentPhaseId
+                        ? `${PHASE_LABELS[currentPhaseId]?.label || currentPhaseId}`
+                        : icoCompleted
+                          ? 'Completed'
+                          : quotePhase
+                            ? `${PHASE_LABELS[quotePhase.id]?.label || quotePhase.id}`
+                            : 'None active'
+                }
+            />
+            <InfoRow
+                label="Current price"
+                value={quotePhase ? `$${formatUsdPriceFromWei(quotePhase.priceUsdt)} / RACE` : '—'}
+            />
+            <InfoRow
+                label="Phase remaining"
+                value={quotePhase ? `${formatTokenWei(quotePhase.remaining ?? 0n, 18, 2)} RACE` : '—'}
+            />
+
+            <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase text-slate-400">Lock duration</span>
+                <p className="mb-3 text-xs text-slate-500">
+                    ICO uses fixed locks only. After ICO, Flexible is{' '}
+                    <strong className="text-slate-200">{FLEXIBLE_DAILY_ROI_PERCENT}% daily</strong>.
+                </p>
+                <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-sm">
+                    <p className="font-semibold text-emerald-200">
+                        Flexible · {FLEXIBLE_DAILY_ROI_PERCENT}% daily
+                    </p>
+                    <p className="text-xs text-emerald-100/80">
+                        Available after ICO completes — no fixed lock, withdraw anytime.
+                    </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {stakePlans.map((plan) => {
+                        const id = plan.id ?? String(plan.days);
+                        const active = String(planId) === String(id);
+                        const roi = plan.daily_roi_percent || plan.dailyRoiPercent;
+                        const lock = plan.lock_label || plan.lockLabel;
+                        const dayLabel = plan.days ? `${plan.days}D` : plan.label;
+                        return (
+                            <button
+                                key={id}
+                                type="button"
+                                onClick={() => setPlanId(String(id))}
+                                className={`rounded-xl border p-3 text-left text-sm transition ${
+                                    active
+                                        ? 'border-sky-400 bg-sky-950/40 ring-1 ring-sky-400/40'
+                                        : 'border-slate-700 bg-slate-900/40 hover:border-slate-500'
+                                }`}
+                            >
+                                <p className="font-semibold text-white">{dayLabel}</p>
+                                <p className="text-emerald-300">{roi}% daily</p>
+                                <p className="mt-1 text-xs text-slate-400">{lock || plan.label}</p>
+                            </button>
+                        );
+                    })}
+                </div>
+            </label>
+
+            <InfoRow
+                label="Selected lock"
+                value={
+                    selectedPlan
+                        ? `${selectedPlan.days ?? selectedPlan.id} days — ${
+                              selectedPlan.lock_label || selectedPlan.lockLabel || selectedPlan.label
+                          }`
+                        : 'Select a lock duration'
+                }
+            />
+
+            <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase text-slate-400">USDT amount</span>
+                <input
+                    className={fieldClass}
+                    value={amountUsd}
+                    onChange={(e) => setAmountUsd(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="100"
+                    disabled={!contractsReady || busy !== ''}
+                />
+            </label>
+
+            <div className="rounded-xl border border-brand/30 bg-brand/[0.07] p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-brand">You will receive</p>
+                <p className="mt-1 text-2xl font-bold text-white">
+                    {displayQuotedRace > 0n
+                        ? `${formatTokenWei(displayQuotedRace, 18, 4)} RACE`
+                        : quoteError || 'Enter USDT amount'}
+                </p>
+                <p className="mt-1 text-sm text-slate-300">
+                    For {amountUsd || '0'} USDT
+                    {quotePhase ? ` at $${formatUsdPriceFromWei(quotePhase.priceUsdt)} / RACE` : ''}
+                </p>
+            </div>
+
+            <p className="text-xs text-slate-500">
+                Price from RaceICO. Bought RACE stays held in the ICO contract until you activate stake
+                after ICO completes.
+            </p>
+
+            {error && (
+                <div className="rounded-lg border border-rose-500/40 bg-rose-950/40 p-3 text-sm text-rose-100">
+                    {error}
+                </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+                {needsApprove ? (
+                    <PrimaryButton
+                        type="button"
+                        onClick={onApprove}
+                        disabled={!walletAddress || !contractsReady || busy !== '' || amountWei <= 0n}
+                    >
+                        {busy === 'approve' ? 'Approving…' : 'Approve USDT'}
+                    </PrimaryButton>
+                ) : (
+                    <PrimaryButton type="button" onClick={onBuy} disabled={!canBuy}>
+                        {busy === 'buy'
+                            ? 'Buying…'
+                            : !hasSelectedLock
+                              ? 'Select lock duration first'
+                              : opts.boxed
+                                ? 'Buy more RACE'
+                                : 'Buy RACE'}
+                    </PrimaryButton>
+                )}
+                <button
+                    type="button"
+                    className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                    onClick={refreshChainState}
+                    disabled={loadingChain || busy !== ''}
+                >
+                    Refresh
+                </button>
+                {opts.onHide ? (
+                    <button
+                        type="button"
+                        className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                        onClick={opts.onHide}
+                    >
+                        Hide
+                    </button>
+                ) : null}
+            </div>
+        </div>
+    );
 
     return (
         <AuthenticatedLayout pageTitle="ICO" mobileFintechPageTitle="ICO">
@@ -874,227 +1050,99 @@ export default function Isu({
                                 </div>
                             </div>
 
-                            <InfoRow
-                                label="Current phase"
-                                value={
-                                    currentPhaseId
-                                        ? `${PHASE_LABELS[currentPhaseId]?.label || currentPhaseId}`
-                                        : icoCompleted
-                                          ? 'Completed'
-                                          : quotePhase
-                                            ? `${PHASE_LABELS[quotePhase.id]?.label || quotePhase.id}`
-                                            : 'None active'
-                                }
-                            />
-                            <InfoRow
-                                label="Current price"
-                                value={
-                                    quotePhase
-                                        ? `$${formatUsdPriceFromWei(quotePhase.priceUsdt)} / RACE`
-                                        : '—'
-                                }
-                            />
-                            <InfoRow
-                                label="Phase remaining"
-                                value={
-                                    quotePhase
-                                        ? `${formatTokenWei(quotePhase.remaining ?? 0n, 18, 2)} RACE`
-                                        : '—'
-                                }
-                            />
-
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-medium uppercase text-slate-400">
-                                    Lock duration
-                                </span>
-                                <p className="mb-3 text-xs text-slate-500">
-                                    ICO uses fixed locks only. After ICO, Flexible is{' '}
-                                    <strong className="text-slate-200">{FLEXIBLE_DAILY_ROI_PERCENT}% daily</strong>.
-                                </p>
-                                <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-sm">
-                                    <p className="font-semibold text-emerald-200">Flexible · {FLEXIBLE_DAILY_ROI_PERCENT}% daily</p>
-                                    <p className="text-xs text-emerald-100/80">
-                                        Available after ICO completes — no fixed lock, withdraw anytime.
-                                    </p>
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                                    {stakePlans.map((plan) => {
-                                        const id = plan.id ?? String(plan.days);
-                                        const active = String(planId) === String(id);
-                                        const roi = plan.daily_roi_percent || plan.dailyRoiPercent;
-                                        const lock = plan.lock_label || plan.lockLabel;
-                                        const dayLabel = plan.days ? `${plan.days}D` : plan.label;
-                                        return (
-                                            <button
-                                                key={id}
-                                                type="button"
-                                                onClick={() => setPlanId(String(id))}
-                                                className={`rounded-xl border p-3 text-left text-sm transition ${
-                                                    active
-                                                        ? 'border-sky-400 bg-sky-950/40 ring-1 ring-sky-400/40'
-                                                        : 'border-slate-700 bg-slate-900/40 hover:border-slate-500'
-                                                }`}
+                            {showPostBuyHold ? (
+                                <>
+                                    {success?.kind === 'purchase' ? (
+                                        <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-sm text-emerald-100">
+                                            <p className="text-base font-semibold text-emerald-300">
+                                                RACE purchased
+                                            </p>
+                                            <div className="mt-3 space-y-1">
+                                                <p>USDT paid: {success.usdtPaid} USDT</p>
+                                                <p>RACE held: {success.raceHeld} RACE</p>
+                                                <p>Price: {success.price} / RACE</p>
+                                                <p>Plan: {success.plan}</p>
+                                                <p>Daily ROI: {success.dailyRoi}%</p>
+                                                <p>{success.lockLabel}</p>
+                                            </div>
+                                            <p className="mt-3 text-emerald-200/90">
+                                                Held in the ICO contract — not wallet RACE, not an active stake yet.
+                                            </p>
+                                            <p className="mt-2 break-all font-mono text-xs">Tx: {success.txHash}</p>
+                                            <a
+                                                href={`${blockExplorer}/tx/${success.txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="mt-2 inline-block text-sky-300 underline"
                                             >
-                                                <p className="font-semibold text-white">{dayLabel}</p>
-                                                <p className="text-emerald-300">{roi}% daily</p>
-                                                <p className="mt-1 text-xs text-slate-400">{lock || plan.label}</p>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </label>
+                                                View on explorer
+                                            </a>
+                                        </div>
+                                    ) : null}
 
-                            <InfoRow
-                                label="Selected lock"
-                                value={
-                                    selectedPlan
-                                        ? `${selectedPlan.days ?? selectedPlan.id} days — ${
-                                              selectedPlan.lock_label ||
-                                              selectedPlan.lockLabel ||
-                                              selectedPlan.label
-                                          }`
-                                        : 'Select a lock duration'
-                                }
-                            />
-
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-medium uppercase text-slate-400">
-                                    USDT amount
-                                </span>
-                                <input
-                                    className={fieldClass}
-                                    value={amountUsd}
-                                    onChange={(e) => setAmountUsd(e.target.value)}
-                                    inputMode="decimal"
-                                    placeholder="100"
-                                    disabled={!contractsReady || busy !== ''}
-                                />
-                            </label>
-
-                            <div className="rounded-xl border border-brand/30 bg-brand/[0.07] p-3">
-                                <p className="text-xs font-bold uppercase tracking-wide text-brand">
-                                    You will receive
-                                </p>
-                                <p className="mt-1 text-2xl font-bold text-white">
-                                    {displayQuotedRace > 0n
-                                        ? `${formatTokenWei(displayQuotedRace, 18, 4)} RACE`
-                                        : quoteError || 'Enter USDT amount'}
-                                </p>
-                                <p className="mt-1 text-sm text-slate-300">
-                                    For {amountUsd || '0'} USDT
-                                    {quotePhase
-                                        ? ` at $${formatUsdPriceFromWei(quotePhase.priceUsdt)} / RACE`
-                                        : ''}
-                                </p>
-                            </div>
-
-                            <p className="text-xs text-slate-500">
-                                Price from RaceICO. Bought RACE stays held in the ICO contract until you create
-                                stake after ICO completes.
-                            </p>
-
-                            {error && (
-                                <div className="rounded-lg border border-rose-500/40 bg-rose-950/40 p-3 text-sm text-rose-100">
-                                    {error}
-                                </div>
-                            )}
-
-                            {success && (
-                                <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-sm text-emerald-100">
-                                    <p className="text-base font-semibold text-emerald-300">Stake Created</p>
-                                    <div className="mt-3 space-y-1">
-                                        <p>USDT Paid: {success.usdtPaid} USDT</p>
-                                        <p>RACE Staked: {success.raceStaked} RACE</p>
-                                        <p>Price: {success.price} / RACE</p>
-                                        <p>Plan: {success.plan}</p>
-                                        <p>Daily ROI: {success.dailyRoi}%</p>
-                                        <p>{success.lockLabel}</p>
+                                    <div className="rounded-xl border border-amber-400/30 bg-amber-950/20 p-3">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-amber-200">
+                                            Activate stake after ICO
+                                        </p>
+                                        <p className="mt-2 text-lg font-bold text-white">
+                                            Held: {formatTokenWei(displayHeldRace, 18, 4)} RACE
+                                        </p>
+                                        <p className="mt-1 text-sm text-slate-300">
+                                            {icoCompleted
+                                                ? hasHeldPosition
+                                                    ? `ICO is complete. Create your stake${
+                                                          icoEndPrice > 0n
+                                                              ? ` at $${formatUsdPriceFromWei(icoEndPrice)}`
+                                                              : ''
+                                                      }. Level income starts after stake.`
+                                                    : 'No held RACE left to stake.'
+                                                : 'Activate stake after ICO completes. Until then this stays held — not in your wallet.'}
+                                        </p>
+                                        {icoCompleted && hasHeldPosition ? (
+                                            <PrimaryButton
+                                                type="button"
+                                                className="mt-3"
+                                                onClick={() => onCreateStake(null)}
+                                                disabled={!walletAddress || !contractsReady || busy !== ''}
+                                            >
+                                                {busy === 'create-all' || busy === 'register'
+                                                    ? 'Creating stake…'
+                                                    : 'Create Your Stake'}
+                                            </PrimaryButton>
+                                        ) : (
+                                            <PrimaryButton type="button" className="mt-3" disabled>
+                                                {icoCompleted
+                                                    ? 'No held RACE to stake'
+                                                    : 'Activate stake after ICO completes'}
+                                            </PrimaryButton>
+                                        )}
                                     </div>
-                                    <p className="mt-3 text-emerald-200/90">
-                                        Principal is locked in staking — not sent as spendable wallet RACE.
-                                    </p>
-                                    <p className="mt-2 break-all font-mono text-xs">Tx: {success.txHash}</p>
-                                    <a
-                                        href={`${blockExplorer}/tx/${success.txHash}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mt-2 inline-block text-sky-300 underline"
-                                    >
-                                        View on explorer
-                                    </a>
-                                </div>
+
+                                    {!icoCompleted && !buyMoreOpen ? (
+                                        <button
+                                            type="button"
+                                            className="w-full rounded-xl border border-sky-500/40 bg-sky-950/30 px-4 py-3 text-sm font-semibold text-sky-100 hover:bg-sky-950/50"
+                                            onClick={() => setBuyMoreOpen(true)}
+                                        >
+                                            Buy more RACE
+                                        </button>
+                                    ) : null}
+
+                                    {!icoCompleted && buyMoreOpen
+                                        ? renderBuyForm({
+                                              boxed: true,
+                                              title: 'Buy more RACE',
+                                              onHide: () => setBuyMoreOpen(false),
+                                          })
+                                        : null}
+                                </>
+                            ) : !icoCompleted ? (
+                                renderBuyForm()
+                            ) : (
+                                <p className="text-sm text-slate-300">
+                                    ICO is complete. No held RACE on this wallet to activate.
+                                </p>
                             )}
-
-                            <div className="flex flex-wrap gap-3">
-                                {!icoCompleted && needsApprove ? (
-                                    <PrimaryButton
-                                        type="button"
-                                        onClick={onApprove}
-                                        disabled={!walletAddress || !contractsReady || busy !== '' || amountWei <= 0n}
-                                    >
-                                        {busy === 'approve' ? 'Approving…' : 'Approve USDT'}
-                                    </PrimaryButton>
-                                ) : null}
-                                {!icoCompleted && !needsApprove ? (
-                                    <PrimaryButton
-                                        type="button"
-                                        onClick={onBuy}
-                                        disabled={!canBuy}
-                                    >
-                                        {busy === 'buy'
-                                            ? 'Buying…'
-                                            : !hasSelectedLock
-                                              ? 'Select lock duration first'
-                                              : 'Buy RACE'}
-                                    </PrimaryButton>
-                                ) : null}
-                                <button
-                                    type="button"
-                                    className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
-                                    onClick={refreshChainState}
-                                    disabled={loadingChain || busy !== ''}
-                                >
-                                    Refresh
-                                </button>
-                            </div>
-
-                            <div className="rounded-xl border border-amber-400/30 bg-amber-950/20 p-3">
-                                <p className="text-xs font-bold uppercase tracking-wide text-amber-200">
-                                    After ICO — Create Your Stake
-                                </p>
-                                <p className="mt-2 text-lg font-bold text-white">
-                                    Held: {formatTokenWei(displayHeldRace, 18, 4)} RACE
-                                </p>
-                                <p className="mt-1 text-sm text-slate-300">
-                                    {icoCompleted
-                                        ? hasHeldPosition
-                                            ? `ICO is complete. Create your stake${
-                                                  icoEndPrice > 0n
-                                                      ? ` at $${formatUsdPriceFromWei(icoEndPrice)}`
-                                                      : ''
-                                              }. Level income starts after stake.`
-                                            : 'No held RACE yet. Buy first, then create stake here after ICO.'
-                                        : 'This button stays disabled until ICO completes. Bought RACE stays held — not in your wallet.'}
-                                </p>
-                                {icoCompleted && hasHeldPosition ? (
-                                    <PrimaryButton
-                                        type="button"
-                                        className="mt-3"
-                                        onClick={() => onCreateStake(null)}
-                                        disabled={!walletAddress || !contractsReady || busy !== ''}
-                                    >
-                                        {busy === 'create-all' || busy === 'register'
-                                            ? 'Creating stake…'
-                                            : 'Create Your Stake'}
-                                    </PrimaryButton>
-                                ) : (
-                                    <PrimaryButton type="button" className="mt-3" disabled>
-                                        {icoCompleted
-                                            ? 'No held RACE to stake'
-                                            : 'Create Stake — unlocks after ICO'}
-                                    </PrimaryButton>
-                                )}
-                            </div>
                         </div>
                     </PanelCard>
 
@@ -1342,7 +1390,7 @@ export default function Isu({
                                         />
                                         {!isStaked && !icoCompleted ? (
                                             <p className="mt-2 text-xs font-semibold text-amber-200/90">
-                                                You Active Stake After Complete ICO
+                                                Activate stake after ICO completes
                                             </p>
                                         ) : null}
                                         {!isStaked && icoCompleted ? (
