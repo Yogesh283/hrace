@@ -34,17 +34,14 @@ class BlockchainMode
     }
 
     /**
-     * On-chain participation/ICO enabled for the active network.
-     * Testnet (97): enabled when CommunityEngine is configured.
-     * Mainnet: unchanged — requires explicit env flags only.
+     * On-chain participation/ICO enabled when Community Engine is configured.
+     * Live mainnet and testnet both use this gate (no separate testnet-only path).
      */
     public static function onChainEnabled(): bool
     {
-        $chainId = self::effectiveChainId();
         $engine = trim((string) config('blockchain.contracts.community_engine', ''));
-
-        if ($chainId === 97) {
-            return $engine !== '';
+        if ($engine !== '') {
+            return true;
         }
 
         return self::blockchainOnly()
