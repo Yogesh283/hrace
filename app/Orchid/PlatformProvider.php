@@ -36,7 +36,7 @@ class PlatformProvider extends OrchidServiceProvider
                 ->route(config('platform.index'))
                 ->title(__('Navigation')),
 
-            Menu::make(__('Blockchain overview'))
+            Menu::make(__('All contracts & reports'))
                 ->icon('bs.graph-up')
                 ->route('platform.data.blockchain-overview')
                 ->permission('platform.data')
@@ -47,12 +47,12 @@ class PlatformProvider extends OrchidServiceProvider
                 ->route('platform.data.blockchain-stakes')
                 ->permission('platform.data'),
 
-            Menu::make(__('Contracts (read-only)'))
+            Menu::make(__('Contracts detail'))
                 ->icon('bs.eye')
                 ->route('platform.data.contracts-watch')
                 ->permission('platform.data'),
 
-            Menu::make(__('ICO Contract'))
+            Menu::make(__('ICO deposit / start'))
                 ->icon('bs.cash-coin')
                 ->route('platform.data.ico-contract')
                 ->permission('platform.data'),

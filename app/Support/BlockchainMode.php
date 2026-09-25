@@ -4,22 +4,28 @@ namespace App\Support;
 
 class BlockchainMode
 {
-    /** Project TestnetMockUSDT on BSC Testnet — wallet/UI must use chain 97 when this is configured. */
+    /** Project TestnetMockUSDT on BSC Testnet — only used when APP_ENV is not production. */
     private const TESTNET_USDT = '0xe30fb617215c4eb5a0e4e6b1a5f537c0e28c8fec';
 
     /**
-     * Chain ID for Web3 UI and wallet switching (may override mis-set BSC_CHAIN_ID when Testnet USDT is wired).
+     * Chain ID for Web3 UI and wallet switching.
+     * Production always follows BSC_CHAIN_ID (live = mainnet 56). Testnet USDT only forces 97 outside production.
      */
     public static function effectiveChainId(): int
     {
         $chainId = (int) config('blockchain.chain_id', 56);
+
+        if (app()->environment('production')) {
+            return $chainId > 0 ? $chainId : 56;
+        }
+
         $usdt = strtolower(trim((string) config('blockchain.contracts.usdt', '')));
 
         if ($usdt === self::TESTNET_USDT) {
             return 97;
         }
 
-        return $chainId;
+        return $chainId > 0 ? $chainId : 56;
     }
 
     public static function blockchainOnly(): bool

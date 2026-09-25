@@ -1,5 +1,5 @@
 import { walletAuthPayload } from '@/lib/web3Auth';
-import { connectWalletWithNetwork } from '@/lib/web3Deposit';
+import { connectWalletForAuth } from '@/lib/web3Deposit';
 import { router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
@@ -63,7 +63,8 @@ export default function WalletConnectAuthButton({
         setLoading(true);
         setPhase('wallet');
         try {
-            await connectWalletWithNetwork();
+            // Auth only — no network-switch popup (ICO/stake pages still enforce BSC mainnet).
+            await connectWalletForAuth();
             const normalizedJoinCode = String(joinCode ?? '')
                 .replace(/\s/g, '')
                 .slice(0, 8)

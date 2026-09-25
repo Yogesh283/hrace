@@ -250,7 +250,7 @@ export function friendlyIcoError(err) {
         }
         return msg.includes('ICO buy would fail')
             ? msg
-            : 'ICO simulation failed. Stay on BSC Testnet, approve USDT, then try again.';
+            : 'ICO simulation failed. Stay on BNB Smart Chain, approve USDT, then try again.';
     }
     if (lower.includes('transaction failed on chain')) {
         return msg;

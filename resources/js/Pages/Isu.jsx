@@ -821,8 +821,8 @@ export default function Isu({
                             {!onChainEnabled ? (
                                 <li>
                                     On-chain mode is disabled for this network — set{' '}
-                                    <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code> on BSC Testnet
-                                    (chain 97).
+                                    <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code> on BNB Smart
+                                    Chain (mainnet).
                                 </li>
                             ) : null}
                             {!engineContract ? (
@@ -1123,7 +1123,7 @@ export default function Isu({
                         </p>
                         {!engineContract ? (
                             <p className="text-sm text-amber-200">
-                                CommunityEngine not loaded — check Testnet config (
+                                CommunityEngine not loaded — check mainnet config (
                                 <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code>).
                             </p>
                         ) : stakes.length === 0 ? (

@@ -34,7 +34,7 @@ class IncomeVaultIndexer
             return;
         }
 
-        $chainId = $chainId > 0 ? $chainId : (int) config('blockchain.chain_id', 97);
+        $chainId = $chainId > 0 ? $chainId : (int) config('blockchain.chain_id', 56);
         $wallet = strtolower((string) ($decoded['user'] ?? $decoded['wallet'] ?? ''));
         if ($wallet === '') {
             return;

@@ -209,7 +209,7 @@ export default function Investment({
             try {
                 await switchNetwork();
             } catch (err) {
-                setOnChainError(err?.message || 'Please switch your wallet to BSC Testnet (Chain ID 97).');
+                setOnChainError(err?.message || 'Please switch your wallet to BNB Smart Chain (Chain ID 56).');
                 return;
             }
         }

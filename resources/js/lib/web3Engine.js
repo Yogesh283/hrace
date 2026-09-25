@@ -757,7 +757,7 @@ export function friendlyEngineError(error) {
         return NO_WALLET_MESSAGE;
     }
     if (/internal json-rpc error/i.test(message)) {
-        return 'Network read failed. Confirm BSC Testnet, refresh the page, or retry in a moment.';
+        return 'Network read failed. Confirm BNB Smart Chain, refresh the page, or retry in a moment.';
     }
     return message;
 }
