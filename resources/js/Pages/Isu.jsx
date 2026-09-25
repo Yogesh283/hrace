@@ -814,58 +814,6 @@ export default function Isu({
                     bannerSrc={RACE_BANNER_STAKING}
                 />
 
-                {!contractsReady && (
-                    <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-950/30 p-4 text-sm text-amber-100">
-                        <p className="font-semibold">ICO configuration incomplete</p>
-                        <ul className="mt-2 list-inside list-disc space-y-1 text-xs">
-                            {!onChainEnabled ? (
-                                <li>
-                                    On-chain mode is disabled for this network — set{' '}
-                                    <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code> on BNB Smart
-                                    Chain (mainnet).
-                                </li>
-                            ) : null}
-                            {!engineContract ? (
-                                <li>
-                                    CommunityEngine missing — set{' '}
-                                    <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code> in site{' '}
-                                    <code className="font-mono">.env</code>.
-                                </li>
-                            ) : null}
-                            {!icoContract ? (
-                                <li>
-                                    ICO contract missing — set{' '}
-                                    <code className="font-mono">RACE_ICO_CONTRACT</code>.
-                                </li>
-                            ) : null}
-                            {!raceToken ? (
-                                <li>
-                                    RACE token missing — set <code className="font-mono">RACE_TOKEN_CONTRACT</code>.
-                                </li>
-                            ) : null}
-                            {!usdtContract ? (
-                                <li>
-                                    USDT missing — set <code className="font-mono">USDT_CONTRACT_BEP20</code>{' '}
-                                    (TestnetMockUSDT on chain 97).
-                                </li>
-                            ) : null}
-                        </ul>
-                    </div>
-                )}
-
-                {contractsReady ? (
-                    <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 text-xs text-emerald-100">
-                        CommunityEngine, ICO, RACE, and TEST-USDT configured for chain{' '}
-                        {icoConfig?.chain_id ?? '—'}.
-                        {engineContract ? (
-                            <>
-                                {' '}
-                                Engine: <span className="font-mono">{shortenAddress(engineContract)}</span>
-                            </>
-                        ) : null}
-                    </div>
-                ) : null}
-
                 {walletAddress ? (
                     <Web3NetworkBanner
                         className="mt-4"
