@@ -69,7 +69,8 @@ return Application::configure(basePath: dirname(__DIR__))
         }
 
         if (config('blockchain.indexer.enabled')) {
-            $schedule->command('blockchain:index-events')->everyMinute();
+            $schedule->command('blockchain:index-events')->everyMinute()->withoutOverlapping(4);
+            $schedule->command('blockchain:backfill-ico-purchases --blocks=4000')->everyMinute()->withoutOverlapping(3);
         }
     })
     ->withExceptions(function (Exceptions $exceptions): void {

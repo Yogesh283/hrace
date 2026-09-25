@@ -132,7 +132,10 @@ final class BscJsonRpcClient
     /**
      * @return list<array<string, mixed>>|null null = RPC failure
      */
-    public function getLogs(string $contractAddress, int $fromBlock, int $toBlock, int $chunkSize): ?array
+    /**
+     * @param  list<string|null>  $topics
+     */
+    public function getLogs(string $contractAddress, int $fromBlock, int $toBlock, int $chunkSize, array $topics = []): ?array
     {
         if ($fromBlock > $toBlock) {
             return [];
@@ -143,7 +146,7 @@ final class BscJsonRpcClient
 
         for ($start = $fromBlock; $start <= $toBlock; $start += $chunkSize) {
             $end = min($start + $chunkSize - 1, $toBlock);
-            $chunkLogs = $this->getLogsRange($contractAddress, $start, $end);
+            $chunkLogs = $this->getLogsRange($contractAddress, $start, $end, 0, $topics);
             if ($chunkLogs === null) {
                 return null;
             }
@@ -164,19 +167,25 @@ final class BscJsonRpcClient
     }
 
     /**
+     * @param  list<string|null>  $topics
      * @return list<array<string, mixed>>|null
      */
-    private function getLogsRange(string $contractAddress, int $fromBlock, int $toBlock, int $depth = 0): ?array
+    private function getLogsRange(string $contractAddress, int $fromBlock, int $toBlock, int $depth = 0, array $topics = []): ?array
     {
         if ($fromBlock > $toBlock) {
             return [];
         }
 
-        $result = $this->call('eth_getLogs', [[
+        $filter = [
             'address' => $contractAddress,
             'fromBlock' => '0x'.dechex($fromBlock),
             'toBlock' => '0x'.dechex($toBlock),
-        ]]);
+        ];
+        if ($topics !== []) {
+            $filter['topics'] = $topics;
+        }
+
+        $result = $this->call('eth_getLogs', [$filter]);
 
         if (is_array($result)) {
             return $result;
@@ -187,11 +196,11 @@ final class BscJsonRpcClient
         }
 
         $mid = intdiv($fromBlock + $toBlock, 2);
-        $left = $this->getLogsRange($contractAddress, $fromBlock, $mid, $depth + 1);
+        $left = $this->getLogsRange($contractAddress, $fromBlock, $mid, $depth + 1, $topics);
         if ($left === null) {
             return null;
         }
-        $right = $this->getLogsRange($contractAddress, $mid + 1, $toBlock, $depth + 1);
+        $right = $this->getLogsRange($contractAddress, $mid + 1, $toBlock, $depth + 1, $topics);
         if ($right === null) {
             return null;
         }

@@ -843,23 +843,39 @@ export async function verifyOnChainDeposit({ txHash, amountUsd, verifyUrl, extra
  * Instant DB index for Engine/ICO/Vault logs from one confirmed tx.
  * Writes blockchain_events (+ ico_purchases / stakes when present).
  */
-export async function syncBlockchainTx({ txHash, syncUrl = '/blockchain/sync-tx' }) {
-    const response = await fetch(syncUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': getCsrfToken(),
-        },
-        body: JSON.stringify({ tx_hash: txHash }),
-    });
+export async function syncBlockchainTx({ txHash, syncUrl = '/blockchain/sync-tx', attempts = 4 }) {
+    let lastError = new Error('Could not sync transaction to database.');
+    const tries = Math.max(1, Number(attempts) || 4);
 
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-        throw new Error(payload.error || 'Could not sync transaction to database.');
+    for (let i = 0; i < tries; i += 1) {
+        try {
+            const response = await fetch(syncUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-XSRF-TOKEN': getCsrfToken(),
+                },
+                body: JSON.stringify({ tx_hash: txHash }),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || 'Could not sync transaction to database.');
+            }
+
+            return payload;
+        } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+            if (i < tries - 1) {
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 1200 * (i + 1));
+                });
+            }
+        }
     }
 
-    return payload;
+    throw lastError;
 }
