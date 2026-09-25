@@ -30,7 +30,7 @@ export default function Web3NetworkBanner({
         >
             <p className="font-semibold">Wrong Network</p>
             <p className="mt-1 text-xs text-amber-100/90">
-                MetaMask must be on the configured BSC network before any transaction.
+                Your wallet must be on the configured BSC network before any transaction.
             </p>
             <PrimaryButton
                 type="button"

@@ -104,7 +104,7 @@ const memberNav = [
     { routeKey: 'direct-team', label: 'Direct Team', iconKey: 'direct-team' },
     { routeKey: 'team', label: 'Total Team', iconKey: 'team' },
     { routeKey: 'transactions', label: 'Total Earnings', iconKey: 'transactions' },
-    { routeKey: 'withdrawal', label: 'Payouts', iconKey: 'withdrawal' },
+    { routeKey: 'withdrawal', label: 'Income wallet', iconKey: 'withdrawal' },
     { routeKey: 'wallet', label: 'Wallet', iconKey: 'wallet' },
     { routeKey: 'about', label: 'Support', iconKey: 'about' },
 ];
@@ -366,7 +366,7 @@ const ROUTE_TITLES = {
     'direct-team': 'Direct Team',
     team: 'Total Team',
     transactions: 'Total Earnings',
-    withdrawal: 'Payouts',
+    withdrawal: 'Income wallet',
     wallet: 'Wallet',
     about: 'Support',
     'self-hold': 'Self Hold',

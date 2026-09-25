@@ -130,7 +130,7 @@ export const STAKING = {
     body: 'The RACE Network Staking Participation Program encourages long-term ecosystem engagement through flexible participation options designed to support responsible community growth.',
     more: 'Participants can choose from multiple staking durations based on their individual preferences while contributing to the sustainability and development of the ecosystem.',
     items: [
-        'Flexible & Fixed Duration Options',
+        'Flexible 0.35% daily · 180D 0.50% · 365D 0.70% · 730D 0.90% · 1095D 1.00%',
         'Optional Compounding Feature',
         'Community Participation Framework',
         'Governance Integration',

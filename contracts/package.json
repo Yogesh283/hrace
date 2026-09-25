@@ -26,8 +26,12 @@
     "verify:engine-testnet": "npx hardhat run scripts/verify-engine-bytecode-testnet.js --network bscTestnet",
     "deploy:income-vault-testnet": "npx hardhat run scripts/deploy-income-vault-testnet.js --network bscTestnet",
     "uat:testnet-e2e": "npx hardhat run scripts/uat-testnet-e2e.js --network bscTestnet",
+    "start:ico-testnet": "npx hardhat run scripts/start-ico-testnet.js --network bscTestnet",
     "deploy:testnet": "node scripts/preflight-testnet.js && npx hardhat run scripts/deploy.js --network bscTestnet",
-    "deploy:mainnet": "node -e \"console.error('STOP: Mainnet deploy blocked. Testnet only.'); process.exit(1)\"",
+    "deploy:mainnet": "npx hardhat run scripts/deploy.js --network bsc",
+    "deploy:mainnet-core": "npx hardhat run scripts/deploy-mainnet-core.js --network bsc",
+    "preflight:mainnet": "node scripts/preflight-mainnet.js",
+    "export:abis": "node scripts/export-abis.js",
     "deploy:governance:testnet": "npx hardhat run scripts/deploy-governance-testnet.js --network bscTestnet",
     "deploy:governance:local": "npx hardhat run scripts/deploy-governance-testnet.js"
   },

@@ -7,15 +7,16 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {IRaceMintable} from "./interfaces/IRaceMintable.sol";
+import {IIcoReserve} from "./interfaces/IIcoReserve.sol";
 import {IRaceIcoStakeReceiver} from "./interfaces/IRaceIcoStakeReceiver.sol";
 
 /**
  * @title RaceICO
- * @notice Official RACE ICO — USDT → admin; RACE minted and held on this contract per buyer.
- * @dev Fixed on-chain prices. Hard ICO mint limit: totalSoldRace <= 600_000.
- *      purchase() holds RACE (no auto-stake). After icoCompleted, buyer calls createStake()
- *      which opens Engine stake valued at icoEndPriceUsdt (phase-3 / ICO-end rate).
+ * @notice Official RACE ICO sale — USDT → admin wallet; RACE pulled from ICO Contract.
+ * @dev Fixed on-chain prices. Hard ICO limit: totalSoldRace <= 600_000.
+ *      Admin deposits 600k into ICO Contract. Income mint stays on RaceRewardVault.
+ *      purchase() holds RACE here (no auto-stake, no level income). After icoCompleted, buyer
+ *      calls createStake() which pays level income then opens Engine stake at icoEndPriceUsdt.
  *
  * Phases (immutable):
  *   Phase 1: $0.25 / RACE — 200,000 RACE — max $50,000 USDT
@@ -44,8 +45,12 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     uint8 public immutable usdtDecimals;
 
     address public adminWallet;
+    /// @notice ICO Contract holding the 600k bucket (admin-deposited).
+    address public icoReserve;
     /// @notice RaceCommunityEngine (IRaceIcoStakeReceiver) — receives held RACE on createStake.
     address public stakingEngine;
+    bool public icoReserveLocked;
+    bool public stakingEngineLocked;
 
     uint256 public immutable phase1PriceUsdt;
     uint256 public immutable phase2PriceUsdt;
@@ -91,7 +96,7 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     /// @notice Sum of all userHeldRace (RACE locked as ICO holds on this contract).
     uint256 public totalHeldRace;
 
-    /// @notice Cumulative RACE minted via ICO (must stay ≤ TOTAL_ALLOCATION).
+    /// @notice Cumulative RACE sold via ICO (must stay ≤ TOTAL_ALLOCATION).
     uint256 public totalSoldRace;
 
     /// @notice ICO-end price used for createStake principal (set when phase 3 completes).
@@ -151,7 +156,10 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         uint256 endPriceUsdt,
         uint256 stakeIndex
     );
+    event IcoReserveUpdated(address indexed icoReserve);
+    event IcoReserveLocked(address indexed icoReserve);
     event StakingEngineUpdated(address indexed stakingEngine);
+    event StakingEngineLocked(address indexed stakingEngine);
     event ICOCompleted(uint256 totalSoldRace, uint256 totalRaisedUsdt, uint64 timestamp);
     event USDTDeposited(address indexed from, uint256 amount);
     event ExcessUSDTWithdrawn(address indexed to, uint256 amount);
@@ -363,7 +371,13 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         raceLocked = userHeldRace[user];
     }
 
-    /// @notice RACE on this contract above user holds (sweepable by owner).
+    /// @notice Unsold 600k still sitting on the ICO reserve contract.
+    function icoReserveAvailable() public view returns (uint256) {
+        if (icoReserve == address(0)) return 0;
+        return IIcoReserve(icoReserve).available();
+    }
+
+    /// @notice Sweepable extra RACE on this sale contract (never user holds; unsold 600k lives on ICO).
     function withdrawableUnsoldRace() public view returns (uint256) {
         uint256 bal = raceToken.balanceOf(address(this));
         if (bal <= totalHeldRace) return 0;
@@ -387,9 +401,32 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     }
 
     function setStakingEngine(address stakingEngine_) external onlyOwner {
+        require(!stakingEngineLocked, "RaceICO: engine locked");
         require(stakingEngine_ != address(0), "RaceICO: zero engine");
         stakingEngine = stakingEngine_;
         emit StakingEngineUpdated(stakingEngine_);
+    }
+
+    /// @notice Permanently freeze staking engine (blocks createStake RACE redirect).
+    function lockStakingEngine() external onlyOwner {
+        require(stakingEngine != address(0), "RaceICO: no engine");
+        require(!stakingEngineLocked, "RaceICO: already locked");
+        stakingEngineLocked = true;
+        emit StakingEngineLocked(stakingEngine);
+    }
+
+    function setIcoReserve(address icoReserve_) external onlyOwner {
+        require(!icoReserveLocked, "RaceICO: reserve locked");
+        require(icoReserve_ != address(0), "RaceICO: zero reserve");
+        icoReserve = icoReserve_;
+        emit IcoReserveUpdated(icoReserve_);
+    }
+
+    function lockIcoReserve() external onlyOwner {
+        require(icoReserve != address(0), "RaceICO: no reserve");
+        require(!icoReserveLocked, "RaceICO: already locked");
+        icoReserveLocked = true;
+        emit IcoReserveLocked(icoReserve);
     }
 
     function isValidStakePlan(uint256 lockPeriod) public pure returns (bool) {
@@ -459,7 +496,7 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         emit USDTDeposited(msg.sender, amount);
     }
 
-    /// @notice Sweep RACE above user holds only (never touch held allocations).
+    /// @notice Sweep extra RACE only (never ICO inventory during sale, never user holds).
     function withdrawAccidentalRACE(address to, uint256 amount) external onlyOwner nonReentrant {
         require(to != address(0), "RaceICO: zero to");
         require(amount > 0, "RaceICO: zero");
@@ -515,6 +552,8 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         require(p.raisedUsdt + usdtAmount <= phaseUsdtCap(phaseId), "RaceICO: phase usdt cap");
         require(p.sold + raceOut <= p.allocation, "RaceICO: phase sold out");
         require(totalSoldRace + raceOut <= TOTAL_ALLOCATION, "RaceICO: total sold out");
+        require(icoReserve != address(0), "RaceICO: no reserve");
+        require(IIcoReserve(icoReserve).available() >= raceOut, "RaceICO: reserve empty");
 
         p.sold += raceOut;
         p.raisedUsdt += usdtAmount;
@@ -546,9 +585,9 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         _userPurchaseIds[msg.sender].push(purchaseId);
 
         usdt.safeTransferFrom(msg.sender, adminWallet, usdtAmount);
-        IRaceMintable(address(raceToken)).mint(address(this), raceOut);
-        // Level income on ICO hold (USDT paid) — createStake will not pay again.
-        IRaceIcoStakeReceiver(stakingEngine).processIcoHold(msg.sender, usdtAmount, purchaseId);
+        IIcoReserve(icoReserve).releaseToHold(raceOut);
+        // Freeze referrer now — level income still pays later on createStake.
+        IRaceIcoStakeReceiver(stakingEngine).bindIcoPurchaseReferrer(msg.sender, purchaseId);
 
         emit ICOPurchase(msg.sender, purchaseId, phaseId, usdtAmount, raceOut, p.priceUsdt, unlockAtHint, purchasedAt);
         emit ICOPurchased(purchaseId, msg.sender, phaseId, usdtAmount, raceOut, p.priceUsdt);
@@ -621,6 +660,8 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         buy.claimed = raceAmount;
 
         raceToken.safeTransfer(stakingEngine, raceAmount);
+        // Level income on original USDT paid (same formula), only when stake is created.
+        IRaceIcoStakeReceiver(stakingEngine).processIcoHold(caller, buy.usdtPaid, purchaseId);
         stakeIndex = IRaceIcoStakeReceiver(stakingEngine).openIcoStake(
             caller, principalUsdt, raceAmount, buy.lockPeriod, purchaseId
         );

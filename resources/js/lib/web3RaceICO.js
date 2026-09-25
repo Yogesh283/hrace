@@ -10,10 +10,11 @@ import {
     waitForConfirmations,
 } from '@/lib/web3Deposit';
 import { formatTokenWei, friendlySwapError } from '@/lib/web3PancakeSwap';
+import { getWalletProvider, walletRequest } from '@/lib/web3Wallet';
 
 /**
  * RaceICO hold-then-stake helpers.
- * purchase → USDT to admin, RACE mint+hold on ICO (not wallet, not stake).
+ * purchase → USDT to admin, RACE allocated from ICO reserve and held (not wallet, not stake).
  * createStake / createAllStakes → after icoCompleted, open Engine stake at icoEndPrice.
  */
 const SELECTORS = {
@@ -70,6 +71,9 @@ export const ICO_STAKE_PLANS = [
     },
 ];
 
+/** Official Flexible daily ROI (35 bps) — Engine + Laravel reward_plan. */
+export const FLEXIBLE_DAILY_ROI_PERCENT = '0.35';
+
 /** Post-ICO normal staking (Engine.participate) — includes Flexible. */
 export const POST_ICO_STAKE_PLANS = [
     {
@@ -77,7 +81,7 @@ export const POST_ICO_STAKE_PLANS = [
         lockPeriodSeconds: 0,
         days: 0,
         label: 'Flexible',
-        dailyRoiPercent: '0.35',
+        dailyRoiPercent: FLEXIBLE_DAILY_ROI_PERCENT,
         lockLabel: 'No fixed lock — withdraw anytime',
     },
     ...ICO_STAKE_PLANS.map((p) => ({
@@ -99,9 +103,9 @@ function padUint8(value) {
 }
 
 async function ethCall({ to, data, rpcUrl }) {
-    if (typeof window !== 'undefined' && window.ethereum) {
+    if (typeof window !== 'undefined' && getWalletProvider()) {
         try {
-            const result = await window.ethereum.request({
+            const result = await walletRequest({
                 method: 'eth_call',
                 params: [{ to, data }, 'latest'],
             });
@@ -222,6 +226,9 @@ export function friendlyIcoError(err) {
     }
     if (lower.includes('total sold out') || lower.includes('completed')) {
         return 'ICO allocation is complete.';
+    }
+    if (lower.includes('reserve empty')) {
+        return 'ICO reserve is not funded yet.';
     }
     if (lower.includes('no active phase') || lower.includes('phase inactive')) {
         return 'No active ICO phase. Wait for the next phase to start.';
@@ -394,7 +401,7 @@ export async function readIcoEndPriceUsdt({ icoContract, rpcUrl }) {
 }
 
 /**
- * RaceICO.purchase — USDT→adminWallet, RACE mint+hold on ICO (stake later after ICO ends).
+ * RaceICO.purchase — USDT→adminWallet, RACE from ICO reserve held on ICO (stake later after ICO ends).
  */
 export async function purchaseIcoRace({
     walletAddress,
@@ -608,7 +615,7 @@ async function assertIcoPurchaseWouldSucceed({ from, icoContract, data, rpcUrl, 
     }
 
     try {
-        await window.ethereum.request({
+        await walletRequest({
             method: 'eth_call',
             params: [tx, 'latest'],
         });
@@ -638,7 +645,7 @@ function mapIcoRevertToUserMessage(reason) {
         return 'RACE price oracle is stale (not updated in 24h). Admin must refresh the testnet oracle price, then retry.';
     }
     if (lower.includes('ico active') || lower.includes('no end price')) {
-        return 'ICO is still active. Create Your Stake unlocks after ICO completes.';
+        return 'You Active Stake After Complete ICO.';
     }
     if (lower.includes('already staked')) {
         return 'This purchase is already staked.';
@@ -654,6 +661,9 @@ function mapIcoRevertToUserMessage(reason) {
     }
     if (lower.includes('total sold out') || lower.includes('completed')) {
         return 'ICO allocation is complete.';
+    }
+    if (lower.includes('reserve empty')) {
+        return 'ICO reserve is not funded yet.';
     }
     if (lower.includes('phase inactive') || lower.includes('no active phase')) {
         return 'No active ICO phase.';

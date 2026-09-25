@@ -1,6 +1,7 @@
 import MemberPageHero, { MemberHeroLink } from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import MemberTableScroll from '@/Components/Member/MemberTableScroll';
+import IncomeHoldWithdrawCard from '@/Components/IncomeHoldWithdrawCard';
 import PanelCard from '@/Components/PanelCard';
 import PrimaryButton from '@/Components/PrimaryButton';
 import Web3NetworkBanner from '@/Components/Web3NetworkBanner';
@@ -15,7 +16,7 @@ import {
 } from '@/lib/web3Engine';
 import { syncBlockchainTx } from '@/lib/web3Deposit';
 import { syncParticipationTx } from '@/lib/web3Participation';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 
 const fieldClass =
@@ -208,7 +209,7 @@ export default function Investment({
             try {
                 await switchNetwork();
             } catch (err) {
-                setOnChainError(err?.message || 'Please switch MetaMask to BSC Testnet (Chain ID 97).');
+                setOnChainError(err?.message || 'Please switch your wallet to BSC Testnet (Chain ID 97).');
                 return;
             }
         }
@@ -239,7 +240,7 @@ export default function Investment({
             } catch (syncErr) {
                 console.warn('participate sync:', syncErr?.message || syncErr);
             }
-            setOnChainStatus('Transaction sent. Daily RACE rewards pay directly to your wallet from the smart contract.');
+            setOnChainStatus('Stake opened. Claimed income stays in your income wallet — bring it to your wallet anytime.');
             router.reload({ only: ['investments', 'blockchainParticipations', 'communityEngineStakes', 'memberActivation', 'web3Engine'] });
         } catch (err) {
             setOnChainError(err?.message || 'On-chain participation failed.');
@@ -378,6 +379,12 @@ export default function Investment({
                     )}
                 </div>
 
+                {onChain ? (
+                    <div className="mx-auto w-full min-w-0 max-w-lg">
+                        <IncomeHoldWithdrawCard compact />
+                    </div>
+                ) : null}
+
                 {!onChain ? (
                     <PanelCard title="Race Coin" icon="swap" className="border-fintech-line !p-4">
                         <p className="mt-1 text-2xl font-bold text-fintech-ink">
@@ -424,10 +431,15 @@ export default function Investment({
                     <p className="mb-5 text-sm text-fintech-muted">
                         {onChain ? (
                             <>
-                                Pay <strong>USDT from MetaMask / Trust Wallet</strong>.{' '}
+                                Pay <strong>USDT from any crypto wallet</strong>.{' '}
                                 <span className="font-mono text-sky-700">RaceCommunityEngine</span> stakes on-chain.
-                                Flexible is available only after on-chain <span className="font-mono">RaceICO.icoCompleted</span>.
-                                Claim / compound / withdraw settle on-chain — Laravel is history only, not the balance source of truth.
+                                Flexible is <strong>0.35% daily</strong>, available after on-chain{' '}
+                                <span className="font-mono">RaceICO.icoCompleted</span>.
+                                Claimed income stays in hold. Open{' '}
+                                <Link href={route('withdrawal')} className="font-semibold text-sky-700 underline">
+                                    Income wallet
+                                </Link>{' '}
+                                and tap Bring to my wallet.
                             </>
                         ) : (
                             <>
@@ -622,7 +634,7 @@ export default function Investment({
                         {onChain ? (
                             <p className="text-[11px] leading-relaxed text-fintech-muted">
                                 Daily RACE rewards are calculated and transferred by RaceParticipation.sol using live
-                                PancakeSwap price. Claim or receive via distributeReward — no Laravel ROI.
+                                PancakeSwap price. Claim or receive via distributeReward — no off-chain ROI.
                             </p>
                         ) : null}
                     </form>

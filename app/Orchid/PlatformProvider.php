@@ -36,38 +36,46 @@ class PlatformProvider extends OrchidServiceProvider
                 ->route(config('platform.index'))
                 ->title(__('Navigation')),
 
+            Menu::make(__('Blockchain overview'))
+                ->icon('bs.graph-up')
+                ->route('platform.data.blockchain-overview')
+                ->permission('platform.data')
+                ->title(__('Blockchain')),
+
+            Menu::make(__('On-chain stakes'))
+                ->icon('bs.stack')
+                ->route('platform.data.blockchain-stakes')
+                ->permission('platform.data'),
+
+            Menu::make(__('Contracts (read-only)'))
+                ->icon('bs.eye')
+                ->route('platform.data.contracts-watch')
+                ->permission('platform.data'),
+
+            Menu::make(__('ICO Contract'))
+                ->icon('bs.cash-coin')
+                ->route('platform.data.ico-contract')
+                ->permission('platform.data'),
+
+            Menu::make(__('Multisig funds'))
+                ->icon('bs.safe2')
+                ->route('platform.data.multisig-funds')
+                ->permission('platform.data'),
+
             Menu::make(__('Team structure'))
                 ->icon('bs.diagram-3')
                 ->route('platform.data.team')
                 ->permission('platform.data')
-                ->title(__('Members & teams')),
+                ->title(__('Members')),
 
             Menu::make(__('User Full Data'))
                 ->icon('bs.person-lines-fill')
                 ->route('platform.data.user-full-data')
                 ->permission('platform.data'),
 
-            Menu::make(__('Users'))
-                ->icon('bs.people')
-                ->route('platform.systems.users')
-                ->permission('platform.systems.users')
-                ->title(__('Access Controls')),
-
-            Menu::make(__('Roles'))
-                ->icon('bs.shield')
-                ->route('platform.systems.roles')
-                ->permission('platform.systems.roles')
-                ->divider(),
-
-            Menu::make(__('Treasury address'))
-                ->icon('bs.box-arrow-in-down')
-                ->route('platform.data.treasury')
-                ->permission('platform.data')
-                ->title(__('Application data')),
-
-            Menu::make(__('Multisig funds'))
-                ->icon('bs.safe2')
-                ->route('platform.data.multisig-funds')
+            Menu::make(__('User wallets'))
+                ->icon('bs.wallet2')
+                ->route('platform.data.user-wallets')
                 ->permission('platform.data'),
 
             Menu::make(__('Admin deposit'))
@@ -79,6 +87,22 @@ class PlatformProvider extends OrchidServiceProvider
                 ->icon('bs.slash-circle')
                 ->route('platform.data.member-withdrawals')
                 ->permission('platform.data'),
+
+            Menu::make(__('Withdrawals'))
+                ->icon('bs.cash-coin')
+                ->route('platform.data.withdrawals')
+                ->permission('platform.data'),
+
+            Menu::make(__('Support & complaints'))
+                ->icon('bs.headset')
+                ->route('platform.data.support-tickets')
+                ->permission('platform.data'),
+
+            Menu::make(__('Treasury address'))
+                ->icon('bs.box-arrow-in-down')
+                ->route('platform.data.treasury')
+                ->permission('platform.data')
+                ->title(__('Finance & income')),
 
             Menu::make(__('Income plan (read-only)'))
                 ->icon('bs.percent')
@@ -105,19 +129,9 @@ class PlatformProvider extends OrchidServiceProvider
                 ->route('platform.data.milestone-payouts')
                 ->permission('platform.data'),
 
-            Menu::make(__('User wallets'))
-                ->icon('bs.wallet2')
-                ->route('platform.data.user-wallets')
-                ->permission('platform.data'),
-
             Menu::make(__('Race Coin swaps'))
                 ->icon('bs.arrow-left-right')
                 ->route('platform.data.race-coin-swaps')
-                ->permission('platform.data'),
-
-            Menu::make(__('Withdrawals'))
-                ->icon('bs.cash-coin')
-                ->route('platform.data.withdrawals')
                 ->permission('platform.data'),
 
             Menu::make(__('Member popup'))
@@ -125,16 +139,21 @@ class PlatformProvider extends OrchidServiceProvider
                 ->route('platform.data.member-popup')
                 ->permission('platform.data'),
 
-            Menu::make(__('Support & complaints'))
-                ->icon('bs.headset')
-                ->route('platform.data.support-tickets')
-                ->permission('platform.data'),
-
             Menu::make(__('Users'))
+                ->icon('bs.people')
+                ->route('platform.systems.users')
+                ->permission('platform.systems.users')
+                ->title(__('System')),
+
+            Menu::make(__('Roles'))
+                ->icon('bs.shield')
+                ->route('platform.systems.roles')
+                ->permission('platform.systems.roles'),
+
+            Menu::make(__('Lending users'))
                 ->icon('bs.person-badge')
                 ->route('platform.lending.users')
-                ->permission(['lending.user.block', 'lending.user.unblock'])
-                ->title(__('Lending')),
+                ->permission(['lending.user.block', 'lending.user.unblock']),
         ];
     }
 

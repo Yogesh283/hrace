@@ -5,6 +5,7 @@ import PanelCard from '@/Components/PanelCard';
 import PrimaryButton from '@/Components/PrimaryButton';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
+import { getWalletProvider } from '@/lib/web3Wallet';
 import { BrowserProvider, Contract, JsonRpcProvider, id as keccakId } from 'ethers';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -55,11 +56,11 @@ export default function Governance({ governance }) {
 
     const connect = useCallback(async () => {
         setError('');
-        if (!window.ethereum) {
-            setError('MetaMask / EVM wallet required');
+        if (!getWalletProvider()) {
+            setError('Connect any EVM crypto wallet first');
             return;
         }
-        const provider = new BrowserProvider(window.ethereum);
+        const provider = new BrowserProvider(getWalletProvider());
         const accounts = await provider.send('eth_requestAccounts', []);
         setWallet(accounts[0] || '');
     }, []);
@@ -68,8 +69,8 @@ export default function Governance({ governance }) {
         if (!configured || !address) return;
         setError('');
         try {
-            const provider = window.ethereum
-                ? new BrowserProvider(window.ethereum)
+            const provider = getWalletProvider()
+                ? new BrowserProvider(getWalletProvider())
                 : cfg.rpc_url
                   ? new JsonRpcProvider(cfg.rpc_url)
                   : null;
@@ -145,7 +146,7 @@ export default function Governance({ governance }) {
         setError('');
         setStatus('');
         try {
-            const provider = new BrowserProvider(window.ethereum);
+            const provider = new BrowserProvider(getWalletProvider());
             const signer = await provider.getSigner();
             const gov = new Contract(address, GOV_ABI, signer);
             const tx = await gov.castVote(proposalId, support);
@@ -164,7 +165,7 @@ export default function Governance({ governance }) {
         setError('');
         setStatus('');
         try {
-            const provider = new BrowserProvider(window.ethereum);
+            const provider = new BrowserProvider(getWalletProvider());
             const signer = await provider.getSigner();
             const gov = new Contract(address, GOV_ABI, signer);
             const tx = await gov[fn](proposalId);
@@ -197,7 +198,7 @@ export default function Governance({ governance }) {
                 <p className="text-sm text-fintech-muted">{cfg.note}</p>
                 {!configured ? (
                     <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-                        Set <code>RACE_GOVERNANCE_CONTRACT</code> in Laravel .env after testnet deploy.
+                        Set <code>RACE_GOVERNANCE_CONTRACT</code> in site .env after testnet deploy.
                     </p>
                 ) : (
                     <p className="break-all text-xs text-fintech-muted">

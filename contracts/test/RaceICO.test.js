@@ -32,12 +32,19 @@ describe('RaceICO → hold → createStake', function () {
         );
         await ico.connect(owner).setStakingEngine(await engine.getAddress());
 
+        const ICOContract = await ethers.getContractFactory('ICOContract');
+        const icoReserve = await ICOContract.deploy(owner.address, await race.getAddress(), admin.address);
+        await icoReserve.setRaceIco(await ico.getAddress());
+        await ico.setIcoReserve(await icoReserve.getAddress());
+        await race.mint(admin.address, TOTAL_ALLOC);
+        await race.connect(admin).approve(await icoReserve.getAddress(), TOTAL_ALLOC);
+        await icoReserve.connect(admin).depositReserve(TOTAL_ALLOC);
         await usdt.mint(buyer.address, ethers.parseEther('1000000'));
         await usdt.mint(buyer2.address, ethers.parseEther('1000000'));
         await usdt.connect(buyer).approve(await ico.getAddress(), ethers.MaxUint256);
         await usdt.connect(buyer2).approve(await ico.getAddress(), ethers.MaxUint256);
 
-        return { owner, buyer, buyer2, stranger, admin, usdt, race, ico, engine };
+        return { owner, buyer, buyer2, stranger, admin, usdt, race, ico, icoReserve, engine };
     }
 
     async function startPhase(ico, owner, phaseId) {
@@ -71,8 +78,8 @@ describe('RaceICO → hold → createStake', function () {
         expect(await ico.isValidStakePlan(LOCK_FLEX)).to.equal(false);
     });
 
-    it('mints RACE to ICO hold not buyer wallet or engine', async function () {
-        const { owner, buyer, admin, ico, race, usdt, engine } = await deployFixture();
+    it('allocates RACE from reserve to ICO hold not buyer wallet or engine', async function () {
+        const { owner, buyer, admin, ico, icoReserve, race, usdt, engine } = await deployFixture();
         await startPhase(ico, owner, 1);
         const usdtIn = ethers.parseEther('100');
         const adminBefore = await usdt.balanceOf(admin.address);
@@ -84,11 +91,12 @@ describe('RaceICO → hold → createStake', function () {
         expect(await race.balanceOf(buyer.address)).to.equal(0n);
         expect(await race.balanceOf(await engine.getAddress())).to.equal(0n);
         expect(await race.balanceOf(await ico.getAddress())).to.equal(ethers.parseEther('400'));
+        expect(await race.balanceOf(await icoReserve.getAddress())).to.equal(TOTAL_ALLOC - ethers.parseEther('400'));
+        expect(await ico.icoReserveAvailable()).to.equal(TOTAL_ALLOC - ethers.parseEther('400'));
         expect(await ico.userHeldRace(buyer.address)).to.equal(ethers.parseEther('400'));
         expect(await ico.totalHeldRace()).to.equal(ethers.parseEther('400'));
         expect(await usdt.balanceOf(admin.address)).to.equal(adminBefore + usdtIn);
-        expect(await engine.holdProcessed()).to.equal(true);
-        expect(await engine.lastHoldUsdt()).to.equal(usdtIn);
+        expect(await engine.holdProcessed()).to.equal(false);
         expect(await engine.stakeCount()).to.equal(0n);
 
         const purchase = await ico.getPurchase(0);
@@ -127,6 +135,8 @@ describe('RaceICO → hold → createStake', function () {
         expect(await engine.lastLock()).to.equal(LOCK_180);
         expect(await engine.lastRace()).to.equal(ethers.parseEther('400'));
         expect(await engine.lastUsdt()).to.equal(ethers.parseEther('180'));
+        expect(await engine.holdProcessed()).to.equal(true);
+        expect(await engine.lastHoldUsdt()).to.equal(ethers.parseEther('100'));
 
         const purchase = await ico.getPurchase(0);
         expect(purchase.claimed).to.equal(ethers.parseEther('400'));
@@ -164,7 +174,7 @@ describe('RaceICO → hold → createStake', function () {
         expect(await ico.pendingStakeCount(buyer.address)).to.equal(0n);
     });
 
-    it('requires engine on purchase (level income on hold)', async function () {
+    it('requires engine on purchase (needed later for createStake)', async function () {
         const [owner, buyer, admin] = await ethers.getSigners();
         const MockERC20 = await ethers.getContractFactory('MockERC20');
         const usdt = await MockERC20.deploy('USDT', 'USDT', 18);
@@ -179,16 +189,59 @@ describe('RaceICO → hold → createStake', function () {
         );
     });
 
-    it('reverts purchase if hold level-income fails', async function () {
+    it('purchase succeeds even if level-income would fail; createStake pays income', async function () {
         const { owner, buyer, admin, ico, race, usdt, engine } = await deployFixture();
         await startPhase(ico, owner, 1);
         await engine.setRevertHold(true);
         const adminBefore = await usdt.balanceOf(admin.address);
-        await expect(ico.connect(buyer).purchase(ethers.parseEther('100'), LOCK_180)).to.be.revertedWith(
-            'mock: hold fail',
+        await ico.connect(buyer).purchase(ethers.parseEther('100'), LOCK_180);
+        expect(await usdt.balanceOf(admin.address)).to.equal(adminBefore + ethers.parseEther('100'));
+        expect(await race.balanceOf(await ico.getAddress())).to.equal(ethers.parseEther('400'));
+        expect(await engine.holdProcessed()).to.equal(false);
+        await completeIco(ico, owner);
+        await expect(ico.connect(buyer).createStake(0)).to.be.revertedWith('mock: hold fail');
+        await engine.setRevertHold(false);
+        await ico.connect(buyer).createStake(0);
+        expect(await engine.holdProcessed()).to.equal(true);
+        expect(await engine.lastHoldUsdt()).to.equal(ethers.parseEther('100'));
+    });
+
+    it('purchase reverts when ICO reserve is empty', async function () {
+        const [owner, buyer, admin] = await ethers.getSigners();
+        const MockERC20 = await ethers.getContractFactory('MockERC20');
+        const usdt = await MockERC20.deploy('USDT', 'USDT', 18);
+        const race = await MockERC20.deploy('RACE', 'RACE', 18);
+        const MockIcoStakeReceiver = await ethers.getContractFactory('MockIcoStakeReceiver');
+        const engine = await MockIcoStakeReceiver.deploy();
+        const RaceICO = await ethers.getContractFactory('RaceICO');
+        const ico = await RaceICO.deploy(owner.address, await race.getAddress(), await usdt.getAddress(), admin.address);
+        await ico.connect(owner).setStakingEngine(await engine.getAddress());
+        const ICOContract = await ethers.getContractFactory('ICOContract');
+        const icoReserve = await ICOContract.deploy(owner.address, await race.getAddress(), admin.address);
+        await icoReserve.setRaceIco(await ico.getAddress());
+        await ico.setIcoReserve(await icoReserve.getAddress());
+        await usdt.mint(buyer.address, ethers.parseEther('100'));
+        await usdt.connect(buyer).approve(await ico.getAddress(), ethers.MaxUint256);
+        await ico.connect(owner).startPhase(1);
+        await expect(ico.connect(buyer).purchase(ethers.parseEther('10'), LOCK_180)).to.be.revertedWith(
+            'RaceICO: reserve empty',
         );
-        expect(await usdt.balanceOf(admin.address)).to.equal(adminBefore);
-        expect(await race.balanceOf(await ico.getAddress())).to.equal(0n);
+    });
+
+    it('protects 600k ICO inventory on the ICO contract', async function () {
+        const { owner, buyer, ico, icoReserve, race } = await deployFixture();
+        expect(await ico.withdrawableUnsoldRace()).to.equal(0n);
+        expect(await ico.icoReserveAvailable()).to.equal(TOTAL_ALLOC);
+        await startPhase(ico, owner, 1);
+        await ico.connect(buyer).purchase(ethers.parseEther('100'), LOCK_180);
+        expect(await ico.withdrawableUnsoldRace()).to.equal(0n);
+        expect(await race.balanceOf(await icoReserve.getAddress())).to.equal(TOTAL_ALLOC - ethers.parseEther('400'));
+        await race.mint(await ico.getAddress(), ethers.parseEther('100'));
+        expect(await ico.withdrawableUnsoldRace()).to.equal(ethers.parseEther('100'));
+        await completeIco(ico, owner);
+        expect(await ico.withdrawableUnsoldRace()).to.equal(ethers.parseEther('100'));
+        await expect(icoReserve.withdrawLeftover(owner.address, TOTAL_ALLOC - ethers.parseEther('400')))
+            .to.emit(icoReserve, 'LeftoverWithdrawn');
     });
 
     it('claim helper reverts to hold/stake path', async function () {

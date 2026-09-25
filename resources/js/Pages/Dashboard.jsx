@@ -1,10 +1,11 @@
 import PlanIncomeSection from '@/Components/PlanIncomeSection';
+import IncomeHoldWithdrawCard from '@/Components/IncomeHoldWithdrawCard';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { formatMemberCode } from '@/lib/memberCode';
-import { hasWeb3Wallet } from '@/lib/web3Auth';
 import { chainIdMatches, readChainIdHex, readEngineMemberState } from '@/lib/web3Engine';
+import { getWalletProvider, walletRequest } from '@/lib/web3Wallet';
 import { Head, Link, usePage, usePoll } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -396,7 +397,9 @@ function useDashboardActivation(serverActivation) {
 
             let walletAddress = profileWallet;
             try {
-                const accounts = await window.ethereum?.request?.({ method: 'eth_accounts' });
+                const accounts = getWalletProvider()
+                    ? await walletRequest({ method: 'eth_accounts' })
+                    : [];
                 if (accounts?.[0]) {
                     walletAddress = accounts[0];
                 }
@@ -429,13 +432,14 @@ function useDashboardActivation(serverActivation) {
         })();
 
         const bump = () => setRefreshKey((n) => n + 1);
-        window.ethereum?.on?.('chainChanged', bump);
-        window.ethereum?.on?.('accountsChanged', bump);
+        const provider = getWalletProvider();
+        provider?.on?.('chainChanged', bump);
+        provider?.on?.('accountsChanged', bump);
 
         return () => {
             cancelled = true;
-            window.ethereum?.removeListener?.('chainChanged', bump);
-            window.ethereum?.removeListener?.('accountsChanged', bump);
+            provider?.removeListener?.('chainChanged', bump);
+            provider?.removeListener?.('accountsChanged', bump);
         };
     }, [enabled, engineContract, profileWallet, expectedChainId, blockchainOnly, refreshKey]);
 
@@ -547,7 +551,7 @@ function MemberActivationStatusCard({ activation, memberNumber, isTestnet = fals
 
             {a.banner === 'connect' ? (
                 <p className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-900">
-                    {hasWeb3Wallet() ? 'Connect Wallet to confirm on-chain status.' : 'Connect Wallet'}
+                    Connect any crypto wallet to confirm on-chain status.
                 </p>
             ) : null}
             {a.banner === 'network' ? (
@@ -717,6 +721,10 @@ export default function Dashboard({ summary: summaryProp = {}, memberActivation:
                         memberNumber={user?.member_number}
                         isTestnet={isTestnet}
                     />
+
+                    <div className="mx-auto w-full min-w-0 max-w-lg">
+                        <IncomeHoldWithdrawCard compact />
+                    </div>
 
                     <DailyEarningCard
                         amountUsd={summary.today_income_usd}

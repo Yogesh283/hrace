@@ -327,6 +327,9 @@ class BlockchainEventIngestService
             '0x91cc73c8d39d5d45410514a0b5cc2654f38ea8ea2d107a94d97b380896e38ff1' => 'EmiClaimed',
             '0x0cb4112864bc0c6ec295623acc6a9ba59fea56470dea9a9c148147e0fcacb7e5' => 'ClaimEnabledUpdated',
             '0xfb35bc3dbd47c90557125dfd782126de55fa2234e0af58ca22cb1fbe2192df71' => 'ClaimCooldownRecorded',
+            '0x4bbbbde586ec8458978ef402a3cb438457683a7728089113fd5f0366e10f0c2a' => 'IncomeHeld',
+            '0xf7e53c620d878c87124e60bf2894bd049f0443ef2edaf7c8d52e02571acde561' => 'IncomeWithdrawn',
+            '0xab510e8c7328f8e29842e7a2df193ca3a39a24f491c0fb715dd819293344cef3' => 'IncomeWithdrawn',
         ];
 
         $key = strtolower((string) $topic0);

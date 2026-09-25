@@ -9,7 +9,9 @@ import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import {IPancakeRouter02} from "./interfaces/IPancakeRouter.sol";
 import {IRaceRewardVault} from "./interfaces/IRaceRewardVault.sol";
+import {IRaceIncomeHold} from "./interfaces/IRaceIncomeHold.sol";
 import {IRaceIcoStakeReceiver} from "./interfaces/IRaceIcoStakeReceiver.sol";
+import {IRaceTeamRewardFromHold} from "./interfaces/IRaceTeamRewardFromHold.sol";
 import {IRaceIcoCompletion} from "./interfaces/IRaceIcoCompletion.sol";
 import {IRaceRewardPriceOracle} from "./interfaces/IRaceRewardPriceOracle.sol";
 /**
@@ -23,7 +25,7 @@ import {IRaceRewardPriceOracle} from "./interfaces/IRaceRewardPriceOracle.sol";
  *      Fixed maturity: settle reward → 10% RaceTreasury → 90% EMI escrow (30/30/rest @ +30/+60/+90d).
  *      Flexible: anytime withdrawStake (10% team rewards fee) — no EMI schedule.
  */
-contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStakeReceiver {
+contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStakeReceiver, IRaceTeamRewardFromHold {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable usdt;
@@ -36,6 +38,9 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
 
     /// @notice RaceICO authorized to open ICO stakes (mint lands on this contract first).
     address public icoContract;
+
+    /// @notice Per-user income wallet. Team-reward RACE is credited here when set.
+    address public incomeHold;
 
     /// @notice Absolute minimum stake accepted ($1). Amounts below QUALIFYING count only as team volume.
     uint256 public constant MIN_PARTICIPATION_USDT = 1 ether;
@@ -59,14 +64,24 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     /// @notice Once true, maturityTreasury can never be changed (even by owner/governance).
     bool public maturityTreasuryLocked;
 
+    /// @notice Once true, RaceICO address cannot be retargeted (blocks fake openIcoStake).
+    bool public icoContractLocked;
+    /// @notice Once true, incomeHold cannot be retargeted.
+    bool public incomeHoldLocked;
+    /// @notice Once true, rewardPriceOracle cannot be retargeted.
+    bool public rewardPriceOracleLocked;
+
     /// @notice Protocol-level claim gate — owner/multisig only. Default false (claims disabled at deploy).
     bool public claimEnabled;
     /// @notice Per-user global claim frequency limit (successful wallet claims only).
     uint256 public constant CLAIM_COOLDOWN = 24 hours;
     mapping(address => uint256) public lastSuccessfulClaimAt;
 
-    /// @notice ICO purchaseId → level income already paid at hold (no double on createStake).
+    /// @notice ICO purchaseId → level income already paid at createStake (no double on openIcoStake).
     mapping(uint256 => bool) public icoHoldLevelIncomePaid;
+    /// @notice Referrer frozen at ICO purchase time (anti–referral hijack before createStake).
+    mapping(uint256 => address) public icoPurchaseReferrer;
+    mapping(uint256 => bool) public icoPurchaseReferrerBound;
 
     uint256 public totalLockedRace;
     uint256 public totalStakesCreated;
@@ -149,7 +164,9 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     /// @notice Position closed after principal exit (alias signal for indexers; pairs with StakeWithdrawn).
     event StakeCompleted(address indexed user, uint256 indexed stakeIndex, uint256 raceReturned, uint256 feeRace);
     event IcoContractUpdated(address indexed icoContract);
+    event IcoContractLocked(address indexed icoContract);
     event RewardPriceOracleUpdated(address indexed rewardPriceOracle);
+    event RewardPriceOracleLocked(address indexed rewardPriceOracle);
     event ICOStakeCreated(
         address indexed user,
         uint256 indexed stakeIndex,
@@ -209,6 +226,9 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     );
     event ClaimEnabledUpdated(bool enabled);
     event ClaimCooldownRecorded(address indexed user, uint256 nextAllowedClaimAt);
+    event IncomeHoldUpdated(address indexed incomeHold);
+    event IncomeHoldLocked(address indexed incomeHold);
+    event IcoPurchaseReferrerBound(address indexed buyer, uint256 indexed purchaseId, address indexed referrer);
 
     modifier onlyIco() {
         require(msg.sender == icoContract, "engine: not ico");
@@ -240,9 +260,18 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     }
 
     function setIcoContract(address icoContract_) external onlyOwner {
+        require(!icoContractLocked, "engine: ico locked");
         require(icoContract_ != address(0), "engine: zero ico");
         icoContract = icoContract_;
         emit IcoContractUpdated(icoContract_);
+    }
+
+    /// @notice Permanently freeze RaceICO address (blocks openIcoStake caller retarget).
+    function lockIcoContract() external onlyOwner {
+        require(icoContract != address(0), "engine: no ico");
+        require(!icoContractLocked, "engine: already locked");
+        icoContractLocked = true;
+        emit IcoContractLocked(icoContract);
     }
 
     /// @notice Enable/disable user reward claims (after ICO completion gate). Owner/multisig only.
@@ -252,9 +281,42 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     }
 
     function setRewardPriceOracle(address rewardPriceOracle_) external onlyOwner {
+        require(!rewardPriceOracleLocked, "engine: oracle locked");
         require(rewardPriceOracle_ != address(0), "engine: zero oracle");
         rewardPriceOracle = IRaceRewardPriceOracle(rewardPriceOracle_);
         emit RewardPriceOracleUpdated(rewardPriceOracle_);
+    }
+
+    function lockRewardPriceOracle() external onlyOwner {
+        require(address(rewardPriceOracle) != address(0), "engine: no oracle");
+        require(!rewardPriceOracleLocked, "engine: already locked");
+        rewardPriceOracleLocked = true;
+        emit RewardPriceOracleLocked(address(rewardPriceOracle));
+    }
+
+    function setIncomeHold(address incomeHold_) external onlyOwner {
+        require(!incomeHoldLocked, "engine: hold locked");
+        require(incomeHold_ != address(0), "engine: zero hold");
+        incomeHold = incomeHold_;
+        emit IncomeHoldUpdated(incomeHold_);
+    }
+
+    function lockIncomeHold() external onlyOwner {
+        require(incomeHold != address(0), "engine: no hold");
+        require(!incomeHoldLocked, "engine: already locked");
+        incomeHoldLocked = true;
+        emit IncomeHoldLocked(incomeHold);
+    }
+
+    /// @notice RaceIncomeHold withdraw: credit 10% team pool to L1–L10 (RACE already on Hold).
+    function distributeIncomeHoldTeamRewards(address withdrawer, uint256 feeRace)
+        external
+        override
+        returns (uint256 paid)
+    {
+        require(msg.sender == incomeHold, "engine: not hold");
+        require(withdrawer != address(0) && feeRace > 0, "engine: bad team");
+        paid = _creditTeamRewardsOnHold(withdrawer, feeRace);
     }
 
     /// @notice Configure maturity fee destination (RaceTreasury). Reverts after lockMaturityTreasury.
@@ -274,8 +336,31 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     }
 
     /**
-     * @notice ICO buy/hold: L1–L10 level income + $50+ activation (USDT paid at buy).
-     * @dev Called from RaceICO.purchase. createStake must not pay level income again.
+     * @notice Freeze buyer referrer at ICO purchase (before createStake level income).
+     * @dev Prevents register(attacker) between buy and createStake from stealing sponsorship.
+     */
+    function bindIcoPurchaseReferrer(address buyer, uint256 icoPurchaseId)
+        external
+        onlyIco
+        whenNotPaused
+    {
+        require(buyer != address(0), "engine: zero buyer");
+        require(!icoPurchaseReferrerBound[icoPurchaseId], "engine: ref bound");
+
+        MemberInfo storage m = _members[buyer];
+        if (!m.registered) {
+            _register(buyer, address(0), false);
+        }
+
+        address ref = m.referrer;
+        icoPurchaseReferrer[icoPurchaseId] = ref;
+        icoPurchaseReferrerBound[icoPurchaseId] = true;
+        emit IcoPurchaseReferrerBound(buyer, icoPurchaseId, ref);
+    }
+
+    /**
+     * @notice ICO createStake: L1–L10 level income + $50+ activation (original USDT paid at buy).
+     * @dev Called from RaceICO.createStake, not purchase/hold. openIcoStake must not pay again.
      *      Post-ICO participate (swap) still pays level income at stake create time.
      */
     function processIcoHold(address buyer, uint256 usdtPaid, uint256 icoPurchaseId)
@@ -293,20 +378,22 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
             _register(buyer, address(0), false);
         }
 
+        address ref = _icoReferrer(buyer, icoPurchaseId);
+
         bool qualifying = usdtPaid >= QUALIFYING_PARTICIPATION_USDT;
         if (qualifying) {
             bool firstParticipation = !m.participationActive;
             if (firstParticipation) {
                 m.participationActive = true;
                 m.participationAt = block.timestamp;
-                if (m.referrer != address(0)) {
-                    _members[m.referrer].participationDirectCount += 1;
+                if (ref != address(0)) {
+                    _members[ref].participationDirectCount += 1;
                 }
             }
             m.selfParticipationUsdt += usdtPaid;
             _updateRank(buyer);
-            _addTeamVolume(m.referrer, usdtPaid);
-            _payCommunityReferrals(buyer, usdtPaid);
+            _addTeamVolume(ref, usdtPaid);
+            _payCommunityReferralsFrom(buyer, usdtPaid, ref);
         }
 
         icoHoldLevelIncomePaid[icoPurchaseId] = true;
@@ -339,6 +426,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
 
         bool holdAlreadyPaid = icoHoldLevelIncomePaid[icoPurchaseId];
         bool qualifying = usdtPaid >= QUALIFYING_PARTICIPATION_USDT;
+        address ref = _icoReferrer(buyer, icoPurchaseId);
 
         if (!holdAlreadyPaid) {
             if (qualifying) {
@@ -346,20 +434,20 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
                 if (firstParticipation) {
                     m.participationActive = true;
                     m.participationAt = block.timestamp;
-                    if (m.referrer != address(0)) {
-                        _members[m.referrer].participationDirectCount += 1;
+                    if (ref != address(0)) {
+                        _members[ref].participationDirectCount += 1;
                     }
                 }
                 m.selfParticipationUsdt += usdtPaid;
                 _updateRank(buyer);
-                _addTeamVolume(m.referrer, usdtPaid);
-                _payCommunityReferrals(buyer, usdtPaid);
+                _addTeamVolume(ref, usdtPaid);
+                _payCommunityReferralsFrom(buyer, usdtPaid, ref);
             }
             icoHoldLevelIncomePaid[icoPurchaseId] = true;
         }
 
         uint256 stakeDailyRoiUsdt = (usdtPaid * dailyRateBps) / 10_000;
-        _addTeamDailyRoi(m.referrer, stakeDailyRoiUsdt);
+        _addTeamDailyRoi(ref, stakeDailyRoiUsdt);
 
         uint256 unlockAt = lockPeriod == LOCK_FLEXIBLE ? block.timestamp : block.timestamp + lockPeriod;
         stakeIndex = _stakes[buyer].length;
@@ -846,7 +934,12 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     // ─── Internal: community referrals ────────────────────────────────────────
 
     function _payCommunityReferrals(address buyer, uint256 principalUsdt) internal {
-        address current = _members[buyer].referrer;
+        _payCommunityReferralsFrom(buyer, principalUsdt, _members[buyer].referrer);
+    }
+
+    /// @dev Walk upline starting at `startReferrer` (ICO purchase-bound or live).
+    function _payCommunityReferralsFrom(address buyer, uint256 principalUsdt, address startReferrer) internal {
+        address current = startReferrer;
         for (uint256 level = 1; level <= 10 && current != address(0); level++) {
             // Self $50+ active only — no N-directs gate (matches Laravel ReferralTree).
             if (_members[current].participationActive) {
@@ -863,6 +956,13 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         }
     }
 
+    function _icoReferrer(address buyer, uint256 icoPurchaseId) internal view returns (address) {
+        if (icoPurchaseReferrerBound[icoPurchaseId]) {
+            return icoPurchaseReferrer[icoPurchaseId];
+        }
+        return _members[buyer].referrer;
+    }
+
     /// @dev Team Rewards only: Level N requires N $50+ activated directs.
     function _qualifiesTeamRewardLevel(address recipient, uint256 level) internal view returns (bool) {
         if (!_members[recipient].participationActive) return false;
@@ -871,6 +971,27 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     }
 
     // ─── Internal: team rewards on withdraw ───────────────────────────────────
+
+    /// @dev Same L1–L10 split as stake withdraw, but tokens already sit on IncomeHold.
+    function _creditTeamRewardsOnHold(address withdrawer, uint256 feeRace) internal returns (uint256 paid) {
+        address current = _members[withdrawer].referrer;
+        uint256 weightSum = 100;
+
+        for (uint256 level = 1; level <= 10 && current != address(0); level++) {
+            if (_qualifiesTeamRewardLevel(current, level)) {
+                uint256 weight = _teamRewardWeights[level - 1];
+                if (weight > 0) {
+                    uint256 share = (feeRace * weight) / weightSum;
+                    if (share > 0) {
+                        IRaceIncomeHold(incomeHold).credit(current, share);
+                        paid += share;
+                        emit TeamRewardPaid(current, withdrawer, level, share);
+                    }
+                }
+            }
+            current = _members[current].referrer;
+        }
+    }
 
     function _payTeamRewards(address withdrawer, uint256 feeRace) internal {
         address current = _members[withdrawer].referrer;
@@ -882,7 +1003,12 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
                 if (weight > 0) {
                     uint256 share = (feeRace * weight) / weightSum;
                     if (share > 0) {
-                        raceToken.safeTransfer(current, share);
+                        if (incomeHold != address(0)) {
+                            raceToken.safeTransfer(incomeHold, share);
+                            IRaceIncomeHold(incomeHold).credit(current, share);
+                        } else {
+                            raceToken.safeTransfer(current, share);
+                        }
                         emit TeamRewardPaid(current, withdrawer, level, share);
                     }
                 }
@@ -922,8 +1048,13 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     }
 
     function distributeLeadershipForMember(address user, uint256 day) external nonReentrant whenNotPaused {
-        require(day < block.timestamp / 1 days, "engine: future day");
+        // Only the previous UTC day — blocks historical backfill mint loops.
+        require(day > 0 && day == (block.timestamp / 1 days) - 1, "engine: only yesterday");
         require(!_leadershipPaid[user][day], "engine: paid");
+        if (icoContract != address(0)) {
+            require(IRaceIcoCompletion(icoContract).icoCompleted(), "engine: ico active");
+        }
+        require(claimEnabled, "engine: claim disabled");
 
         MemberInfo storage m = _members[user];
         require(m.currentRank > 0, "engine: no rank");
@@ -967,7 +1098,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
      * @dev Pays accrued ROI in RACE via reward vault mint.
      * @param uncapped When true (withdraw path), settle ALL whole days owed (no MAX_REWARD_DAYS cap)
      *                 so accrued reward cannot be forfeited on exit. Claim/compound keep the 30-day cap.
-     * @return rewardRace Amount of RACE minted to user (0 if nothing owed).
+     * @return rewardRace Amount of RACE minted to IncomeHold (or user wallet if hold unset).
      */
     function _settleAccruedReward(address user, uint256 stakeIndex, bool uncapped) internal returns (uint256 rewardRace) {
         StakeInfo storage s = _stakes[user][stakeIndex];

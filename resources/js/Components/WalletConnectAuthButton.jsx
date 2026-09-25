@@ -1,4 +1,4 @@
-import { walletAuthPayload, hasWeb3Wallet } from '@/lib/web3Auth';
+import { walletAuthPayload } from '@/lib/web3Auth';
 import { connectWalletWithNetwork } from '@/lib/web3Deposit';
 import { router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
@@ -52,13 +52,6 @@ export default function WalletConnectAuthButton({
     const handleClick = async () => {
         setLocalError(null);
         onError?.(null);
-
-        if (!hasWeb3Wallet()) {
-            const message = 'No Web3 wallet detected. Install MetaMask or another EVM wallet.';
-            setLocalError(message);
-            onError?.(message);
-            return;
-        }
 
         if (action === 'register' && String(joinCode ?? '').replace(/\s/g, '').length !== 8) {
             const message = 'Enter a valid 8-character join code before connecting your wallet.';

@@ -24,6 +24,11 @@ contract MockIcoStakeReceiver is IRaceIcoStakeReceiver {
         revertHold = v;
     }
 
+    function bindIcoPurchaseReferrer(address buyer, uint256 icoPurchaseId) external {
+        lastBuyer = buyer;
+        lastHoldPurchaseId = icoPurchaseId;
+    }
+
     function processIcoHold(address buyer, uint256 usdtPaid, uint256 icoPurchaseId) external {
         require(!revertHold, "mock: hold fail");
         lastBuyer = buyer;

@@ -167,8 +167,13 @@ describe('RaceCommunityEngine', function () {
         const teamDailyRoi = stats[2];
         expect(teamDailyRoi).to.equal(ethers.parseEther('17'));
 
-        const day = BigInt(Math.floor(Date.now() / 1000 / 86400)) - 1n;
+        const latest = await ethers.provider.getBlock('latest');
+        const day = BigInt(Math.floor(Number(latest.timestamp) / 86400)) - 1n;
         const sponsorBefore = await race.balanceOf(sponsor.address);
+        await engine.setClaimEnabled(true);
+        await expect(engine.distributeLeadershipForMember(sponsor.address, day - 1n)).to.be.revertedWith(
+            'engine: only yesterday',
+        );
         await engine.distributeLeadershipForMember(sponsor.address, day);
         const sponsorAfter = await race.balanceOf(sponsor.address);
         expect(sponsorAfter).to.be.gt(sponsorBefore);

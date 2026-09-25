@@ -1,18 +1,14 @@
+import { walletRequest } from '@/lib/web3Wallet';
+
 function getCsrfToken() {
     const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : '';
 }
 
-export function hasWeb3Wallet() {
-    return typeof window !== 'undefined' && Boolean(window.ethereum);
-}
+export { hasWeb3Wallet } from '@/lib/web3Wallet';
 
 export async function requestWalletAccount() {
-    if (!hasWeb3Wallet()) {
-        throw new Error('No Web3 wallet detected. Install MetaMask or another EVM wallet.');
-    }
-
-    const accounts = await window.ethereum.request({
+    const accounts = await walletRequest({
         method: 'eth_requestAccounts',
     });
 
@@ -60,7 +56,7 @@ async function fetchAuthNonce({ address, action, joinCode = null }) {
 }
 
 export async function signWalletMessage(address, message) {
-    const signature = await window.ethereum.request({
+    const signature = await walletRequest({
         method: 'personal_sign',
         params: [message, address],
     });

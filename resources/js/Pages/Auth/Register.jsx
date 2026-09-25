@@ -71,8 +71,8 @@ export default function Register({
                             from your sponsor.
                         </li>
                         <li>
-                            <span className="font-semibold text-white">2.</span> Connect MetaMask (or another EVM
-                            wallet).
+                            <span className="font-semibold text-white">2.</span> Connect any crypto wallet on BNB
+                            Smart Chain.
                         </li>
                         <li>
                             <span className="font-semibold text-white">3.</span> Sign the message to create your

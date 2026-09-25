@@ -18,6 +18,7 @@ import {
     formatTokenWei,
     formatUsdPriceFromWei,
     friendlyIcoError,
+    FLEXIBLE_DAILY_ROI_PERCENT,
     ICO_STAKE_PLANS,
     purchaseIcoRace,
     quoteIcoRaceOut,
@@ -42,7 +43,7 @@ import {
     withdrawOnChainStake,
 } from '@/lib/web3Engine';
 import { syncParticipationTx } from '@/lib/web3Participation';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const fieldClass =
@@ -642,25 +643,6 @@ export default function Isu({
                 await refreshChainState();
             }
 
-            // Level income on ICO hold — sponsor must be ready before buy.
-            if (engineContract && Number(amountUsd) >= 50) {
-                setBusy('register');
-                await ensureSponsorActiveForLevelIncome({
-                    sponsorWallet: on_chain_sponsor_wallet,
-                    engineContract,
-                    rpcUrl,
-                    stakeUsd: amountUsd,
-                });
-                await ensureEngineReferralBeforeStake({
-                    walletAddress,
-                    engineContract,
-                    rpcUrl,
-                    sponsorWallet: on_chain_sponsor_wallet,
-                    chainId: expectedChainId,
-                    waitConfirmations: 1,
-                });
-            }
-
             setBusy('buy');
             const txHash = await purchaseIcoRace({
                 walletAddress,
@@ -689,7 +671,7 @@ export default function Isu({
             });
 
             showIcoSuccess(
-                `Bought ${formatTokenWei(quotedRace, 18, 4)} RACE (held). Level income paid on this hold if ≥$50. After ICO ends → Create Your Stake. Tx ${txHash.slice(0, 10)}…`,
+                `Bought ${formatTokenWei(quotedRace, 18, 4)} RACE (held). No level income on hold. After ICO completes → Create Your Stake (level income then). Tx ${txHash.slice(0, 10)}…`,
             );
 
             try {
@@ -719,7 +701,7 @@ export default function Isu({
             return;
         }
         if (!icoCompleted) {
-            showIcoError('ICO is still active. Create Your Stake unlocks after ICO completes.');
+            showIcoError('You Active Stake After Complete ICO.');
             return;
         }
         if (pendingStakes <= 0 && heldRace <= 0n) {
@@ -731,6 +713,23 @@ export default function Isu({
         setError('');
         setSuccess(null);
         try {
+            if (engineContract) {
+                setBusy('register');
+                await ensureSponsorActiveForLevelIncome({
+                    sponsorWallet: on_chain_sponsor_wallet,
+                    engineContract,
+                    rpcUrl,
+                    stakeUsd: 50,
+                });
+                await ensureEngineReferralBeforeStake({
+                    walletAddress,
+                    engineContract,
+                    rpcUrl,
+                    sponsorWallet: on_chain_sponsor_wallet,
+                    chainId: expectedChainId,
+                    waitConfirmations: 1,
+                });
+            }
             setBusy(purchaseId == null ? 'create-all' : `create-${purchaseId}`);
             const txHash =
                 purchaseId == null
@@ -752,7 +751,7 @@ export default function Isu({
 
             const endLabel = icoEndPrice > 0n ? `$${formatUsdPriceFromWei(icoEndPrice)}` : 'ICO end price';
             showIcoSuccess(
-                `Stake created at ${endLabel}. Level income was already paid at hold. Claim from next day. Tx ${txHash.slice(0, 10)}…`,
+                `Stake created at ${endLabel}. Level income paid on this stake if ≥$50. Claim from next day. Tx ${txHash.slice(0, 10)}…`,
             );
 
             try {
@@ -810,7 +809,7 @@ export default function Isu({
             <MemberPageShell>
                 <MemberPageHero
                     title="RACE ICO"
-                    subtitle="Buy RACE (held) — level income on hold if ≥$50. After ICO ends, Create Your Stake. Swap stakes still pay level income at stake time."
+                    subtitle="Buy RACE (held). No level income on hold. After ICO completes, Create Your Stake — level income pays then if ≥$50."
                     logoSrc={RACE_LOGO_SRC}
                     bannerSrc={RACE_BANNER_STAKING}
                 />
@@ -829,7 +828,7 @@ export default function Isu({
                             {!engineContract ? (
                                 <li>
                                     CommunityEngine missing — set{' '}
-                                    <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code> in Laravel{' '}
+                                    <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code> in site{' '}
                                     <code className="font-mono">.env</code>.
                                 </li>
                             ) : null}
@@ -941,9 +940,15 @@ export default function Isu({
                                     Lock duration
                                 </span>
                                 <p className="mb-3 text-xs text-slate-500">
-                                    Fixed lock options only (180 / 365 / 730 / 1095). Flexible is not
-                                    available during ICO.
+                                    ICO uses fixed locks only. After ICO, Flexible is{' '}
+                                    <strong className="text-slate-200">{FLEXIBLE_DAILY_ROI_PERCENT}% daily</strong>.
                                 </p>
+                                <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-sm">
+                                    <p className="font-semibold text-emerald-200">Flexible · {FLEXIBLE_DAILY_ROI_PERCENT}% daily</p>
+                                    <p className="text-xs text-emerald-100/80">
+                                        Available after ICO completes — no fixed lock, withdraw anytime.
+                                    </p>
+                                </div>
                                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                                     {stakePlans.map((plan) => {
                                         const id = plan.id ?? String(plan.days);
@@ -1044,6 +1049,11 @@ export default function Isu({
                             )}
 
                             <div className="flex flex-wrap gap-3">
+                                {!icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
+                                    <PrimaryButton type="button" disabled>
+                                        You Active Stake After Complete ICO
+                                    </PrimaryButton>
+                                ) : null}
                                 {icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
                                     <PrimaryButton
                                         type="button"
@@ -1097,8 +1107,8 @@ export default function Isu({
                             ) : null}
                             {!icoCompleted ? (
                                 <p className="mt-3 text-xs text-slate-400">
-                                    Bought RACE stays held in the ICO contract (not your wallet). After ICO
-                                    ends, Create Your Stake appears here.
+                                    Bought RACE stays held in the ICO contract (not your wallet). You Active
+                                    Stake After Complete ICO. Level income pays when you create the stake.
                                 </p>
                             ) : null}
                         </div>
@@ -1106,14 +1116,14 @@ export default function Isu({
 
                     <PanelCard title="Your staking positions">
                         <p className="mb-3 text-xs text-slate-500">
-                            Live from RaceCommunityEngine. Claim / Compound / Withdraw are on-chain only.
+                            Claimed income stays in hold. Open Income wallet to bring it to your wallet.
                         </p>
                         <p className="mb-3 rounded-lg border border-slate-700/80 bg-slate-900/40 px-3 py-2 text-xs text-slate-200">
                             {claimStatusMessage}
                         </p>
                         {!engineContract ? (
                             <p className="text-sm text-amber-200">
-                                CommunityEngine not loaded — check Laravel Testnet config (
+                                CommunityEngine not loaded — check Testnet config (
                                 <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code>).
                             </p>
                         ) : stakes.length === 0 ? (
@@ -1183,7 +1193,7 @@ export default function Isu({
                                             />
                                             <InfoRow label="Lock" value={lockDisplay} />
                                             <InfoRow
-                                                label="Claimable reward"
+                                                label="Claimable → income hold"
                                                 value={`${formatTokenWei(stake.pendingRewardRace || 0n, 18, 6)} RACE`}
                                             />
                                             <div className="mt-3 flex flex-wrap gap-2">
@@ -1220,6 +1230,12 @@ export default function Isu({
                                                 >
                                                     Claim
                                                 </PrimaryButton>
+                                                <Link
+                                                    href={route('withdrawal')}
+                                                    className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+                                                >
+                                                    Bring to my wallet
+                                                </Link>
                                                 <button
                                                     type="button"
                                                     className="rounded-xl border border-sky-500/40 px-3 py-2 text-sm text-sky-200 hover:bg-sky-950/40 disabled:opacity-50"
@@ -1340,6 +1356,11 @@ export default function Isu({
                                             label="Status"
                                             value={isStaked ? 'Stake Created' : 'Held in ICO'}
                                         />
+                                        {!isStaked && !icoCompleted ? (
+                                            <p className="mt-2 text-xs font-semibold text-amber-200/90">
+                                                You Active Stake After Complete ICO
+                                            </p>
+                                        ) : null}
                                         {!isStaked && icoCompleted ? (
                                             <PrimaryButton
                                                 type="button"

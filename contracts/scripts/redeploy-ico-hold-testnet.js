@@ -186,16 +186,104 @@ async function main() {
     const raceIface = race.interface;
     const engineIface = engine.interface;
     const icoIface = newIco.interface;
+    const icoReserveTarget = ethers.parseEther('600000');
+    const multiSigAddress = manifest.raceMultiSig;
 
-    // Enable minter on new ICO
-    if (!(await race.isMinter(newIcoAddress))) {
+    const resumeIcoReserve = envFirst('RESUME_ICO_CONTRACT');
+    let icoReserve;
+    let icoReserveAddress;
+    if (resumeIcoReserve) {
+        icoReserveAddress = hre.ethers.getAddress(resumeIcoReserve);
+        icoReserve = await hre.ethers.getContractAt('ICOContract', icoReserveAddress, deployer);
+        console.log('RESUME existing ICO Contract:', icoReserveAddress);
+    } else {
+        const ICOContract = await hre.ethers.getContractFactory('ICOContract');
+        icoReserve = await ICOContract.deploy(deployer.address, manifest.raceCoin, adminWallet);
+        await icoReserve.waitForDeployment();
+        icoReserveAddress = await icoReserve.getAddress();
+        log.push({ action: 'deploy ICO Contract', address: icoReserveAddress });
+        console.log('ICO Contract:', icoReserveAddress);
+    }
+
+    if ((await icoReserve.raceIco()) === ethers.ZeroAddress) {
+        if ((await icoReserve.owner()).toLowerCase() === deployer.address.toLowerCase()) {
+            await sendFn('ICO.setRaceIco', () => icoReserve.setRaceIco(newIcoAddress), log);
+        } else {
+            await executeMultisig(
+                multiSig,
+                signerWallets,
+                icoReserveAddress,
+                0,
+                icoReserve.interface.encodeFunctionData('setRaceIco', [newIcoAddress]),
+                'ICOContract.setRaceIco',
+                log,
+            );
+        }
+    }
+    if ((await newIco.icoReserve()) === ethers.ZeroAddress) {
+        if ((await newIco.owner()).toLowerCase() === deployer.address.toLowerCase()) {
+            await sendFn('raceIco.setIcoReserve', () => newIco.setIcoReserve(icoReserveAddress), log);
+        } else {
+            await executeMultisig(
+                multiSig,
+                signerWallets,
+                newIcoAddress,
+                0,
+                icoIface.encodeFunctionData('setIcoReserve', [icoReserveAddress]),
+                'raceIco.setIcoReserve',
+                log,
+            );
+        }
+    }
+
+    if (!(await race.isFeeExempt(icoReserveAddress))) {
         await executeMultisig(
             multiSig,
             signerWallets,
             manifest.raceCoin,
             0,
-            raceIface.encodeFunctionData('setMinter', [newIcoAddress, true]),
-            'race.setMinter(newIco,true)',
+            raceIface.encodeFunctionData('setFeeExempt', [icoReserveAddress, true]),
+            'race.setFeeExempt(ICO,true)',
+            log,
+        );
+    }
+
+    const adminBal = await race.balanceOf(adminWallet);
+    const icoBal = await race.balanceOf(icoReserveAddress);
+    console.log(
+        'Admin bag (no extra mint): admin',
+        ethers.formatEther(adminBal),
+        'RACE; ICO Contract',
+        ethers.formatEther(icoBal),
+        'RACE. Deposit 6 lakh from the 10 lakh admin bag; keep 4 lakh for LP.',
+    );
+    if (adminBal + icoBal < icoReserveTarget) {
+        console.warn(
+            'WARN: admin+ICO Contract below 6 lakh. Use the 10 lakh admin bag (6L ICO + 4L LP) — do not mint extra ICO coins.',
+        );
+    }
+
+    if (await race.isMinter(newIcoAddress)) {
+        await executeMultisig(
+            multiSig,
+            signerWallets,
+            manifest.raceCoin,
+            0,
+            raceIface.encodeFunctionData('setMinter', [newIcoAddress, false]),
+            'race.setMinter(newIco,false)',
+            log,
+        );
+    }
+
+    const oldIco = manifest.raceICO;
+    if (oldIco && oldIco.toLowerCase() !== newIcoAddress.toLowerCase() && (await race.isMinter(oldIco))) {
+        await executeMultisig(
+            multiSig,
+            signerWallets,
+            manifest.raceCoin,
+            0,
+            raceIface.encodeFunctionData('setMinter', [oldIco, false]),
+            'race.setMinter(oldIco,false)',
             log,
         );
     }
@@ -222,11 +310,17 @@ async function main() {
         }
     }
 
-    // Transfer ICO ownership to MultiSig
     if ((await newIco.owner()).toLowerCase() === deployer.address.toLowerCase()) {
         await sendFn(
-            'ico.transferOwnership(MultiSig)',
+            'raceIco.transferOwnership(MultiSig)',
             () => newIco.transferOwnership(manifest.raceMultiSig),
+            log,
+        );
+    }
+    if ((await icoReserve.owner()).toLowerCase() === deployer.address.toLowerCase()) {
+        await sendFn(
+            'ICOContract.transferOwnership(MultiSig)',
+            () => icoReserve.transferOwnership(manifest.raceMultiSig),
             log,
         );
     }
@@ -234,6 +328,8 @@ async function main() {
     const updated = {
         ...manifest,
         raceICO: newIcoAddress,
+        icoContract: icoReserveAddress,
+        ico: icoReserveAddress,
         previousRaceICO: manifest.raceICO,
         icoHoldRedeployAt: new Date().toISOString(),
         icoHoldRedeployTxs: log,
@@ -241,7 +337,8 @@ async function main() {
     };
     fs.writeFileSync(OUT_FILE, JSON.stringify(updated, null, 2));
     console.log('Updated', OUT_FILE);
-    console.log('NEXT: set RACE_ICO_CONTRACT=' + newIcoAddress + ' in Laravel .env and rebuild UI.');
+    console.log('NEXT: set RACE_ICO_CONTRACT=' + newIcoAddress + ' and ICO_CONTRACT=' + icoReserveAddress);
+    console.log('Admin deposits 600k into ICO Contract via depositReserve (admin panel / wallet).');
 }
 
 main().catch((e) => {

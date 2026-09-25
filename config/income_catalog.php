@@ -17,7 +17,7 @@ return [
                 LedgerEntry::TYPE_COMPOUND_REINVEST,
             ],
             'route' => 'investment',
-            'trigger' => '',
+            'trigger' => 'Daily staking ROI: Flexible 0.35% · 180D 0.50% · 365D 0.70% · 730D 0.90% · 1095D 1.00%. Flexible is post-ICO (Engine.participate after icoCompleted).',
         ],
         [
             'key' => 'community_referrals',

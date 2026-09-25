@@ -1,11 +1,49 @@
 import { RACE_LOGO_SRC } from '@/lib/brandAssets';
 import { useEffect, useRef, useState } from 'react';
 
-const SHOW_DELAY_MS = 1000;
+/** Only show after this delay — fast auth/nav never flash the old full loader. */
+const SHOW_DELAY_MS = 280;
 
-function shouldIgnoreStart(event) {
+function visitPath(visit) {
+    try {
+        const raw = visit?.url;
+        if (!raw) {
+            return window.location.pathname || '';
+        }
+        if (typeof raw === 'string') {
+            return new URL(raw, window.location.origin).pathname;
+        }
+        if (typeof raw?.pathname === 'string') {
+            return raw.pathname;
+        }
+        return String(raw);
+    } catch {
+        return window.location.pathname || '';
+    }
+}
+
+function isAuthRelatedVisit(event) {
     const visit = event?.detail?.visit;
-    return Boolean(visit?.prefetch);
+    if (!visit) {
+        return false;
+    }
+    if (visit.prefetch) {
+        return true;
+    }
+
+    const path = visitPath(visit).toLowerCase();
+    const here = (window.location.pathname || '').toLowerCase();
+
+    // Login / register / wallet-auth posts — button spinner is enough.
+    if (/\/(login|register)(\/|$)/.test(path) || /wallet-auth|wallet\/auth/.test(path)) {
+        return true;
+    }
+    // Leaving auth pages (successful sign-in → dashboard): skip heavy overlay.
+    if (/\/(login|register)(\/|$)/.test(here)) {
+        return true;
+    }
+
+    return false;
 }
 
 export default function NavigationLoader() {
@@ -39,7 +77,7 @@ export default function NavigationLoader() {
         };
 
         const onStart = (event) => {
-            if (shouldIgnoreStart(event)) {
+            if (isAuthRelatedVisit(event)) {
                 return;
             }
             pendingLoadsRef.current += 1;
@@ -76,6 +114,7 @@ export default function NavigationLoader() {
             aria-busy={active}
             aria-label={active ? 'Loading page' : undefined}
         >
+            <div className="rx-nav-loader__bar" aria-hidden />
             <div className="rx-nav-loader__stage">
                 <div className="rx-splash-ring rx-nav-loader__ring">
                     <img src={RACE_LOGO_SRC} alt="" className="rx-splash-logo rx-nav-loader__logo object-contain" />

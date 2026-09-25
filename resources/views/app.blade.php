@@ -5,6 +5,9 @@
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
         <title inertia>{{ config('app.name', 'racenetwork.live') }}</title>
+        <link rel="icon" href="{{ asset('favicon.png') }}" type="image/png">
+        <link rel="shortcut icon" href="{{ asset('favicon.png') }}" type="image/png">
+        <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
 
         {{-- Social / WhatsApp link preview (crawlers read this without JS) --}}
         <meta property="og:type" content="website">
@@ -17,7 +20,7 @@
         <meta name="twitter:title" content="racenetwork.live">
         <meta name="twitter:description" content="RACE Network — Powering Community-Owned Digital Economies">
         <meta name="twitter:image" content="{{ url('/images/race-network-hero-banner.png') }}">
-        <meta name="application-name" content="racenetwork.live">
+        <meta name="application-name" content="RACE Network">
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.googleapis.com">

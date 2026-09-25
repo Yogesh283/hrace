@@ -28,6 +28,7 @@ class LegacyParticipationDisabledTest extends TestCase
         $this->assertSame('0xbdDeA78d9Ef21BF7E8577de8BFe599E5dd0456ef', $payload['engine_contract']);
         $this->assertSame('', $payload['participation_contract']);
         $this->assertSame('0xbdDeA78d9Ef21BF7E8577de8BFe599E5dd0456ef', $payload['contract']);
+        $this->assertArrayHasKey('income_hold', $payload);
     }
 
     public function test_legacy_guard_blocks_legacy_contract_address(): void

@@ -6,6 +6,7 @@ import {
     sendContractTx,
     waitForConfirmations,
 } from '@/lib/web3Deposit';
+import { getWalletProvider, NO_WALLET_MESSAGE, walletRequest } from '@/lib/web3Wallet';
 
 const SELECTORS = {
     approve: '0x095ea7b3',
@@ -105,11 +106,11 @@ async function ethCall({ to, data, rpcUrl }) {
     }
 
     async function viaWallet() {
-        if (typeof window === 'undefined' || !window.ethereum) {
+        if (typeof window === 'undefined' || !getWalletProvider()) {
             return null;
         }
         try {
-            const result = await window.ethereum.request({
+            const result = await walletRequest({
                 method: 'eth_call',
                 params: [{ to, data }, 'latest'],
             });
@@ -515,11 +516,11 @@ export function claimPolicyMessage({ icoCompleted, claimEnabled, canClaim, nextA
 }
 
 export async function readChainIdHex() {
-    if (typeof window === 'undefined' || !window.ethereum) {
+    if (typeof window === 'undefined' || !getWalletProvider()) {
         return null;
     }
     try {
-        return await window.ethereum.request({ method: 'eth_chainId' });
+        return await walletRequest({ method: 'eth_chainId' });
     } catch {
         return null;
     }
@@ -753,7 +754,7 @@ export function friendlyEngineError(error) {
         return 'Contract call reverted. Check amount, lock tier, or activation rules.';
     }
     if (/No Web3 wallet/i.test(message)) {
-        return 'No Web3 wallet detected. Install MetaMask or Trust Wallet.';
+        return NO_WALLET_MESSAGE;
     }
     if (/internal json-rpc error/i.test(message)) {
         return 'Network read failed. Confirm BSC Testnet, refresh the page, or retry in a moment.';

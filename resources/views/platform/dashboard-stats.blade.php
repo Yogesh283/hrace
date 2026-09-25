@@ -149,6 +149,15 @@
             <h3 class="rx-dash-section__title">{{ __('Quick access') }}</h3>
         </div>
         <div class="rx-dash-links">
+            <a href="{{ route('platform.data.blockchain-overview') }}" class="rx-dash-link">
+                <x-orchid-icon path="bs.graph-up"/><span>{{ __('Blockchain / ICO') }}</span>
+            </a>
+            <a href="{{ route('platform.data.blockchain-stakes') }}" class="rx-dash-link">
+                <x-orchid-icon path="bs.stack"/><span>{{ __('On-chain stakes') }}</span>
+            </a>
+            <a href="{{ route('platform.data.contracts-watch') }}" class="rx-dash-link">
+                <x-orchid-icon path="bs.eye"/><span>{{ __('Contracts') }}</span>
+            </a>
             <a href="{{ route('platform.data.team') }}" class="rx-dash-link">
                 <x-orchid-icon path="bs.diagram-3"/><span>{{ __('Team structure') }}</span>
             </a>

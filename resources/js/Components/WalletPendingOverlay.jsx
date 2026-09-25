@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Full-screen loader while MetaMask / wallet is waiting for user signature
+ * Full-screen loader while the connected wallet is waiting for user signature
  * or while the tx is confirming on-chain. Driven by `app:wallet-pending`.
  */
 export default function WalletPendingOverlay() {
@@ -40,7 +40,7 @@ export default function WalletPendingOverlay() {
                 />
                 <p className="mt-5 text-base font-semibold text-white">{message}</p>
                 <p className="mt-2 text-xs text-slate-400">
-                    Open MetaMask / your wallet and confirm. Keep this tab open.
+                    Open your wallet and confirm. Keep this tab open.
                 </p>
             </div>
         </div>
