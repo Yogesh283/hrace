@@ -2,8 +2,8 @@ import PrimaryButton from '@/Components/PrimaryButton';
 
 export default function Web3NetworkBanner({
     chainOk,
-    connectedLabel = 'Connected to BSC Testnet',
-    switchButtonLabel = 'Switch to BSC Testnet',
+    connectedLabel = 'Connected to BNB Smart Chain',
+    switchButtonLabel = 'Switch to BNB Smart Chain',
     switching = false,
     networkError = '',
     onSwitch,

@@ -18,7 +18,7 @@ class DecentralizationCheckCommand extends Command
 
         $checks[] = $this->check('authoritative_flag_false', ! (bool) config('income_vault.authoritative_balance'));
         $checks[] = $this->check('income_vault_not_deployed_env', trim((string) config('income_vault.contract_address')) === '');
-        $checks[] = $this->check('chain_id_testnet', (int) config('blockchain.chain_id') === 97);
+        $checks[] = $this->check('chain_id_mainnet', (int) config('blockchain.chain_id') === 56);
         $checks[] = $this->check('vault_contract_file', File::exists(base_path('contracts/src/RaceIncomeVault.sol')));
         $checks[] = $this->check('indexer_command', class_exists(IndexIncomeVaultEventsCommand::class));
         $checks[] = $this->check('reconcile_command', class_exists(IncomeReconcileOnchainCommand::class));

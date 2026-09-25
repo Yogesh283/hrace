@@ -21,7 +21,7 @@ export const BSC_MAINNET_CHAIN_ID = 56;
 export const BSC_MAINNET_CHAIN_HEX = '0x38';
 
 export const WRONG_NETWORK_MESSAGE =
-    'Please switch your wallet to BSC Testnet (Chain ID 97).';
+    'Please switch your wallet to BNB Smart Chain (Chain ID 56).';
 
 const BSC_MAINNET = {
     chainId: BSC_MAINNET_CHAIN_HEX,
@@ -92,9 +92,9 @@ export function isChainIdMatch(chainHex, targetChainId = activeChainId) {
 
 export function getWrongNetworkMessage(targetChainId = activeChainId) {
     if (Number(targetChainId) === BSC_TESTNET_CHAIN_ID) {
-        return WRONG_NETWORK_MESSAGE;
+        return 'Please switch your wallet to BSC Testnet (Chain ID 97).';
     }
-    return 'Please switch your wallet to BNB Smart Chain (Chain ID 56).';
+    return WRONG_NETWORK_MESSAGE;
 }
 
 function normalizeAddressForChain(address) {
@@ -442,9 +442,53 @@ export async function sendContractTx({ from, to, data, value, chainId, gasFallba
     }
 }
 
-/** Alias for UI "Switch to BSC Testnet" button. */
+/** Alias for UI "Switch network" button. */
 export async function switchToConfiguredNetwork(chainIdOverride) {
     return ensureBscNetwork(chainIdOverride);
+}
+
+/**
+ * Login / register only: connect wallet accounts — do NOT force network switch popup.
+ * Tx pages still use connectWalletWithNetwork / ensureBscNetwork.
+ */
+export async function connectWalletForAuth() {
+    const picked = await pickInjectedWallet();
+    if (picked?.openedApp) {
+        throw new Error(OPENED_WALLET_APP_MESSAGE);
+    }
+    if (!picked) {
+        throw new Error(WALLET_PICK_CANCELLED);
+    }
+    if (!picked.provider) {
+        throw new Error(NO_WALLET_MESSAGE);
+    }
+    requireEthereum();
+
+    showWalletPending('Connect / unlock your wallet…');
+    try {
+        const accounts = await walletRequest({ method: 'eth_requestAccounts' });
+        const address = accounts?.[0];
+        if (!address) {
+            throw new Error('No account returned from the wallet.');
+        }
+
+        let chainIdHex = '';
+        try {
+            chainIdHex = await readWalletChainIdHex();
+        } catch {
+            chainIdHex = '';
+        }
+
+        debugLog({
+            phase: 'auth-connect',
+            walletAddress: address,
+            currentChainId: chainIdHex,
+        });
+
+        return { address, chainIdHex };
+    } finally {
+        hideWalletPending();
+    }
 }
 
 /**
@@ -644,10 +688,14 @@ export async function waitForConfirmations(
                             `Transaction ran out of gas (${short}…). Retry Buy & Stake — more gas will be used.`,
                         );
                     }
+                    const explorerBase =
+                        Number(activeChainId) === BSC_TESTNET_CHAIN_ID
+                            ? 'https://testnet.bscscan.com'
+                            : 'https://bscscan.com';
                     throw new Error(
                         reason
                             ? `Transaction failed on chain (${short}…): ${reason}`
-                            : `Transaction failed on chain (${short}…). Open https://testnet.bscscan.com/tx/${txHash}`,
+                            : `Transaction failed on chain (${short}…). Open ${explorerBase}/tx/${txHash}`,
                     );
                 }
                 break;

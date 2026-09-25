@@ -191,7 +191,7 @@ class BlockchainEventIngestService
                     $blockNumber,
                     $logIndex,
                     $contract,
-                    (int) config('blockchain.chain_id', 97),
+                    (int) config('blockchain.chain_id', 56),
                     null,
                     isset($topics[0]) ? strtolower((string) $topics[0]) : null,
                 );

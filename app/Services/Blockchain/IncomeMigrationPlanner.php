@@ -37,7 +37,7 @@ class IncomeMigrationPlanner
                 'migration_id' => $migrationId,
                 'legacy_balance_usd' => $legacy,
                 'planned_amount_usd' => $legacy,
-                'chain_id' => (int) config('blockchain.chain_id', 97),
+                'chain_id' => (int) config('blockchain.chain_id', 56),
                 'vault_address' => config('income_vault.contract_address'),
                 'source_reference' => 'legacy_virtual_wallet_snapshot',
             ],
