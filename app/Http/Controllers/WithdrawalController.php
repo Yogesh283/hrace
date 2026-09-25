@@ -41,6 +41,7 @@ class WithdrawalController extends Controller
             ->all();
 
         return Inertia::render('Withdrawal', [
+            'race_level_income' => app(\App\Services\Blockchain\OnChainLevelIncomeRows::class)->totalsForUser($user),
             'balance_usd' => $wallets->virtualIncomeBalance($user),
             'income_policy' => $incomePolicy,
             'wallet_address' => $user->wallet_address,

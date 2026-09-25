@@ -1,10 +1,12 @@
 import {
     assertOfficialUsdtContract,
     ensureBscNetwork,
+    getActiveChainId,
     parseTokenAmount,
     sendContractTx,
     waitForConfirmations,
 } from '@/lib/web3Deposit';
+import { getWalletProvider, NO_WALLET_MESSAGE, walletRequest } from '@/lib/web3Wallet';
 
 const SELECTORS = {
     approve: '0x095ea7b3',
@@ -104,11 +106,11 @@ async function ethCall({ to, data, rpcUrl }) {
     }
 
     async function viaWallet() {
-        if (typeof window === 'undefined' || !window.ethereum) {
+        if (typeof window === 'undefined' || !getWalletProvider()) {
             return null;
         }
         try {
-            const result = await window.ethereum.request({
+            const result = await walletRequest({
                 method: 'eth_call',
                 params: [{ to, data }, 'latest'],
             });
@@ -122,10 +124,15 @@ async function ethCall({ to, data, rpcUrl }) {
     return (await viaRpc()) ?? (await viaWallet()) ?? '0x0';
 }
 
-export async function registerOnChain({ walletAddress, engineContract, referrer }) {
-    await ensureBscNetwork();
+export async function registerOnChain({
+    walletAddress,
+    engineContract,
+    referrer,
+    chainId = getActiveChainId(),
+}) {
+    await ensureBscNetwork(chainId);
     const data = encodeRegister(referrer);
-    return sendContractTx({ from: walletAddress, to: engineContract, data });
+    return sendContractTx({ from: walletAddress, to: engineContract, data, chainId });
 }
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -157,6 +164,43 @@ function isZeroAddress(address) {
 }
 
 /**
+ * $50+ stake: sponsor must be participationActive on Engine or same-tx level income will not pay.
+ */
+export async function ensureSponsorActiveForLevelIncome({
+    sponsorWallet,
+    engineContract,
+    rpcUrl,
+    minStakeUsd = 50,
+    stakeUsd,
+}) {
+    const amount = Number(stakeUsd);
+    if (!Number.isFinite(amount) || amount < Number(minStakeUsd)) {
+        return { ok: true, skipped: true };
+    }
+
+    const sponsor = normalizeWalletAddress(sponsorWallet);
+    if (!sponsor || !engineContract) {
+        return { ok: true, noSponsor: true };
+    }
+
+    const registered = await readIsRegistered({ walletAddress: sponsor, engineContract, rpcUrl });
+    if (!registered) {
+        throw new Error(
+            'Your sponsor has not registered on-chain yet. Ask them to connect wallet on racenetwork.live first, then retry Buy & Stake.',
+        );
+    }
+
+    const active = await readParticipationActive({ walletAddress: sponsor, engineContract, rpcUrl });
+    if (!active) {
+        throw new Error(
+            'Your sponsor must complete $50+ Buy & Stake (active on-chain) before you stake — only then instant L1–L10 level income is paid in the same transaction.',
+        );
+    }
+
+    return { ok: true, sponsorActive: true };
+}
+
+/**
  * Before ICO openIcoStake or Engine.participate: bind on-chain referrer so
  * CommunityReferralPaid (level income) can fire on the same stake tx.
  */
@@ -165,9 +209,10 @@ export async function ensureEngineReferralBeforeStake({
     engineContract,
     rpcUrl,
     sponsorWallet,
+    chainId = getActiveChainId(),
     waitConfirmations: confirmCount = 1,
 }) {
-    await ensureBscNetwork();
+    await ensureBscNetwork(chainId);
 
     const self = normalizeWalletAddress(walletAddress);
     if (!self || !engineContract) {
@@ -191,32 +236,64 @@ export async function ensureEngineReferralBeforeStake({
         throw new Error('Invalid sponsor: cannot refer yourself.');
     }
 
+    if (sponsor) {
+        await ensureSponsorActiveForLevelIncome({
+            sponsorWallet: sponsor,
+            engineContract,
+            rpcUrl,
+            stakeUsd: 50,
+        });
+    }
+
     let referrer = ZERO_ADDRESS;
+    let sponsorPendingOnboarding = false;
     if (sponsor) {
         const sponsorRegistered = await readIsRegistered({
             walletAddress: sponsor,
             engineContract,
             rpcUrl,
         });
-        if (!sponsorRegistered) {
+        if (sponsorRegistered) {
+            referrer = sponsor;
+        } else {
+            // New Engine may allow unregistered referrer; older bytecode requires registered upline.
+            // Try binding sponsor first; fall back to zero so Buy & Stake is never blocked.
+            referrer = sponsor;
+            sponsorPendingOnboarding = true;
+        }
+    }
+
+    try {
+        const txHash = await registerOnChain({
+            walletAddress: self,
+            engineContract,
+            referrer,
+            chainId,
+        });
+        if (confirmCount > 0) {
+            await waitForConfirmations(txHash, confirmCount);
+        }
+        memberStateCache = { key: '', value: null, at: 0 };
+        return {
+            ok: true,
+            registered: true,
+            txHash,
+            sponsorBound: !isZeroAddress(referrer),
+            sponsorPendingOnboarding,
+        };
+    } catch (err) {
+        const msg = String(err?.message || err || '');
+        if (
+            sponsor &&
+            sponsorPendingOnboarding &&
+            /referrer not registered|engine: referrer/i.test(msg)
+        ) {
             throw new Error(
-                'Your sponsor must register on-chain first (Staking page — connect their wallet once). Then retry ICO or stake.',
+                'Your sponsor must complete on-chain registration before you can stake — otherwise instant level income (L1–L10) will not be paid. Ask your sponsor to connect wallet once, then try Buy & Stake again.',
             );
         }
-        referrer = sponsor;
+        throw err;
     }
-
-    const txHash = await registerOnChain({
-        walletAddress: self,
-        engineContract,
-        referrer,
-    });
-    if (confirmCount > 0) {
-        await waitForConfirmations(txHash, confirmCount);
-    }
-    memberStateCache = { key: '', value: null, at: 0 };
-
-    return { ok: true, registered: true, txHash, sponsorBound: !isZeroAddress(referrer) };
 }
 
 export async function readReferrerOf({ walletAddress, engineContract, rpcUrl }) {
@@ -439,11 +516,11 @@ export function claimPolicyMessage({ icoCompleted, claimEnabled, canClaim, nextA
 }
 
 export async function readChainIdHex() {
-    if (typeof window === 'undefined' || !window.ethereum) {
+    if (typeof window === 'undefined' || !getWalletProvider()) {
         return null;
     }
     try {
-        return await window.ethereum.request({ method: 'eth_chainId' });
+        return await walletRequest({ method: 'eth_chainId' });
     } catch {
         return null;
     }
@@ -655,8 +732,8 @@ export function friendlyEngineError(error) {
     if (code === 4001 || /user rejected|denied|cancelled/i.test(message)) {
         return 'Transaction rejected in your wallet.';
     }
-    if (/wrong network|chain/i.test(message)) {
-        return 'Please switch to BNB Smart Chain (BSC) in your wallet.';
+    if (/wrong network|please switch metamask to bsc testnet|please switch metamask to bnb smart chain/i.test(message)) {
+        return message;
     }
     if (/insufficient funds/i.test(message)) {
         return 'Insufficient BNB for network gas fees.';
@@ -677,7 +754,7 @@ export function friendlyEngineError(error) {
         return 'Contract call reverted. Check amount, lock tier, or activation rules.';
     }
     if (/No Web3 wallet/i.test(message)) {
-        return 'No Web3 wallet detected. Install MetaMask or Trust Wallet.';
+        return NO_WALLET_MESSAGE;
     }
     if (/internal json-rpc error/i.test(message)) {
         return 'Network read failed. Confirm BSC Testnet, refresh the page, or retry in a moment.';

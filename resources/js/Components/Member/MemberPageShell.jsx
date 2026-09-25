@@ -27,7 +27,7 @@ function MemberParticles() {
 export default function MemberPageShell({
     children,
     className = '',
-    particles = true,
+    particles = false,
     /** Center content to max-w-6xl with consistent vertical spacing (member pages). */
     aligned = true,
     /** Match Investment page edge bleed on small screens */

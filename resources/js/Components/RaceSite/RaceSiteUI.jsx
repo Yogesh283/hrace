@@ -114,7 +114,7 @@ export function RaceSectionHead({ label, title, highlight, subtitle, center = tr
             <h2 className="font-space mt-4 text-[1.65rem] font-bold leading-tight tracking-tight text-white sm:mt-6 sm:text-4xl lg:text-[2.75rem]">
                 {title} {highlight && <span className="rx-site-text-gold">{highlight}</span>}
             </h2>
-            {subtitle && <p className={`mt-4 text-sm leading-relaxed text-[#9CA3AF] sm:mt-5 sm:text-base ${center ? 'mx-auto' : ''}`}>{subtitle}</p>}
+            {subtitle && <p className={`mt-4 text-sm leading-relaxed text-slate-300 sm:mt-5 sm:text-base ${center ? 'mx-auto' : ''}`}>{subtitle}</p>}
         </motion.div>
     );
 }
@@ -240,13 +240,13 @@ export function RaceNavbar({ onAuth }) {
                 <nav className="hidden items-center gap-1 lg:flex">
                     {SITE_NAV.map((group) => (
                         <div key={group.label} className="relative" onMouseEnter={() => setOpenMenu(group.label)} onMouseLeave={() => setOpenMenu(null)}>
-                            <button type="button" className="rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[#9CA3AF] transition hover:text-[#3B82F6]">
+                            <button type="button" className="rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wider text-slate-300 transition hover:text-[#3B82F6]">
                                 {group.label}
                             </button>
                             {openMenu === group.label && (
                                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rx-site-mega absolute left-0 top-full z-50 mt-1 min-w-[200px] p-3">
                                     {group.items.map((item) => (
-                                        <a key={item.href} href={item.href} className="block rounded-lg px-3 py-2 text-sm text-[#9CA3AF] transition hover:bg-[#3B82F6]/10 hover:text-[#3B82F6]">
+                                        <a key={item.href} href={item.href} className="block rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-[#3B82F6]/10 hover:text-[#3B82F6]">
                                             {item.label}
                                         </a>
                                     ))}
@@ -291,7 +291,7 @@ export function RaceNavbar({ onAuth }) {
                                     key={item.href}
                                     href={item.href}
                                     onClick={() => setMobileOpen(false)}
-                                    className="block rounded-lg px-2 py-2.5 text-sm text-[#9CA3AF] active:bg-white/5 active:text-white"
+                                    className="block rounded-lg px-2 py-2.5 text-sm text-slate-300 active:bg-white/5 active:text-white"
                                 >
                                     {item.label}
                                 </a>
@@ -369,14 +369,14 @@ export function RaceFooter({ footer }) {
                                 <p className="text-xs text-[#D4AF37]">{footer.powered}</p>
                             </div>
                         </div>
-                        <p className="mt-4 max-w-xs text-sm text-[#9CA3AF]">{footer.tagline}</p>
+                        <p className="mt-4 max-w-xs text-sm text-slate-300">{footer.tagline}</p>
                     </div>
                     <div>
                         <p className="text-xs font-bold uppercase tracking-wider text-[#D4AF37]">Explore</p>
                         <ul className="mt-4 space-y-2">
                             {(footer.explore || []).map((l) => (
                                 <li key={l.href + l.label}>
-                                    <a href={l.href} className="text-sm text-[#9CA3AF] transition hover:text-[#D4AF37]">{l.label}</a>
+                                    <a href={l.href} className="text-sm text-slate-300 transition hover:text-[#D4AF37]">{l.label}</a>
                                 </li>
                             ))}
                         </ul>
@@ -386,7 +386,7 @@ export function RaceFooter({ footer }) {
                         <ul className="mt-4 space-y-2">
                             {(footer.legal || []).map((l) => (
                                 <li key={l.label}>
-                                    <a href={l.href} className="text-sm text-[#9CA3AF] transition hover:text-[#D4AF37]">{l.label}</a>
+                                    <a href={l.href} className="text-sm text-slate-300 transition hover:text-[#D4AF37]">{l.label}</a>
                                 </li>
                             ))}
                         </ul>
@@ -404,8 +404,8 @@ export function RaceFooter({ footer }) {
                                 </a>
                             ))}
                         </div>
-                        <p className="mt-6 text-xs text-[#9CA3AF]">{footer.copyright}</p>
-                        <p className="mt-2 text-xs text-[#9CA3AF]">{footer.closing}</p>
+                        <p className="mt-6 text-xs text-slate-300">{footer.copyright}</p>
+                        <p className="mt-2 text-xs text-slate-300">{footer.closing}</p>
                     </div>
                 </div>
             </div>

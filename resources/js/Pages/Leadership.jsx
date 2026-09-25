@@ -1,3 +1,4 @@
+import MemberAlert from '@/Components/Member/MemberAlert';
 import MemberPageHero, { MemberHeroLink } from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import MemberTableScroll from '@/Components/Member/MemberTableScroll';
@@ -170,11 +171,11 @@ export default function Leadership(props) {
                 </div>
 
                 {p.last_payout && (
-                    <div className="mb-5 rounded-xl border border-emerald-200/80 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-900">
+                    <MemberAlert variant="success" className="mb-5">
                         <span className="font-semibold">Last credit:</span> {formatUsd2(p.last_payout.amount_usd)}
                         {p.last_payout.rank_code && <span> · {p.last_payout.rank_code}</span>}
                         {p.last_payout.period && <span> · {p.last_payout.period}</span>}
-                    </div>
+                    </MemberAlert>
                 )}
 
                 <RacePdfPanel>

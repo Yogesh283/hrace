@@ -58,9 +58,9 @@ export default function NetworkRoi(props) {
                     icon="affiliate_network_roi"
                     actions={
                         <>
-                            <MemberHeroLink href={route('investment')}>Invest ?</MemberHeroLink>
-                            <MemberHeroLink href={route('team')}>Team ?</MemberHeroLink>
-                            <MemberHeroLink href={route('dashboard')}>Dashboard ?</MemberHeroLink>
+                            <MemberHeroLink href={route('investment')}>Invest →</MemberHeroLink>
+                            <MemberHeroLink href={route('team')}>Team →</MemberHeroLink>
+                            <MemberHeroLink href={route('dashboard')}>Dashboard →</MemberHeroLink>
                         </>
                     }
                 >

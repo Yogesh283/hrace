@@ -21,6 +21,14 @@ class SiteSetting extends Model
 
     public const KEY_MEMBER_POPUP_MESSAGE = 'member_popup_message';
 
+    public const KEY_ICO_CONTRACT = 'ico_contract';
+
+    public const KEY_RACE_ICO_CONTRACT = 'race_ico_contract';
+
+    public const KEY_ICO_ADMIN_WALLET = 'ico_admin_wallet';
+
+    public const KEY_INCOME_HOLD = 'income_hold';
+
     protected $table = 'site_settings';
 
     protected $fillable = [
@@ -97,6 +105,49 @@ class SiteSetting extends Model
             'min_confirmations' => (int) config('wallet.deposit_min_confirmations', 12),
             'source' => is_string($fromDb) && trim($fromDb) !== '' ? 'database' : 'env',
         ];
+    }
+
+    public static function icoContractAddress(): string
+    {
+        return static::firstNonEmpty(
+            static::get(static::KEY_ICO_CONTRACT),
+            (string) config('blockchain.contracts.ico_reserve', ''),
+        );
+    }
+
+    public static function raceIcoContractAddress(): string
+    {
+        return static::firstNonEmpty(
+            static::get(static::KEY_RACE_ICO_CONTRACT),
+            (string) config('blockchain.contracts.ico', ''),
+        );
+    }
+
+    public static function icoAdminWallet(): string
+    {
+        return static::firstNonEmpty(
+            static::get(static::KEY_ICO_ADMIN_WALLET),
+            (string) config('blockchain.contracts.ico_admin_wallet', ''),
+        );
+    }
+
+    public static function incomeHoldAddress(): string
+    {
+        return static::firstNonEmpty(
+            static::get(static::KEY_INCOME_HOLD),
+            (string) config('blockchain.contracts.income_hold', ''),
+        );
+    }
+
+    private static function firstNonEmpty(?string ...$values): string
+    {
+        foreach ($values as $value) {
+            if (is_string($value) && trim($value) !== '') {
+                return trim($value);
+            }
+        }
+
+        return '';
     }
 
     public static function bonzaBusterEnabled(): bool

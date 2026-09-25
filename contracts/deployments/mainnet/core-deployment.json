@@ -1,0 +1,32 @@
+{
+  "network": "bsc",
+  "chainId": 56,
+  "completedAt": "2026-09-25T10:18:56.446Z",
+  "deployer": "0x3F82B1CaCC6Fa52eE9F28A8964a78786d9ed50D8",
+  "raceMultiSig": "0x46aC99282929bb95B4362Aa06CbbAdecEC3D2e4B",
+  "raceCoin": "0x7603AaCDc5cB7aF15dBFA0a0B52e5Fd0337365c8",
+  "raceTreasury": "0xb8ad9eE82739B7cd420c847F6B32347E73791854",
+  "raceRewardVault": "0xb39f30932fcfC11d816F16A1619690498fA2295B",
+  "raceCommunityEngine": "0x4CC371a67EBc287978Ab8885D50021A28e9E49Bf",
+  "raceICO": "0x6E9c778841bF4037365A65a1F0ca413b49BaCe05",
+  "icoContract": "0xA473409De978d1F0D8BB9CB1A34cCe315D820Af4",
+  "raceRewardPriceOracle": "0xC05DC44304C8c0adBb1a3C2320be0DB41EC8D4ae",
+  "raceIncomeHold": "0xe0698e9D5a58977Ec57dd082F002e6c234b5F813",
+  "icoAdminWallet": "0x568B11c83A104c81c70cde58cCdbF4aa9c97b225",
+  "feeAdminWallet": "0x53fcf2f5569296478ce76C2e2977766B121D35E2",
+  "usdt": "0x55d398326f99059ff775485246999027b3197955",
+  "pancakeRouter": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+  "multisigSigners": [
+    "0xCc2B87f8E8AABc295e1119E186c3021bA6F32339",
+    "0x8B2Ac41931d4869E7a53144BaF5C1fa052E8Df24",
+    "0xDE64cA155dEb48B459360FB8E3c4e7167Bfeb150",
+    "0xE9db9ea0fC494fB1Fc743DAfD5a0a436cA19EECA",
+    "0x71DDFC006c21756DF7b07fB4357f6F6B33CE11f9"
+  ],
+  "notes": [
+    "ICO USDT → icoAdminWallet",
+    "IncomeHold fees → feeAdminWallet",
+    "Admin: deposit 600k RACE into ICOContract, then Multisig startPhase(1)",
+    "Keep 400k RACE for Pancake LP"
+  ]
+}

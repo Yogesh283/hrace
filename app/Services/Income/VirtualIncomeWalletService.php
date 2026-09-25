@@ -31,12 +31,14 @@ class VirtualIncomeWalletService
             ->where('user_id', $userId)
             ->where('status', IncomeWalletTransaction::STATUS_POSTED)
             ->where('direction', IncomeWalletTransaction::DIRECTION_CREDIT)
+            ->where(fn ($q) => $q->where('asset', config('virtual_income_wallet.asset_default', 'USDT'))->orWhereNull('asset'))
             ->sum('amount') ?? '0');
 
         $debits = (string) (IncomeWalletTransaction::query()
             ->where('user_id', $userId)
             ->where('status', IncomeWalletTransaction::STATUS_POSTED)
             ->where('direction', IncomeWalletTransaction::DIRECTION_DEBIT)
+            ->where(fn ($q) => $q->where('asset', config('virtual_income_wallet.asset_default', 'USDT'))->orWhereNull('asset'))
             ->sum('amount') ?? '0');
 
         $bal = bcsub(
@@ -70,6 +72,7 @@ class VirtualIncomeWalletService
             ->where('user_id', $userId)
             ->where('status', IncomeWalletTransaction::STATUS_POSTED)
             ->where('direction', IncomeWalletTransaction::DIRECTION_CREDIT)
+            ->where(fn ($q) => $q->where('asset', config('virtual_income_wallet.asset_default', 'USDT'))->orWhereNull('asset'))
             ->where('created_at', '>=', $todayStart)
             ->sum('amount') ?? '0');
 

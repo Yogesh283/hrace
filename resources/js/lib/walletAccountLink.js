@@ -1,4 +1,6 @@
 import { router } from '@inertiajs/react';
+import { hideWalletPending, showWalletPending } from '@/lib/appNotify';
+import { NO_WALLET_MESSAGE, walletRequest } from '@/lib/web3Wallet';
 
 function readCsrfToken() {
     if (typeof document === 'undefined') {
@@ -10,15 +12,15 @@ function readCsrfToken() {
 }
 
 /**
- * Link MetaMask address to the logged-in Laravel user (signed challenge).
+ * Link a connected wallet address to the logged-in member (signed challenge).
  */
 export async function linkWalletToAccount(walletAddress) {
     const address = (walletAddress ?? '').trim();
     if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
         throw new Error('Invalid wallet address.');
     }
-    if (typeof window === 'undefined' || !window.ethereum) {
-        throw new Error('No Web3 wallet detected.');
+    if (typeof window === 'undefined') {
+        throw new Error(NO_WALLET_MESSAGE);
     }
 
     const nonceRes = await fetch(route('wallet.connect.nonce'), {
@@ -42,10 +44,16 @@ export async function linkWalletToAccount(walletAddress) {
         throw new Error('Wallet verification message missing.');
     }
 
-    const signature = await window.ethereum.request({
-        method: 'personal_sign',
-        params: [message, address],
-    });
+    showWalletPending('Sign the message in your wallet…');
+    let signature;
+    try {
+        signature = await walletRequest({
+            method: 'personal_sign',
+            params: [message, address],
+        });
+    } finally {
+        hideWalletPending();
+    }
 
     return new Promise((resolve, reject) => {
         router.post(

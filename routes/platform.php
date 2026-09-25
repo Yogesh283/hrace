@@ -16,6 +16,10 @@ use App\Orchid\Screens\Data\IncomeSettingsScreen;
 use App\Orchid\Screens\Data\IncomeJobsScreen;
 use App\Orchid\Screens\Data\TeamStructureListScreen;
 use App\Orchid\Screens\Data\TreasurySettingsScreen;
+use App\Orchid\Screens\Data\IcoContractSettingsScreen;
+use App\Orchid\Screens\Data\BlockchainOverviewScreen;
+use App\Orchid\Screens\Data\BlockchainStakesListScreen;
+use App\Orchid\Screens\Data\ContractWatchScreen;
 use App\Orchid\Screens\Data\MultisigFundsScreen;
 use App\Orchid\Screens\Data\MemberPopupSettingsScreen;
 use App\Orchid\Screens\Data\SupportTicketEditScreen;
@@ -101,6 +105,18 @@ Route::screen('roles', RoleListScreen::class)
 
 // Application data (tables) — register create/edit before list so "create" is not captured as {method?}.
 Route::screen('data/treasury', TreasurySettingsScreen::class)->name('platform.data.treasury');
+Route::screen('data/blockchain', BlockchainOverviewScreen::class)
+    ->name('platform.data.blockchain-overview')
+    ->breadcrumbs(fn (Trail $trail) => $trail
+        ->parent('platform.index')
+        ->push(__('Blockchain overview'), route('platform.data.blockchain-overview')));
+Route::screen('data/blockchain-stakes', BlockchainStakesListScreen::class)
+    ->name('platform.data.blockchain-stakes')
+    ->breadcrumbs(fn (Trail $trail) => $trail
+        ->parent('platform.data.blockchain-overview')
+        ->push(__('On-chain stakes'), route('platform.data.blockchain-stakes')));
+Route::screen('data/ico-contract', IcoContractSettingsScreen::class)->name('platform.data.ico-contract');
+Route::screen('data/contracts-watch', ContractWatchScreen::class)->name('platform.data.contracts-watch');
 Route::screen('data/multisig-funds', MultisigFundsScreen::class)->name('platform.data.multisig-funds');
 
 Route::screen('data/admin-deposit', AdminDepositScreen::class)->name('platform.data.admin-deposit');

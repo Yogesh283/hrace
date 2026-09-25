@@ -10,7 +10,7 @@ function AuthGlowButton({ children, disabled, type = 'submit', onClick }) {
             onClick={onClick}
             whileHover={disabled ? undefined : { y: -2 }}
             whileTap={disabled ? undefined : { scale: 0.99 }}
-            className="relative w-full overflow-hidden rounded-xl border border-sky-300/40 bg-gradient-to-r from-[#2563EB] via-[#3b82f6] to-[#38BDF8] py-2.5 text-xs font-extrabold text-white shadow-[0_12px_40px_-8px_rgba(37,99,235,0.5),0_0_32px_rgba(56,189,248,0.2)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-55 sm:rounded-2xl sm:py-4 sm:text-base"
+            className="relative w-full overflow-hidden rounded-xl border border-sky-300/40 bg-gradient-to-r from-[#2563EB] via-[#3b82f6] to-[#38BDF8] py-2.5 text-xs font-extrabold text-white shadow-[0_12px_40px_-8px_rgba(37,99,235,0.5),0_0_32px_rgba(56,189,248,0.2)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-70 sm:rounded-2xl sm:py-4 sm:text-base"
         >
             <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-white/15 to-transparent" />
             <span className="relative">{children}</span>

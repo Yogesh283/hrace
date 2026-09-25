@@ -1,4 +1,5 @@
 import {
+    configureWeb3Network,
     connectWalletWithNetwork,
     getActiveChainId,
     isChainIdMatch,
@@ -8,6 +9,7 @@ import {
     subscribeWalletEvents,
 } from '@/lib/web3Deposit';
 import { hasWeb3Wallet } from '@/lib/web3Auth';
+import { NO_WALLET_MESSAGE } from '@/lib/web3Wallet';
 import { useCallback, useEffect, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 
@@ -19,7 +21,11 @@ export function useWalletNetwork({ expectedChainId } = {}) {
     const targetChainId = Number(
         expectedChainId ?? blockchain.chain_id ?? getActiveChainId(),
     );
-    const testnet = isTestnetMode() || targetChainId === 97;
+    const testnet = targetChainId === 97 || isTestnetMode();
+
+    useEffect(() => {
+        configureWeb3Network({ chainId: targetChainId });
+    }, [targetChainId]);
 
     const [chainHex, setChainHex] = useState(null);
     const [chainOk, setChainOk] = useState(true);
@@ -53,7 +59,7 @@ export function useWalletNetwork({ expectedChainId } = {}) {
 
     const switchNetwork = useCallback(async () => {
         if (!hasWeb3Wallet()) {
-            const message = 'No Web3 wallet detected. Install MetaMask or another EVM wallet.';
+            const message = NO_WALLET_MESSAGE;
             setNetworkError(message);
             throw new Error(message);
         }
@@ -74,12 +80,6 @@ export function useWalletNetwork({ expectedChainId } = {}) {
     }, [targetChainId, refreshChain]);
 
     const connectWallet = useCallback(async () => {
-        if (!hasWeb3Wallet()) {
-            const message = 'No Web3 wallet detected. Install MetaMask or another EVM wallet.';
-            setNetworkError(message);
-            throw new Error(message);
-        }
-
         setSwitching(true);
         setNetworkError('');
         try {

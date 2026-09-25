@@ -1,9 +1,11 @@
+import MemberAlert from '@/Components/Member/MemberAlert';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import PanelCard from '@/Components/PanelCard';
 import PrimaryButton from '@/Components/PrimaryButton';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, usePage } from '@inertiajs/react';
+import { getWalletProvider } from '@/lib/web3Wallet';
 import { BrowserProvider, Contract, JsonRpcProvider, id as keccakId } from 'ethers';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -54,11 +56,11 @@ export default function Governance({ governance }) {
 
     const connect = useCallback(async () => {
         setError('');
-        if (!window.ethereum) {
-            setError('MetaMask / EVM wallet required');
+        if (!getWalletProvider()) {
+            setError('Connect any EVM crypto wallet first');
             return;
         }
-        const provider = new BrowserProvider(window.ethereum);
+        const provider = new BrowserProvider(getWalletProvider());
         const accounts = await provider.send('eth_requestAccounts', []);
         setWallet(accounts[0] || '');
     }, []);
@@ -67,8 +69,8 @@ export default function Governance({ governance }) {
         if (!configured || !address) return;
         setError('');
         try {
-            const provider = window.ethereum
-                ? new BrowserProvider(window.ethereum)
+            const provider = getWalletProvider()
+                ? new BrowserProvider(getWalletProvider())
                 : cfg.rpc_url
                   ? new JsonRpcProvider(cfg.rpc_url)
                   : null;
@@ -144,7 +146,7 @@ export default function Governance({ governance }) {
         setError('');
         setStatus('');
         try {
-            const provider = new BrowserProvider(window.ethereum);
+            const provider = new BrowserProvider(getWalletProvider());
             const signer = await provider.getSigner();
             const gov = new Contract(address, GOV_ABI, signer);
             const tx = await gov.castVote(proposalId, support);
@@ -163,7 +165,7 @@ export default function Governance({ governance }) {
         setError('');
         setStatus('');
         try {
-            const provider = new BrowserProvider(window.ethereum);
+            const provider = new BrowserProvider(getWalletProvider());
             const signer = await provider.getSigner();
             const gov = new Contract(address, GOV_ABI, signer);
             const tx = await gov[fn](proposalId);
@@ -196,7 +198,7 @@ export default function Governance({ governance }) {
                 <p className="text-sm text-fintech-muted">{cfg.note}</p>
                 {!configured ? (
                     <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-                        Set <code>RACE_GOVERNANCE_CONTRACT</code> in Laravel .env after testnet deploy.
+                        Set <code>RACE_GOVERNANCE_CONTRACT</code> in site .env after testnet deploy.
                     </p>
                 ) : (
                     <p className="break-all text-xs text-fintech-muted">
@@ -214,16 +216,8 @@ export default function Governance({ governance }) {
                     </PrimaryButton>
                 </div>
 
-                {error ? (
-                    <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
-                        {error}
-                    </p>
-                ) : null}
-                {status ? (
-                    <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
-                        {status}
-                    </p>
-                ) : null}
+                {error ? <MemberAlert variant="error">{error}</MemberAlert> : null}
+                {status ? <MemberAlert variant="success">{status}</MemberAlert> : null}
 
                 {meta ? (
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -257,7 +251,7 @@ export default function Governance({ governance }) {
 
                 <PanelCard title={`Proposals (${meta?.proposalCount ?? 0})`}>
                     {proposals.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No proposals loaded yet.</p>
+                        <p className="rx-empty">No proposals loaded yet.</p>
                     ) : (
                         <div className="space-y-3">
                             {proposals.map((p) => (

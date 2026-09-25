@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\LedgerEntry;
+use App\Services\Blockchain\OnChainLevelIncomeRows;
 use App\Support\IncomeCatalog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -69,6 +70,19 @@ class LedgerController extends Controller
                 ]),
         );
 
+        $onChainLevel = app(OnChainLevelIncomeRows::class);
+        $includeOnChainLevel = $incomeKey === null || $incomeKey === 'community_referrals';
+        $raceIncome = ['race' => '0.0000', 'usdt' => '0.00'];
+        if ($includeOnChainLevel) {
+            $entries = collect($entries)
+                ->concat($onChainLevel->forUser($user, $showAllDates ? null : $filterDate))
+                ->sortByDesc(static fn (array $row) => (string) $row['created_at'])
+                ->take(200)
+                ->values()
+                ->all();
+            $raceIncome = $onChainLevel->totalsForUser($user);
+        }
+
         $filterLabel = null;
         if ($incomeKey) {
             foreach (IncomeCatalog::items() as $item) {
@@ -101,6 +115,7 @@ class LedgerController extends Controller
                 : ($filterDate?->isSameDay($today) ? 'Today' : $filterDate?->format('D, M j, Y')),
             'max_date' => $today->toDateString(),
             'day_total_usd' => $dayTotalUsd,
+            'race_level_income' => $raceIncome,
         ]);
     }
 }

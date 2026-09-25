@@ -52,7 +52,7 @@ export default function VirtualIncomeWallet({
 
                 {blockchain_only ? (
                     <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                        Rewards engine is <strong>blockchain_only</strong> ({rewards_engine}). Laravel virtual accrual
+                        Rewards engine is <strong>blockchain_only</strong> ({rewards_engine}). Virtual accrual
                         and claim are disabled — use on-chain staking rewards. This page is read-only for history.
                     </div>
                 ) : null}
@@ -100,13 +100,13 @@ export default function VirtualIncomeWallet({
                     </Link>
                     {' · '}
                     <Link href={route('withdrawal')} className="font-semibold text-sky-700 hover:underline">
-                        Withdraw off-platform
+                        Income wallet — bring to my wallet
                     </Link>
                 </p>
 
                 <PanelCard title="Income history" icon="transactions">
                     {history.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No income ledger entries yet.</p>
+                        <p className="rx-empty">No income ledger entries yet.</p>
                     ) : (
                         <MemberTableScroll>
                             <table className="w-full min-w-[28rem] text-left text-xs sm:text-sm">

@@ -2,7 +2,9 @@ import '../css/app.css';
 import './bootstrap';
 
 import NavigationLoader from '@/Components/NavigationLoader';
-import { configureWeb3Network } from '@/lib/web3Deposit';
+import WalletPendingOverlay from '@/Components/WalletPendingOverlay';
+import WalletPickerHost from '@/Components/WalletPickerHost';
+import { configureWeb3Network, resolvePageChainId } from '@/lib/web3Deposit';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
@@ -17,7 +19,7 @@ function syncWeb3NetworkFromPage(page) {
     }
 
     configureWeb3Network({
-        chainId: blockchain.chain_id,
+        chainId: resolvePageChainId(blockchain),
         usdtContract: blockchain.contracts?.usdt || blockchain.web3?.usdt_contract,
         rpcUrl: blockchain.rpc_url,
     });
@@ -69,6 +71,8 @@ createInertiaApp({
         root.render(
             <Fragment>
                 <NavigationLoader />
+                <WalletPendingOverlay />
+                <WalletPickerHost />
                 <App {...props} />
             </Fragment>,
         );

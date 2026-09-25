@@ -17,7 +17,7 @@ const {
 const { detectMultisigPrivateKeys, deriveAddressesFromPrivateKeys } = require('./lib/deriveMultisigSigners');
 
 const OUT_FILE = path.join(__dirname, '..', 'deployments', 'bscTestnet', 'deployment.json');
-const LEGACY_ENGINE = '0xc0D9Dee1476D67379069444A7e5f1b340f91F4E9';
+const LEGACY_ENGINE = '0x04a510c5A8B8204C234c0582FBC0ac8e171c7d77';
 
 async function send(label, txPromise, log) {
     console.log('ACTION:', label);

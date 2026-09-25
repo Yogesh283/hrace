@@ -76,7 +76,7 @@ export default function Rewards(props) {
 
             <div className="mb-5 grid gap-3 sm:grid-cols-2">
                 <PanelCard title="Lifetime earned" icon="rewards" className="border-fintech-line !p-4">
-                    <p className="mt-1 text-2xl font-bold text-emerald-700">{formatUsd2(p.lifetime_earned_usd)}</p>
+                    <p className="mt-1 text-2xl font-bold text-emerald-300">{formatUsd2(p.lifetime_earned_usd)}</p>
                 </PanelCard>
                 <PanelCard title="Trigger" icon="withdrawal" className="border-fintech-line !p-4">
                     <p className="mt-1 text-sm font-medium text-fintech-ink">Per downline wallet withdrawal</p>
@@ -105,9 +105,9 @@ export default function Rewards(props) {
                                     className="border-b border-slate-100/80"
                                     style={{ backgroundColor: i % 2 === 0 ? ROW_A : ROW_B }}
                                 >
-                                    <td className="px-3 py-2.5 font-bold text-emerald-800 sm:px-4">Level {row.level}</td>
+                                    <td className="px-3 py-2.5 font-bold text-emerald-200 sm:px-4">Level {row.level}</td>
                                     <td className="px-3 py-2.5 font-semibold text-fintech-ink sm:px-4">{formatPct(row.percent)}</td>
-                                    <td className="px-3 py-2.5 font-medium text-emerald-700 sm:px-4">
+                                    <td className="px-3 py-2.5 font-medium text-emerald-300 sm:px-4">
                                         {formatUsd2(row.example_usd)}
                                     </td>
                                 </tr>
@@ -130,7 +130,7 @@ export default function Rewards(props) {
                                     Level {row.level ?? '—'}
                                     {row.from_user_id ? ` · member #${row.from_user_id}` : ''}
                                 </span>
-                                <span className="font-semibold text-emerald-700">{formatUsd2(row.amount_usd)}</span>
+                                <span className="font-semibold text-emerald-300">{formatUsd2(row.amount_usd)}</span>
                             </li>
                         ))}
                     </ul>

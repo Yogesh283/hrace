@@ -1,9 +1,11 @@
 import PrimaryButton from '@/Components/PrimaryButton';
 import PanelCard from '@/Components/PanelCard';
 import TextInput from '@/Components/TextInput';
+import MemberAlert from '@/Components/Member/MemberAlert';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import MemberTableScroll from '@/Components/Member/MemberTableScroll';
+import IncomeHoldWithdrawCard from '@/Components/IncomeHoldWithdrawCard';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
@@ -103,6 +105,7 @@ function WithdrawalRowMobile({ row }) {
 }
 
 export default function Withdrawal({
+    race_level_income = null,
     balance_usd = '0.00',
     income_policy = {
         accrued_reward_usd: '0.0000',
@@ -136,7 +139,8 @@ export default function Withdrawal({
     },
     withdrawals = [],
 }) {
-    const { auth, flash } = usePage().props;
+    const { auth, flash, blockchain } = usePage().props;
+    const raceOnlyIncome = Boolean(blockchain?.blockchain_only);
     const withdrawalAddressLocked = Boolean((wallet_address ?? auth?.user?.wallet_address ?? '').trim());
     const walletBalance = Number(
         balance_usd ?? auth?.user?.user_wallet?.balance_usd ?? auth?.user?.balance_usd ?? 0,
@@ -176,37 +180,49 @@ export default function Withdrawal({
 
     return (
         <AuthenticatedLayout
-            pageTitle="Withdrawal"
+            pageTitle="Income wallet"
             memberSurface="race"
             showMobileFintechNav
-            mobileFintechPageTitle="Payouts"
+            mobileFintechPageTitle="Income wallet"
         >
-            <Head title="Withdrawal" />
+            <Head title="Income wallet" />
 
             <MemberPageShell contentClassName="space-y-5 sm:space-y-6">
-                <MemberPageHero kicker="Payouts" title="Withdraw USDT" variant="pdf" icon="withdrawal">
-                    {percent}% Team Reward (L1–L10) plus Admin Fee ($
-                    {adminFlat} under ${adminPercentFrom} / {adminPercent}% at ${adminPercentFrom}+). Max{' '}
-                    {rate_limit?.max_per_window ?? 2} withdrawals per {rate_limit?.window_hours ?? 24}h. Fixed
-                    staking maturity / EMI do not use this dual fee.
+                {raceOnlyIncome ? (
+                    <>
+                        <MemberPageHero kicker="Income wallet" title="Bring income to your wallet" variant="pdf" icon="withdrawal">
+                            Held income shows here. One tap sends it to your wallet.
+                        </MemberPageHero>
+                        <div className="mx-auto w-full min-w-0 max-w-lg">
+                            <IncomeHoldWithdrawCard raceLevelIncome={race_level_income} />
+                        </div>
+                    </>
+                ) : (
+                <>
+                <MemberPageHero kicker="Income wallet" title="Bring income to your wallet" variant="pdf" icon="withdrawal">
+                    Bring held RACE here. The USDT form below is separate.
                 </MemberPageHero>
 
                 <div className="mx-auto w-full min-w-0 max-w-lg">
+                    <IncomeHoldWithdrawCard raceLevelIncome={race_level_income} />
+                </div>
+
+                <div className="mx-auto w-full min-w-0 max-w-lg">
                     {flash?.status ? (
-                        <p className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-950 sm:text-sm">
+                        <MemberAlert variant="success" className="mb-3">
                             {flash.status}
-                        </p>
+                        </MemberAlert>
                     ) : null}
                     {flash?.error ? (
-                        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-900 sm:text-sm">
+                        <MemberAlert variant="error" className="mb-3">
                             {flash.error}
-                        </p>
+                        </MemberAlert>
                     ) : null}
 
                     {withdrawals_disabled ? (
-                        <p className="mb-3 rounded-lg border border-amber-400/70 bg-amber-950/50 px-3 py-2 text-xs text-amber-100 sm:text-sm">
+                        <MemberAlert variant="warning" className="mb-3">
                             Withdrawals are temporarily disabled for your account. Please contact support.
-                        </p>
+                        </MemberAlert>
                     ) : null}
 
                     {rate_limit?.enabled ? (
@@ -365,7 +381,7 @@ export default function Withdrawal({
 
                     <PanelCard title="Withdrawal history" icon="withdrawal" className="mt-5">
                         {withdrawals.length === 0 ? (
-                            <p className="text-sm text-fintech-muted">No withdrawal requests yet.</p>
+                            <p className="rx-empty">No withdrawal requests yet.</p>
                         ) : (
                             <div className="-mx-1 overflow-hidden rounded-xl border border-fintech-line bg-white sm:mx-0">
                                 <div className="divide-y divide-fintech-line md:hidden">
@@ -418,6 +434,8 @@ export default function Withdrawal({
                         )}
                     </PanelCard>
                 </div>
+                </>
+                )}
             </MemberPageShell>
         </AuthenticatedLayout>
     );

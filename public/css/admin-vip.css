@@ -1,4 +1,4 @@
-/* Rynex Capital — Orchid admin VIP tables */
+/* Rynex Capital � Orchid admin VIP tables */
 .rx-admin-badge {
     display: inline-block;
     padding: 0.2rem 0.55rem;
@@ -41,7 +41,7 @@
     color: #94a3b8;
     border: 1px solid rgba(100, 116, 139, 0.3);
 }
-/* ── Admin dashboard sections ── */
+/* ?? Admin dashboard sections ?? */
 .rx-dash {
     width: 100%;
     margin-bottom: 1.5rem;
@@ -368,7 +368,7 @@
     border-radius: 0.25rem;
 }
 
-/* ── VIP data tables (all admin list pages) ── */
+/* ?? VIP data tables (all admin list pages) ?? */
 .rx-tbl-section__head {
     margin-bottom: 0.85rem;
     padding-bottom: 0.5rem;
@@ -525,4 +525,342 @@
 .layout .table-responsive + .pagination,
 .rx-admin-table-panel .dropdown-menu {
     font-size: 0.85rem;
+}
+
+/* ============================================================
+   RACE Admin � White + Navy Blue responsive redesign
+   ============================================================ */
+:root {
+    --admin-navy: #0a1f44;
+    --admin-navy-mid: #123a6d;
+    --admin-navy-soft: #1e4d8c;
+    --admin-sky: #2563eb;
+    --admin-bg: #f4f7fb;
+    --admin-card: #ffffff;
+    --admin-border: #d7e0ef;
+    --admin-text: #0f172a;
+    --admin-muted: #64748b;
+}
+
+body.bg-light,
+body[class*="platform"],
+.bg-light {
+    background: var(--admin-bg) !important;
+    color: var(--admin-text);
+}
+
+/* Sidebar / aside � navy */
+aside.aside,
+.aside,
+.bg-dark,
+aside .bg-dark {
+    background: linear-gradient(180deg, var(--admin-navy) 0%, #06122a 100%) !important;
+    color: #e8eef8 !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+aside .nav-link,
+.aside .nav-link,
+aside a {
+    color: rgba(226, 232, 240, 0.88) !important;
+    border-radius: 0.55rem;
+    margin: 0.1rem 0.4rem;
+}
+
+aside .nav-link:hover,
+aside .nav-link.active,
+.aside .nav-link.active {
+    background: rgba(37, 99, 235, 0.28) !important;
+    color: #fff !important;
+}
+
+aside .header,
+.aside .header,
+.brand-wrap {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Main content workspace */
+.workspace,
+.workspace-content,
+.layout,
+main.workspace-content {
+    background: var(--admin-bg) !important;
+}
+
+.workspace .header,
+.header.workspace-header {
+    background: #fff !important;
+    border-bottom: 1px solid var(--admin-border) !important;
+    box-shadow: 0 1px 0 rgba(10, 31, 68, 0.04);
+}
+
+.command-bar,
+.cmd-bar {
+    background: #fff !important;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.85rem;
+    padding: 0.65rem 0.85rem;
+    margin-bottom: 1rem;
+}
+
+/* Cards / panels */
+.bg-white,
+.card,
+.shadow-sm,
+.layout > .bg-white {
+    background: var(--admin-card) !important;
+    border: 1px solid var(--admin-border) !important;
+    border-radius: 0.9rem !important;
+    box-shadow: 0 8px 24px rgba(10, 31, 68, 0.06) !important;
+    color: var(--admin-text);
+}
+
+h1, h2, h3, h4, h5, .h1, .h2, .h3 {
+    color: var(--admin-navy) !important;
+}
+
+.text-muted,
+.small.text-muted {
+    color: var(--admin-muted) !important;
+}
+
+/* Dashboard hero ? light navy */
+.rx-dash-hero {
+    background: linear-gradient(135deg, #ffffff 0%, #eef4ff 55%, #dbe7ff 100%) !important;
+    border: 1px solid var(--admin-border) !important;
+    box-shadow: 0 12px 32px rgba(10, 31, 68, 0.08) !important;
+}
+.rx-dash-hero__eyebrow { color: var(--admin-sky) !important; }
+.rx-dash-hero__title { color: var(--admin-navy) !important; }
+.rx-dash-hero__meta { color: var(--admin-muted) !important; }
+
+.rx-dash-card {
+    background: #fff !important;
+    border: 1px solid var(--admin-border) !important;
+    box-shadow: 0 8px 22px rgba(10, 31, 68, 0.06) !important;
+}
+.rx-dash-card__label,
+.rx-dash-section__title { color: var(--admin-navy) !important; }
+.rx-dash-card__value { color: var(--admin-text) !important; }
+
+/* Tables � narrow columns, horizontal scroll on mobile */
+.rx-admin-table-panel,
+.rx-admin-table-wrap {
+    background: #fff;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.85rem;
+    overflow: hidden;
+}
+
+.rx-admin-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rx-admin-table {
+    width: 100%;
+    min-width: 640px;
+    margin: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.82rem;
+}
+
+.rx-admin-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--admin-navy) !important;
+    color: #f8fafc !important;
+    font-weight: 650;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 0.65rem 0.75rem !important;
+    border: none !important;
+}
+
+.rx-admin-table tbody td {
+    padding: 0.55rem 0.75rem !important;
+    border-bottom: 1px solid #eef2f7 !important;
+    vertical-align: middle;
+    color: var(--admin-text);
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rx-admin-table.table-striped tbody tr:nth-of-type(odd) {
+    background: #f8faff;
+}
+
+.rx-admin-table.table-hover tbody tr:hover {
+    background: #eef4ff !important;
+}
+
+.rx-admin-badge--default {
+    background: #eef2ff;
+    color: var(--admin-navy);
+    border-color: #c7d2fe;
+}
+.rx-admin-badge--success {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #a7f3d0;
+}
+.rx-admin-badge--vip {
+    background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+    color: var(--admin-navy);
+    border-color: #93c5fd;
+    box-shadow: none;
+}
+.rx-admin-badge--gold {
+    background: #fffbeb;
+    color: #92400e;
+    border-color: #fcd34d;
+    box-shadow: none;
+}
+
+/* Blockchain overview cards */
+.rx-bc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.85rem;
+    margin-bottom: 1.25rem;
+}
+.rx-bc-card {
+    background: #fff;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.85rem;
+    padding: 0.95rem 1rem;
+    box-shadow: 0 6px 18px rgba(10, 31, 68, 0.05);
+}
+.rx-bc-card__label {
+    margin: 0 0 0.35rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--admin-muted);
+}
+.rx-bc-card__value {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--admin-navy);
+    word-break: break-word;
+}
+.rx-bc-card__hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.75rem;
+    color: var(--admin-muted);
+}
+.rx-bc-addr {
+    font-family: ui-monospace, monospace;
+    font-size: 0.72rem;
+    word-break: break-all;
+    color: var(--admin-navy-mid);
+}
+
+.rx-bc-search {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    background: #fff;
+    border: 1px solid var(--admin-border);
+    border-radius: 0.85rem;
+}
+.rx-bc-search .form-control {
+    border-color: var(--admin-border);
+    border-radius: 0.55rem;
+}
+.rx-bc-search .btn-primary,
+.btn-primary {
+    background: var(--admin-navy) !important;
+    border-color: var(--admin-navy) !important;
+}
+.rx-bc-search .btn-primary:hover,
+.btn-primary:hover {
+    background: var(--admin-navy-mid) !important;
+    border-color: var(--admin-navy-mid) !important;
+}
+
+/* Orchid menu group titles */
+aside .menu-title,
+.aside .menu-title,
+aside .header small,
+aside .text-muted {
+    color: rgba(148, 163, 184, 0.95) !important;
+    font-size: 0.68rem !important;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+/* Search rows (narrow) */
+.layout .bg-white .form-group {
+    max-width: 36rem;
+}
+.layout .bg-white input.form-control,
+.layout .bg-white .form-control {
+    border-color: var(--admin-border);
+    border-radius: 0.55rem;
+}
+
+/* Pagination */
+.pagination .page-link {
+    color: var(--admin-navy);
+    border-color: var(--admin-border);
+}
+.pagination .page-item.active .page-link {
+    background: var(--admin-navy);
+    border-color: var(--admin-navy);
+}
+
+/* Responsive */
+@media (max-width: 991.98px) {
+    aside.aside,
+    .aside {
+        max-width: 100%;
+    }
+    .rx-bc-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .rx-dash-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .rx-admin-table {
+        min-width: 560px;
+        font-size: 0.78rem;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .rx-bc-grid,
+    .rx-dash-grid {
+        grid-template-columns: 1fr;
+    }
+    .command-bar {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+    .rx-admin-table thead th,
+    .rx-admin-table tbody td {
+        padding: 0.45rem 0.55rem !important;
+    }
+    .workspace .col-12,
+    .col-xxl,
+    .col-lg-9 {
+        padding-left: 0.65rem !important;
+        padding-right: 0.65rem !important;
+    }
+    .rx-dash-links {
+        grid-template-columns: 1fr;
+    }
 }

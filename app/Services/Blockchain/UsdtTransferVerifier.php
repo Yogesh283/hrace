@@ -211,7 +211,7 @@ class UsdtTransferVerifier
                 continue;
             }
 
-            $data = strtolower(ltrim((string) ($log['data'] ?? '0x'), '0x'));
+            $data = \App\Support\Hex::stripPrefix((string) ($log['data'] ?? '0x'));
             if ($data === '' || ! ctype_xdigit($data)) {
                 continue;
             }

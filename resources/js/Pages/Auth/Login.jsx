@@ -33,8 +33,8 @@ export default function Login({ status }) {
                 <div className="space-y-4">
                     <ol className="space-y-2 rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-[11px] leading-relaxed text-slate-300 sm:px-4 sm:text-xs">
                         <li>
-                            <span className="font-semibold text-white">1.</span> Open MetaMask or another EVM
-                            browser wallet.
+                            <span className="font-semibold text-white">1.</span> Use any crypto wallet on BNB Smart
+                            Chain — tap Connect and choose yours.
                         </li>
                         <li>
                             <span className="font-semibold text-white">2.</span> Tap the button below and approve
@@ -48,7 +48,7 @@ export default function Login({ status }) {
 
                     <WalletConnectAuthButton action="login" label="Connect wallet & sign in" />
 
-                    <p className="text-center text-[11px] text-slate-500 sm:text-xs">
+                    <p className="text-center text-[11px] text-slate-300 sm:text-xs">
                         Wallet not registered yet? Use your sponsor join code on the register page first.
                     </p>
                 </div>

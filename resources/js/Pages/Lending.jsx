@@ -1,3 +1,5 @@
+import MemberAlert from '@/Components/Member/MemberAlert';
+import MemberEmptyState from '@/Components/Member/MemberEmptyState';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import MemberTableScroll from '@/Components/Member/MemberTableScroll';
@@ -36,31 +38,26 @@ export default function Lending({ lending_access, positions = [], lending_enable
     };
 
     return (
-        <AuthenticatedLayout>
+        <AuthenticatedLayout pageTitle="Lending" mobileFintechPageTitle="Lending">
             <Head title="Lending" />
             <MemberPageShell>
                 <MemberPageHero title="Lending" subtitle="Smart Lending & Smart Pro (on-chain)" />
 
                 {blocked ? (
-                    <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-5 text-red-900">
-                        <p className="text-sm font-semibold uppercase tracking-wide">Lending ID: BLOCKED</p>
-                        <p className="mt-2 text-lg font-bold">Lending ID Blocked</p>
-                        <p className="mt-3 text-sm">
+                    <MemberAlert variant="error" title="Lending ID blocked">
+                        <p>
                             <span className="font-semibold">Reason:</span> {lending_access?.reason || '—'}
                         </p>
-                        <p className="mt-1 text-sm">
+                        <p className="mt-1">
                             <span className="font-semibold">Status:</span> Blocked
                         </p>
-                    </div>
+                    </MemberAlert>
                 ) : (
-                    <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
-                        <p className="text-sm font-semibold">LENDING ID: ACTIVE</p>
-                        <p className="mt-1 text-sm text-emerald-800">
-                            {lending_enabled
-                                ? 'You may initiate new lending via the on-chain contract when available.'
-                                : 'Lending contract integration is read-only until deployment.'}
-                        </p>
-                    </div>
+                    <MemberAlert variant="success" title="Lending ID: Active">
+                        {lending_enabled
+                            ? 'You may initiate new lending via the on-chain contract when available.'
+                            : 'Lending contract integration is read-only until deployment.'}
+                    </MemberAlert>
                 )}
 
                 {!blocked && lending_enabled ? (
@@ -68,11 +65,11 @@ export default function Lending({ lending_access, positions = [], lending_enable
                         <PrimaryButton type="button" onClick={tryCreateSmart}>
                             Request Smart Lending (access check)
                         </PrimaryButton>
-                        {apiMessage ? <p className="mt-2 text-sm text-slate-600">{apiMessage}</p> : null}
+                        {apiMessage ? <p className="mt-2 text-sm text-slate-200">{apiMessage}</p> : null}
                     </div>
                 ) : null}
 
-                <h2 className="mb-3 text-lg font-semibold text-slate-900">Lending history (indexed)</h2>
+                <h2 className="rx-type-h2 mb-3">Lending history (indexed)</h2>
                 <MemberTableScroll>
                     <table className="min-w-full text-sm">
                         <thead>
@@ -87,8 +84,8 @@ export default function Lending({ lending_access, positions = [], lending_enable
                         <tbody>
                             {positions.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="py-6 text-slate-500">
-                                        No indexed positions yet.
+                                    <td colSpan={5} className="p-0">
+                                        <MemberEmptyState>No indexed positions yet.</MemberEmptyState>
                                     </td>
                                 </tr>
                             ) : (

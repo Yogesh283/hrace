@@ -29,13 +29,14 @@ final class BlockchainContractPayload
             'enabled' => $onChainEnabled && $contract !== '',
             'on_chain_enabled' => $onChainEnabled,
             'blockchain_only' => $blockchainOnly,
-            'chain_id' => (int) config('blockchain.chain_id', 56),
-            'network' => (string) config('blockchain.network', ((int) config('blockchain.chain_id', 56)) === 97 ? 'bsc_testnet' : 'bsc'),
-            'is_testnet' => (int) config('blockchain.chain_id', 56) === 97,
+            'chain_id' => BlockchainMode::effectiveChainId(),
+            'network' => (string) config('blockchain.network', BlockchainMode::effectiveChainId() === 97 ? 'bsc_testnet' : 'bsc'),
+            'is_testnet' => BlockchainMode::effectiveChainId() === 97,
             'engine_contract' => $engine,
             'participation_contract' => $participation,
             'contract' => $contract,
             'usdt_contract' => (string) config('blockchain.contracts.usdt', config('participation_contract.on_chain.usdt_contract', '')),
+            'income_hold' => \App\Models\SiteSetting::incomeHoldAddress(),
             'min_usdt' => number_format((float) RewardPlan::builtForGrowth()['min_amount_usd'], 2, '.', ''),
             'qualifying_usdt' => number_format(RewardPlan::participationQualifyingMinUsd(), 2, '.', ''),
             'lock_tiers' => self::lockTiers(),
@@ -59,7 +60,7 @@ final class BlockchainContractPayload
         $raceToken = (string) config('blockchain.contracts.race_token', '');
         $pancakeRouter = (string) config('blockchain.contracts.pancake_router', '');
         $usdt = (string) config('blockchain.contracts.usdt', '');
-        $chainId = (int) config('blockchain.chain_id', 56);
+        $chainId = BlockchainMode::effectiveChainId();
         $engineAddress = (string) ($engine['engine_contract'] ?? '');
         $networkName = match ($chainId) {
             97 => 'BNB Smart Chain Testnet',
@@ -89,6 +90,7 @@ final class BlockchainContractPayload
                 'governance' => (string) config('blockchain.contracts.governance', ''),
                 'auto_liquidity' => (string) config('blockchain.contracts.auto_liquidity', ''),
                 'ico' => (string) config('blockchain.contracts.ico', ''),
+                'income_hold' => \App\Models\SiteSetting::incomeHoldAddress(),
                 'pancake_router' => $pancakeRouter,
                 'usdt' => $usdt,
             ],
@@ -109,7 +111,7 @@ final class BlockchainContractPayload
     public static function icoPagePayload(): array
     {
         $token = self::tokenPagePayload();
-        $ico = (string) config('blockchain.contracts.ico', '');
+        $ico = \App\Models\SiteSetting::raceIcoContractAddress();
         $engine = (string) config('blockchain.contracts.community_engine', '');
         $raceToken = (string) ($token['race_token'] ?? '');
         $usdt = (string) ($token['usdt_contract'] ?? '');
@@ -147,7 +149,16 @@ final class BlockchainContractPayload
                 ['id' => '730', 'days' => 730, 'seconds' => 730 * 86400, 'label' => '730 Days', 'daily_roi_percent' => '0.90', 'lock_label' => 'Locked 730 days'],
                 ['id' => '1095', 'days' => 1095, 'seconds' => 1095 * 86400, 'label' => '1095 Days', 'daily_roi_percent' => '1.00', 'lock_label' => 'Locked 1095 days'],
             ],
-            'note' => 'ICO = fixed stake plans only (no Flexible). Flexible available post-ICO via Engine.participate after icoCompleted.',
+            'flexible_plan' => [
+                'id' => 'flexible',
+                'days' => 0,
+                'seconds' => 0,
+                'label' => 'Flexible',
+                'daily_roi_percent' => '0.35',
+                'lock_label' => 'No fixed lock — withdraw anytime (after ICO)',
+                'available' => 'after_ico',
+            ],
+            'note' => 'ICO = fixed stake plans only. Flexible 0.35% daily is available post-ICO via Engine.participate after icoCompleted.',
             'mint_model' => true,
             'mint_to_stake' => true,
             'ico_allows_flexible' => false,

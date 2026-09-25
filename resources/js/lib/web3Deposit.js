@@ -1,5 +1,19 @@
 /** Official Tether USD (USDT) on BSC mainnet — never use on Testnet. */
+import { hideWalletPending, showWalletPending } from '@/lib/appNotify';
+import {
+    getWalletProvider,
+    NO_WALLET_MESSAGE,
+    OPENED_WALLET_APP_MESSAGE,
+    pickInjectedWallet,
+    requireWalletProvider,
+    WALLET_PICK_CANCELLED,
+    walletRequest,
+} from '@/lib/web3Wallet';
+
 export const OFFICIAL_USDT_BEP20 = '0x55d398326f99059ff775485246999027b3197955';
+
+/** Project TestnetMockUSDT (BSC Testnet) — when configured, wallet must be on chain 97. */
+export const TESTNET_MOCK_USDT = '0xe30fb617215c4eb5a0e4e6b1a5f537c0e28c8fec';
 
 export const BSC_TESTNET_CHAIN_ID = 97;
 export const BSC_TESTNET_CHAIN_HEX = '0x61';
@@ -7,7 +21,7 @@ export const BSC_MAINNET_CHAIN_ID = 56;
 export const BSC_MAINNET_CHAIN_HEX = '0x38';
 
 export const WRONG_NETWORK_MESSAGE =
-    'Please switch MetaMask to BSC Testnet (Chain ID 97).';
+    'Please switch your wallet to BSC Testnet (Chain ID 97).';
 
 const BSC_MAINNET = {
     chainId: BSC_MAINNET_CHAIN_HEX,
@@ -80,7 +94,75 @@ export function getWrongNetworkMessage(targetChainId = activeChainId) {
     if (Number(targetChainId) === BSC_TESTNET_CHAIN_ID) {
         return WRONG_NETWORK_MESSAGE;
     }
-    return 'Please switch MetaMask to BNB Smart Chain (Chain ID 56).';
+    return 'Please switch your wallet to BNB Smart Chain (Chain ID 56).';
+}
+
+function normalizeAddressForChain(address) {
+    if (!address || typeof address !== 'string') {
+        return '';
+    }
+    const trimmed = address.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+        return '';
+    }
+    return trimmed.toLowerCase();
+}
+
+/**
+ * Resolve chain id from Laravel Inertia blockchain props (handles Testnet USDT + is_testnet).
+ */
+export function resolvePageChainId(blockchain = {}) {
+    const usdt = normalizeAddressForChain(
+        blockchain.contracts?.usdt
+            || blockchain.ico?.usdt_contract
+            || blockchain.web3?.usdt_contract
+            || blockchain.token?.usdt_contract,
+    );
+    if (usdt === TESTNET_MOCK_USDT) {
+        return BSC_TESTNET_CHAIN_ID;
+    }
+
+    const fromProps = Number(blockchain.chain_id);
+    if (Number.isFinite(fromProps) && fromProps > 0) {
+        return fromProps;
+    }
+    if (blockchain.is_testnet) {
+        return BSC_TESTNET_CHAIN_ID;
+    }
+    return BSC_MAINNET_CHAIN_ID;
+}
+
+export function networkLabelForChainId(chainId = activeChainId) {
+    return Number(chainId) === BSC_TESTNET_CHAIN_ID
+        ? 'BSC Testnet (Chain ID 97)'
+        : 'BNB Smart Chain (Chain ID 56)';
+}
+
+export function friendlyNetworkSwitchMessage(chainId = activeChainId) {
+    return `Wrong network. Switch to ${networkLabelForChainId(chainId)}. ${getWrongNetworkMessage(chainId)}`;
+}
+
+export function isLikelyWrongNetworkError(message) {
+    const lower = String(message || '').toLowerCase();
+    if (!lower) {
+        return false;
+    }
+    if (lower.includes('wrong network')) {
+        return true;
+    }
+    if (/please switch metamask to bsc testnet/i.test(message)) {
+        return true;
+    }
+    if (/please switch metamask to bnb smart chain/i.test(message)) {
+        return true;
+    }
+    if (/switch to bsc testnet \(chain id 97\)/i.test(message)) {
+        return true;
+    }
+    if (/switch to bnb smart chain \(chain id 56\)/i.test(message)) {
+        return true;
+    }
+    return false;
 }
 
 function debugLog(payload) {
@@ -91,9 +173,7 @@ function debugLog(payload) {
 }
 
 function requireEthereum() {
-    if (typeof window === 'undefined' || !window.ethereum) {
-        throw new Error('No Web3 wallet detected. Install MetaMask or another EVM wallet.');
-    }
+    requireWalletProvider();
 }
 
 function resolveChainId(chainId) {
@@ -114,7 +194,7 @@ function networkParamsForChainId(chainId) {
 
 export async function readWalletChainIdHex() {
     requireEthereum();
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    const chainId = await walletRequest({ method: 'eth_chainId' });
     return normalizeChainHex(chainId);
 }
 
@@ -130,7 +210,7 @@ async function switchOrAddNetwork(targetChainId) {
     });
 
     try {
-        await window.ethereum.request({
+        await walletRequest({
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: chainHex }],
         });
@@ -145,7 +225,7 @@ async function switchOrAddNetwork(targetChainId) {
 
         if (switchError?.code === 4902) {
             debugLog({ phase: 'add-network-attempt', targetChainId: chainHex });
-            await window.ethereum.request({
+            await walletRequest({
                 method: 'wallet_addEthereumChain',
                 params: [network],
             });
@@ -195,50 +275,171 @@ export async function ensureBscNetwork(chainIdOverride) {
  * MetaMask alone can propose ~35M when estimate fails → "gas limit too high".
  */
 export const RPC_GAS_LIMIT_CAP = 16_000_000;
-export const DEFAULT_CONTRACT_GAS = 1_500_000;
+/** Fallback when estimate is unavailable (RPC flake) — ICO/Engine need headroom beyond simple ERC20. */
+export const DEFAULT_CONTRACT_GAS = 3_500_000;
 
 /**
  * Estimate gas with buffer, hard-capped under RPC max. Never returns block gas limit.
+ * If the call would revert, throws (do NOT send a doomed tx with fallback gas).
  * @returns {string} hex gas limit
  */
-export async function resolveGasLimitHex({ from, to, data, fallback = DEFAULT_CONTRACT_GAS } = {}) {
+export async function resolveGasLimitHex({
+    from,
+    to,
+    data,
+    fallback = DEFAULT_CONTRACT_GAS,
+    minGas = 0,
+} = {}) {
     let gas = Number(fallback) || DEFAULT_CONTRACT_GAS;
+    let estimated = false;
 
     try {
-        const est = await window.ethereum.request({
+        const est = await walletRequest({
             method: 'eth_estimateGas',
             params: [{ from, to, data }],
         });
         if (est != null && est !== '') {
             gas = Number(BigInt(est));
-            gas = Math.ceil(gas * 1.25);
+            gas = Math.ceil(gas * 1.35);
+            estimated = true;
         }
-    } catch {
-        // Keep fallback — do not let wallet use uncapped block gas limit.
+    } catch (err) {
+        // Revert / execution failure — surface reason; do not broadcast with fallback gas.
+        const decoded = extractRpcRevertMessage(err);
+        const raw = String(err?.data?.message || err?.message || '');
+        const isAmbiguous =
+            !decoded &&
+            (/execution reverted:\s*0x$/i.test(raw) ||
+                raw.toLowerCase() === 'execution reverted: 0x' ||
+                raw.toLowerCase() === 'internal json-rpc error.');
+        if ((decoded || isExecutionRevertError(err)) && !isAmbiguous) {
+            throw new Error(
+                decoded ||
+                    'Transaction would revert on-chain. Check allowance, stake plan, balance, and network.',
+            );
+        }
+        // Ambiguous empty revert or RPC timeout — keep fallback below.
     }
 
     if (!Number.isFinite(gas) || gas < 21_000) {
         gas = DEFAULT_CONTRACT_GAS;
     }
 
+    const floor = Number(minGas) || 0;
+    if (floor > 0) {
+        gas = Math.max(gas, floor);
+    }
+
     gas = Math.min(Math.floor(gas), RPC_GAS_LIMIT_CAP);
+    if (!estimated && gas < fallback) {
+        gas = Math.min(Math.floor(fallback), RPC_GAS_LIMIT_CAP);
+    }
     return `0x${gas.toString(16)}`;
+}
+
+function isExecutionRevertError(err) {
+    const blob = JSON.stringify(err?.data ?? err?.error ?? err?.info ?? err?.message ?? '').toLowerCase();
+    return (
+        blob.includes('execution reverted') ||
+        blob.includes('revert') ||
+        err?.code === 3 ||
+        err?.data?.code === 3
+    );
+}
+
+/** Best-effort Solidity Error(string) / nested MetaMask revert text. */
+export function extractRpcRevertMessage(err) {
+    const nested =
+        err?.data?.message ||
+        err?.error?.message ||
+        err?.info?.error?.message ||
+        err?.data?.data?.message ||
+        '';
+    const candidates = [
+        typeof err?.data === 'string' ? err.data : null,
+        typeof err?.data?.data === 'string' ? err.data.data : null,
+        typeof err?.info?.error?.data === 'string' ? err.info.error.data : null,
+        typeof err?.data?.data?.data === 'string' ? err.data.data.data : null,
+    ].filter(Boolean);
+
+    // Deep-scan JSON for Error(string) payloads (MetaMask nests oddly).
+    try {
+        const blob = JSON.stringify(err ?? {});
+        const match = blob.match(/0x08c379a0[a-fA-F0-9]+/);
+        if (match?.[0]) {
+            candidates.unshift(match[0].startsWith('0x') ? match[0] : `0x${match[0]}`);
+        }
+        const quoted = blob.match(/execution reverted:?\s*\\?"([^"\\]+)\\?"/i);
+        if (quoted?.[1] && quoted[1] !== '0x') {
+            return quoted[1];
+        }
+    } catch {
+        // ignore
+    }
+
+    for (const data of candidates) {
+        const decoded = decodeSolidityErrorString(data);
+        if (decoded) {
+            return decoded;
+        }
+    }
+
+    const msg = String(nested || err?.shortMessage || err?.reason || err?.message || '');
+    if (/execution reverted/i.test(msg) && msg.length < 200) {
+        const m = msg.match(/execution reverted:?\s*(.*)$/i);
+        if (m?.[1] && m[1] !== '0x' && m[1].trim() !== '') {
+            return m[1].replace(/^["']|["']$/g, '').trim();
+        }
+    }
+    return '';
+}
+
+function decodeSolidityErrorString(data) {
+    if (!data || typeof data !== 'string' || !data.startsWith('0x') || data.length < 10) {
+        return '';
+    }
+    const hex = data.slice(2).toLowerCase();
+    if (!hex.startsWith('08c379a0') || hex.length < 8 + 64 + 64) {
+        return '';
+    }
+    try {
+        const len = Number.parseInt(hex.slice(8 + 64, 8 + 128), 16);
+        if (!Number.isFinite(len) || len <= 0 || len > 256) {
+            return '';
+        }
+        const strHex = hex.slice(8 + 128, 8 + 128 + len * 2);
+        const bytes = strHex.match(/.{1,2}/g) || [];
+        return bytes.map((b) => String.fromCharCode(Number.parseInt(b, 16))).join('');
+    } catch {
+        return '';
+    }
 }
 
 /**
  * eth_sendTransaction with explicit gas so Custom RPC 0x61 does not reject.
  */
-export async function sendContractTx({ from, to, data, value }) {
-    await ensureBscNetwork();
-    const gas = await resolveGasLimitHex({ from, to, data });
-    const tx = { from, to, data, gas };
-    if (value != null && value !== '' && value !== '0x0' && value !== '0x') {
-        tx.value = value;
+export async function sendContractTx({ from, to, data, value, chainId, gasFallback, minGas }) {
+    showWalletPending('Confirm transaction in your wallet…');
+    try {
+        await ensureBscNetwork(chainId);
+        const gas = await resolveGasLimitHex({
+            from,
+            to,
+            data,
+            fallback: gasFallback ?? DEFAULT_CONTRACT_GAS,
+            minGas: minGas ?? 0,
+        });
+        const tx = { from, to, data, gas };
+        if (value != null && value !== '' && value !== '0x0' && value !== '0x') {
+            tx.value = value;
+        }
+        return await walletRequest({
+            method: 'eth_sendTransaction',
+            params: [tx],
+        });
+    } finally {
+        hideWalletPending();
     }
-    return window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [tx],
-    });
 }
 
 /** Alias for UI "Switch to BSC Testnet" button. */
@@ -250,38 +451,55 @@ export async function switchToConfiguredNetwork(chainIdOverride) {
  * Connect wallet accounts, then enforce configured network (accounts → chainId → switch → verify).
  */
 export async function connectWalletWithNetwork(chainIdOverride) {
+    const picked = await pickInjectedWallet();
+    if (picked?.openedApp) {
+        throw new Error(OPENED_WALLET_APP_MESSAGE);
+    }
+    if (!picked) {
+        throw new Error(WALLET_PICK_CANCELLED);
+    }
+    if (!picked.provider) {
+        throw new Error(NO_WALLET_MESSAGE);
+    }
     requireEthereum();
     const targetChainId = resolveChainId(chainIdOverride);
 
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    const address = accounts?.[0];
-    if (!address) {
-        throw new Error('No account returned from the wallet.');
+    showWalletPending('Connect / unlock your wallet…');
+    try {
+        const accounts = await walletRequest({ method: 'eth_requestAccounts' });
+        const address = accounts?.[0];
+        if (!address) {
+            throw new Error('No account returned from the wallet.');
+        }
+
+        debugLog({
+            phase: 'connect-accounts',
+            walletAddress: address,
+            targetChainId: chainIdToHex(targetChainId),
+        });
+
+        showWalletPending('Switch network in your wallet if asked…');
+        const { chainIdHex } = await ensureBscNetwork(targetChainId);
+
+        debugLog({
+            phase: 'connect-success',
+            walletAddress: address,
+            currentChainId: chainIdHex,
+            targetChainId: chainIdToHex(targetChainId),
+        });
+
+        return { address, chainIdHex };
+    } finally {
+        hideWalletPending();
     }
-
-    debugLog({
-        phase: 'connect-accounts',
-        walletAddress: address,
-        targetChainId: chainIdToHex(targetChainId),
-    });
-
-    const { chainIdHex } = await ensureBscNetwork(targetChainId);
-
-    debugLog({
-        phase: 'connect-success',
-        walletAddress: address,
-        currentChainId: chainIdHex,
-        targetChainId: chainIdToHex(targetChainId),
-    });
-
-    return { address, chainIdHex };
 }
 
 /**
  * Subscribe to wallet chain/account changes. Returns cleanup function.
  */
 export function subscribeWalletEvents({ onChainChanged, onAccountsChanged } = {}) {
-    if (typeof window === 'undefined' || !window.ethereum) {
+    const provider = getWalletProvider();
+    if (!provider) {
         return () => {};
     }
 
@@ -294,12 +512,12 @@ export function subscribeWalletEvents({ onChainChanged, onAccountsChanged } = {}
         onAccountsChanged?.();
     };
 
-    window.ethereum.on?.('chainChanged', handleChain);
-    window.ethereum.on?.('accountsChanged', handleAccounts);
+    provider.on?.('chainChanged', handleChain);
+    provider.on?.('accountsChanged', handleAccounts);
 
     return () => {
-        window.ethereum.removeListener?.('chainChanged', handleChain);
-        window.ethereum.removeListener?.('accountsChanged', handleAccounts);
+        provider.removeListener?.('chainChanged', handleChain);
+        provider.removeListener?.('accountsChanged', handleAccounts);
     };
 }
 
@@ -354,84 +572,152 @@ function encodeTransfer(to, amountWei) {
 }
 
 export async function sendUsdtTransfer({ from, to, usdtContract, amountUsd }) {
-    await ensureBscNetwork();
-    assertOfficialUsdtContract(usdtContract);
+    showWalletPending('Confirm USDT transfer in your wallet…');
+    try {
+        await ensureBscNetwork();
+        assertOfficialUsdtContract(usdtContract);
 
-    const amountWei = parseTokenAmount(amountUsd, 18);
+        const amountWei = parseTokenAmount(amountUsd, 18);
 
-    const txHash = await window.ethereum.request({
-        method: 'eth_sendTransaction',
-        params: [
-            {
-                from,
-                to: usdtContract,
-                data: encodeTransfer(to, amountWei),
-                gas: await resolveGasLimitHex({
+        const txHash = await walletRequest({
+            method: 'eth_sendTransaction',
+            params: [
+                {
                     from,
                     to: usdtContract,
                     data: encodeTransfer(to, amountWei),
-                    fallback: 100_000,
-                }),
-            },
-        ],
-    });
+                    gas: await resolveGasLimitHex({
+                        from,
+                        to: usdtContract,
+                        data: encodeTransfer(to, amountWei),
+                        fallback: 100_000,
+                    }),
+                },
+            ],
+        });
 
-    if (!txHash || typeof txHash !== 'string') {
-        throw new Error('Wallet did not return a transaction hash.');
+        if (!txHash || typeof txHash !== 'string') {
+            throw new Error('Wallet did not return a transaction hash.');
+        }
+
+        return txHash;
+    } finally {
+        hideWalletPending();
     }
-
-    return txHash;
 }
 
 export async function waitForConfirmations(
     txHash,
     { minConfirmations = 12, maxAttempts = 80, intervalMs = 3000 } = {},
 ) {
-    let receipt = null;
+    showWalletPending('Waiting for blockchain confirmation…');
+    try {
+        let receipt = null;
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        receipt = await window.ethereum.request({
-            method: 'eth_getTransactionReceipt',
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            receipt = await walletRequest({
+                method: 'eth_getTransactionReceipt',
+                params: [txHash],
+            });
+
+            if (receipt) {
+                if (receipt.status !== '0x1') {
+                    const reason = await tryReplayRevertReason(txHash);
+                    let gasLimit = BigInt(receipt.gasLimit || '0x0');
+                    if (gasLimit === 0n) {
+                        try {
+                            const tx = await walletRequest({
+                                method: 'eth_getTransactionByHash',
+                                params: [txHash],
+                            });
+                            gasLimit = BigInt(tx?.gas || '0x0');
+                        } catch {
+                            gasLimit = 0n;
+                        }
+                    }
+                    const gasUsed = BigInt(receipt.gasUsed || '0x0');
+                    const outOfGas =
+                        gasLimit > 0n && gasUsed > 0n && gasUsed * 100n >= gasLimit * 95n;
+                    const short = txHash.slice(0, 10);
+                    if (outOfGas) {
+                        throw new Error(
+                            `Transaction ran out of gas (${short}…). Retry Buy & Stake — more gas will be used.`,
+                        );
+                    }
+                    throw new Error(
+                        reason
+                            ? `Transaction failed on chain (${short}…): ${reason}`
+                            : `Transaction failed on chain (${short}…). Open https://testnet.bscscan.com/tx/${txHash}`,
+                    );
+                }
+                break;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        }
+
+        if (!receipt) {
+            throw new Error(
+                'Transaction confirmation timed out. Your USDT may still arrive — check Recent deposits shortly.',
+            );
+        }
+
+        const txBlock = parseInt(receipt.blockNumber, 16);
+        if (Number.isNaN(txBlock)) {
+            throw new Error('Could not read transaction block.');
+        }
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const currentBlockHex = await walletRequest({
+                method: 'eth_blockNumber',
+                params: [],
+            });
+            const currentBlock = parseInt(currentBlockHex, 16);
+            const confirmations = currentBlock - txBlock + 1;
+
+            if (confirmations >= minConfirmations) {
+                return receipt;
+            }
+
+            showWalletPending(
+                `Waiting for confirmations… (${Math.min(confirmations, minConfirmations)}/${minConfirmations})`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        }
+
+        throw new Error(
+            `Waiting for ${minConfirmations} block confirmations. Try crediting again from Recent deposits shortly.`,
+        );
+    } finally {
+        hideWalletPending();
+    }
+}
+async function tryReplayRevertReason(txHash) {
+    try {
+        const tx = await walletRequest({
+            method: 'eth_getTransactionByHash',
             params: [txHash],
         });
-
-        if (receipt) {
-            if (receipt.status !== '0x1') {
-                throw new Error('Transaction failed on chain.');
-            }
-            break;
+        if (!tx?.to || !tx?.from) {
+            return '';
         }
-
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-    }
-
-    if (!receipt) {
-        throw new Error('Transaction confirmation timed out. Your USDT may still arrive — check Recent deposits shortly.');
-    }
-
-    const txBlock = parseInt(receipt.blockNumber, 16);
-    if (Number.isNaN(txBlock)) {
-        throw new Error('Could not read transaction block.');
-    }
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const currentBlockHex = await window.ethereum.request({
-            method: 'eth_blockNumber',
-            params: [],
+        await walletRequest({
+            method: 'eth_call',
+            params: [
+                {
+                    from: tx.from,
+                    to: tx.to,
+                    data: tx.input || tx.data || '0x',
+                    value: tx.value || '0x0',
+                    gas: tx.gas || undefined,
+                },
+                tx.blockNumber || 'latest',
+            ],
         });
-        const currentBlock = parseInt(currentBlockHex, 16);
-        const confirmations = currentBlock - txBlock + 1;
-
-        if (confirmations >= minConfirmations) {
-            return receipt;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        return '';
+    } catch (err) {
+        return extractRpcRevertMessage(err) || '';
     }
-
-    throw new Error(
-        `Waiting for ${minConfirmations} block confirmations. Try crediting again from Recent deposits shortly.`,
-    );
 }
 
 export async function verifyOnChainDeposit({ txHash, amountUsd, verifyUrl, extra = {} }) {
@@ -455,6 +741,31 @@ export async function verifyOnChainDeposit({ txHash, amountUsd, verifyUrl, extra
 
     if (!response.ok) {
         throw new Error(payload.error || 'Deposit verification failed.');
+    }
+
+    return payload;
+}
+
+/**
+ * Instant DB index for Engine/ICO/Vault logs from one confirmed tx.
+ * Writes blockchain_events (+ ico_purchases / stakes when present).
+ */
+export async function syncBlockchainTx({ txHash, syncUrl = '/blockchain/sync-tx' }) {
+    const response = await fetch(syncUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-XSRF-TOKEN': getCsrfToken(),
+        },
+        body: JSON.stringify({ tx_hash: txHash }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload.error || 'Could not sync transaction to database.');
     }
 
     return payload;

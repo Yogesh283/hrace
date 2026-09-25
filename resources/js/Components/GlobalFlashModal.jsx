@@ -130,24 +130,24 @@ export default function GlobalFlashModal() {
     };
 
     const isSuccess = variant === 'success';
-    const borderClass = isSuccess ? 'border-emerald-200' : 'border-red-200';
-    const titleClass = isSuccess ? 'text-emerald-900' : 'text-red-900';
+    const borderClass = isSuccess ? 'border-emerald-400/40' : 'border-red-400/40';
+    const titleClass = isSuccess ? 'text-emerald-200' : 'text-red-200';
     const btnClass = isSuccess
         ? 'from-emerald-600 to-emerald-500 hover:brightness-105'
-        : 'from-[#4F6BFF] to-[#6366F1] hover:brightness-105';
+        : 'from-[#1D4ED8] to-[#0369A1] hover:brightness-105';
 
     return (
         <Modal show={open} onClose={close} maxWidth="md">
             <div
-                className={`rounded-2xl border bg-white p-6 text-fintech-ink shadow-lg ${borderClass}`}
+                className={`rounded-2xl border bg-[#0F172A] p-5 text-slate-100 shadow-lg sm:p-6 ${borderClass}`}
                 role="alertdialog"
                 aria-modal="true"
                 aria-labelledby="global-flash-title"
             >
-                <h3 id="global-flash-title" className={`text-lg font-semibold ${titleClass}`}>
+                <h3 id="global-flash-title" className={`font-poppins text-lg font-semibold ${titleClass}`}>
                     {title}
                 </h3>
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-200">
                     {messages.map((m, i) => (
                         <li key={i}>{m}</li>
                     ))}

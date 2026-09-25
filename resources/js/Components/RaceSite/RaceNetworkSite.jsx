@@ -56,7 +56,7 @@ function BulletGrid({ items, cols = 'sm:grid-cols-2 lg:grid-cols-3' }) {
                             {icon ? <RaceIcon3D name={icon} className="mb-3 h-10 w-10 sm:mb-4 sm:h-11 sm:w-11" /> : null}
                             <h3 className="font-space text-[0.95rem] font-bold text-white sm:text-lg">{title}</h3>
                             <div className="rx-site-gold-line my-3 max-w-[40px]" />
-                            {desc ? <p className="text-sm leading-relaxed text-[#9CA3AF]">{desc}</p> : null}
+                            {desc ? <p className="text-sm leading-relaxed text-slate-300">{desc}</p> : null}
                         </RaceGlassCard>
                     </motion.div>
                 );

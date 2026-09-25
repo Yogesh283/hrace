@@ -1,4 +1,4 @@
-import { walletAuthPayload, hasWeb3Wallet } from '@/lib/web3Auth';
+import { walletAuthPayload } from '@/lib/web3Auth';
 import { connectWalletWithNetwork } from '@/lib/web3Deposit';
 import { router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
@@ -52,13 +52,6 @@ export default function WalletConnectAuthButton({
     const handleClick = async () => {
         setLocalError(null);
         onError?.(null);
-
-        if (!hasWeb3Wallet()) {
-            const message = 'No Web3 wallet detected. Install MetaMask or another EVM wallet.';
-            setLocalError(message);
-            onError?.(message);
-            return;
-        }
 
         if (action === 'register' && String(joinCode ?? '').replace(/\s/g, '').length !== 8) {
             const message = 'Enter a valid 8-character join code before connecting your wallet.';
@@ -117,7 +110,7 @@ export default function WalletConnectAuthButton({
                 onClick={handleClick}
                 whileHover={disabled || loading ? undefined : { y: -2 }}
                 whileTap={disabled || loading ? undefined : { scale: 0.99 }}
-                className="relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl border border-emerald-300/50 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-400 py-2.5 text-xs font-extrabold text-white shadow-[0_12px_40px_-8px_rgba(16,185,129,0.45)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-55 sm:rounded-2xl sm:py-4 sm:text-base"
+                className="relative flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl border border-emerald-300/50 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-400 py-2.5 text-xs font-extrabold text-white shadow-[0_12px_40px_-8px_rgba(16,185,129,0.45)] transition hover:brightness-[1.03] disabled:cursor-not-allowed disabled:opacity-70 sm:rounded-2xl sm:py-4 sm:text-base"
             >
                 {loading ? (
                     <>

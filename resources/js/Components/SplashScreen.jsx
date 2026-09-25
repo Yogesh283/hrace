@@ -1,8 +1,8 @@
 import { RACE_SPLASH_VIDEO_SRC } from '@/lib/brandAssets';
 import { useEffect, useRef, useState } from 'react';
 
-const SPLASH_DURATION_MS = 8000;
-const FADE_OUT_MS = 700;
+const SPLASH_DURATION_MS = 1200;
+const FADE_OUT_MS = 280;
 
 export default function SplashScreen() {
     const [hidden, setHidden] = useState(false);

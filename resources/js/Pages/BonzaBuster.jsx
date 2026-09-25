@@ -117,7 +117,7 @@ export default function BonzaBuster({ program: programProp = {}, transactions = 
                     </p>
 
                     {transactions.length === 0 ? (
-                        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center text-sm text-fintech-muted">
+                        <p className="rx-empty mt-4">
                             No Bonanza payouts yet. You earn when a direct referral invests.
                         </p>
                     ) : (

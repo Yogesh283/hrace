@@ -1,3 +1,4 @@
+import IcoPhaseProgress from '@/Components/Ico/IcoPhaseProgress';
 import PanelCard from '@/Components/PanelCard';
 import Web3NetworkBanner from '@/Components/Web3NetworkBanner';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
@@ -6,14 +7,18 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { RACE_BANNER_STAKING, RACE_LOGO_SRC } from '@/lib/brandAssets';
-import { parseTokenAmount } from '@/lib/web3Deposit';
-import { ensureEngineReferralBeforeStake } from '@/lib/web3Engine';
+import { notifyError, notifySuccess } from '@/lib/appNotify';
+import { configureWeb3Network, parseTokenAmount, syncBlockchainTx, TESTNET_MOCK_USDT } from '@/lib/web3Deposit';
+import { ensureEngineReferralBeforeStake, ensureSponsorActiveForLevelIncome } from '@/lib/web3Engine';
 import {
     approveUsdtForIco,
+    createAllIcoStakes,
+    createIcoStake,
     formatPurchaseDate,
     formatTokenWei,
     formatUsdPriceFromWei,
     friendlyIcoError,
+    FLEXIBLE_DAILY_ROI_PERCENT,
     ICO_STAKE_PLANS,
     purchaseIcoRace,
     quoteIcoRaceOut,
@@ -22,7 +27,10 @@ import {
     readErc20BalanceOf,
     readIcoCompleted,
     readIcoCurrentPhase,
+    readIcoEndPriceUsdt,
+    readPendingStakeCount,
     readTotalIcoSold,
+    readUserHeldRace,
     readUserIcoPurchases,
 } from '@/lib/web3RaceICO';
 import {
@@ -35,7 +43,7 @@ import {
     withdrawOnChainStake,
 } from '@/lib/web3Engine';
 import { syncParticipationTx } from '@/lib/web3Participation';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const fieldClass =
@@ -46,6 +54,8 @@ const PHASE_LABELS = {
     2: { label: 'Phase 2', displayPrice: '$0.35' },
     3: { label: 'Phase 3', displayPrice: '$0.45' },
 };
+
+const ICO_PHASE_POLL_MS = 20_000;
 
 function shortenAddress(address) {
     if (!address || address.length < 10) return address || '—';
@@ -176,6 +186,39 @@ export default function Isu({
                 engineContract !== ''),
     );
 
+    const expectedChainId = useMemo(() => {
+        const usdt = (usdtContract || '').trim().toLowerCase();
+        if (usdt === TESTNET_MOCK_USDT) {
+            return 97;
+        }
+        const fromIco = Number(icoConfig?.chain_id);
+        if (Number.isFinite(fromIco) && fromIco > 0) {
+            return fromIco;
+        }
+        const fromBlockchain = Number(blockchain?.chain_id);
+        if (Number.isFinite(fromBlockchain) && fromBlockchain > 0) {
+            return fromBlockchain;
+        }
+        if (icoConfig?.is_testnet ?? blockchain?.is_testnet) {
+            return 97;
+        }
+        return 56;
+    }, [
+        usdtContract,
+        icoConfig?.chain_id,
+        icoConfig?.is_testnet,
+        blockchain?.chain_id,
+        blockchain?.is_testnet,
+    ]);
+
+    useEffect(() => {
+        configureWeb3Network({
+            chainId: expectedChainId,
+            usdtContract,
+            rpcUrl,
+        });
+    }, [expectedChainId, usdtContract, rpcUrl]);
+
     const {
         chainOk,
         switching: networkSwitching,
@@ -184,7 +227,7 @@ export default function Isu({
         connectWallet: connectWalletOnNetwork,
         connectedLabel,
         switchButtonLabel,
-    } = useWalletNetwork({ expectedChainId: icoConfig?.chain_id ?? blockchain?.chain_id });
+    } = useWalletNetwork({ expectedChainId });
 
     useEffect(() => {
         if (!import.meta.env.DEV) {
@@ -233,6 +276,9 @@ export default function Isu({
     const [raceBalance, setRaceBalance] = useState(0n);
     const [allowance, setAllowance] = useState(0n);
     const [purchases, setPurchases] = useState([]);
+    const [heldRace, setHeldRace] = useState(0n);
+    const [pendingStakes, setPendingStakes] = useState(0);
+    const [icoEndPrice, setIcoEndPrice] = useState(0n);
     const [stakes, setStakes] = useState([]);
     const [loadingChain, setLoadingChain] = useState(false);
     const [claimEnabledOnChain, setClaimEnabledOnChain] = useState(false);
@@ -277,9 +323,19 @@ export default function Isu({
         }
     }, [stakePlans, planId]);
 
-    const lockPeriodSeconds = Number(
-        selectedPlan?.seconds ?? selectedPlan?.lockPeriodSeconds ?? 0,
-    );
+    const lockPeriodSeconds = useMemo(() => {
+        const fromCanonical = ICO_STAKE_PLANS.find((p) => String(p.id) === String(planId));
+        if (fromCanonical?.lockPeriodSeconds) {
+            return Number(fromCanonical.lockPeriodSeconds);
+        }
+        const raw = Number(selectedPlan?.lockPeriodSeconds ?? selectedPlan?.seconds ?? 0);
+        // Guard: days mistaken for seconds (e.g. 180) must not be sent on-chain.
+        if (raw > 0 && raw < 86400) {
+            const byDays = ICO_STAKE_PLANS.find((p) => Number(p.id) === raw);
+            return Number(byDays?.lockPeriodSeconds ?? 0);
+        }
+        return raw;
+    }, [planId, selectedPlan]);
 
     const activePhase = useMemo(
         () => phases.find((p) => p.id === currentPhaseId) ?? null,
@@ -323,7 +379,7 @@ export default function Isu({
             setTotalSold(sold);
 
             if (walletAddress) {
-                const [usdtBal, raceBal, allow, history] = await Promise.all([
+                const [usdtBal, raceBal, allow, history, held, pending, endPrice] = await Promise.all([
                     readErc20BalanceOf({ token: usdtContract, wallet: walletAddress, rpcUrl }),
                     readErc20BalanceOf({ token: raceToken, wallet: walletAddress, rpcUrl }),
                     readErc20Allowance({
@@ -333,11 +389,17 @@ export default function Isu({
                         rpcUrl,
                     }),
                     readUserIcoPurchases({ icoContract, wallet: walletAddress, rpcUrl }),
+                    readUserHeldRace({ icoContract, wallet: walletAddress, rpcUrl }),
+                    readPendingStakeCount({ icoContract, wallet: walletAddress, rpcUrl }),
+                    readIcoEndPriceUsdt({ icoContract, rpcUrl }),
                 ]);
                 setUsdtBalance(usdtBal);
                 setRaceBalance(raceBal);
                 setAllowance(allow);
                 setPurchases(history.slice().reverse());
+                setHeldRace(held);
+                setPendingStakes(pending);
+                setIcoEndPrice(endPrice);
                 try {
                     const policy = await readClaimPolicyState({
                         walletAddress,
@@ -377,6 +439,7 @@ export default function Isu({
             }
         } catch (err) {
             setError(friendlyIcoError(err));
+            notifyError(friendlyIcoError(err), 'ICO');
         } finally {
             setLoadingChain(false);
         }
@@ -401,6 +464,37 @@ export default function Isu({
     useEffect(() => {
         refreshChainState();
     }, [refreshChainState]);
+
+    const refreshPhaseState = useCallback(async () => {
+        if (!contractsReady) return;
+        try {
+            const [phaseId, completed, allPhases, sold] = await Promise.all([
+                readIcoCurrentPhase({ icoContract, rpcUrl }),
+                readIcoCompleted({ icoContract, rpcUrl }),
+                readAllIcoPhases({ icoContract, rpcUrl }),
+                readTotalIcoSold({ icoContract, rpcUrl }),
+            ]);
+            setCurrentPhaseId(phaseId);
+            setIcoCompleted(completed);
+            setPhases(allPhases);
+            setTotalSold(sold);
+        } catch {
+            // Background poll: keep last on-chain snapshot; manual refresh surfaces errors.
+        }
+    }, [contractsReady, icoContract, rpcUrl]);
+
+    useEffect(() => {
+        if (!contractsReady) return undefined;
+        const timer = setInterval(() => {
+            if (typeof document !== 'undefined' && document.hidden) return;
+            refreshPhaseState();
+        }, ICO_PHASE_POLL_MS);
+        return () => clearInterval(timer);
+    }, [contractsReady, refreshPhaseState]);
+
+    const scrollToBuy = useCallback(() => {
+        document.getElementById('ico-buy')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -431,14 +525,25 @@ export default function Isu({
         };
     }, [contractsReady, icoContract, currentPhaseId, amountUsd, rpcUrl]);
 
+    const showIcoError = (errOrMsg) => {
+        const msg = typeof errOrMsg === 'string' ? errOrMsg : friendlyIcoError(errOrMsg);
+        setError(msg);
+        notifyError(msg, 'ICO');
+    };
+
+    const showIcoSuccess = (msg) => {
+        notifySuccess(msg, 'ICO');
+    };
+
     const connectWallet = async () => {
         setConnecting(true);
         setError('');
         try {
             const address = await connectWalletOnNetwork();
             setWalletAddress(address);
+            showIcoSuccess(`Wallet connected: ${address.slice(0, 6)}…${address.slice(-4)}`);
         } catch (err) {
-            setError(friendlyIcoError(err));
+            showIcoError(err);
         } finally {
             setConnecting(false);
         }
@@ -452,14 +557,14 @@ export default function Isu({
             await switchNetwork();
             return true;
         } catch (err) {
-            setError(friendlyIcoError(err));
+            showIcoError(err);
             return false;
         }
     };
 
     const onApprove = async () => {
         if (!walletAddress) {
-            setError('Connect your wallet first.');
+            showIcoError('Connect your wallet first.');
             return;
         }
         if (!(await ensureNetworkForTx())) {
@@ -474,11 +579,13 @@ export default function Isu({
                 icoContract,
                 usdtContract,
                 amountUsd,
+                chainId: expectedChainId,
                 waitConfirmations: 1,
             });
             await refreshChainState();
+            showIcoSuccess('USDT approved for ICO. Now tap Buy RACE.');
         } catch (err) {
-            setError(friendlyIcoError(err));
+            showIcoError(err);
         } finally {
             setBusy('');
         }
@@ -486,26 +593,30 @@ export default function Isu({
 
     const onBuy = async () => {
         if (!walletAddress) {
-            setError('Connect your wallet first.');
+            showIcoError('Connect your wallet first.');
             return;
         }
         if (!(await ensureNetworkForTx())) {
             return;
         }
         if (!currentPhaseId || icoCompleted) {
-            setError('No active ICO phase.');
+            showIcoError('No active ICO phase.');
+            return;
+        }
+        if (!hasSelectedLock || lockPeriodSeconds <= 0) {
+            showIcoError('Select a stake plan: 180 / 365 / 730 / 1095 days.');
             return;
         }
         if (quotedRace <= 0n) {
-            setError(quoteError || 'Enter a valid USDT amount.');
+            showIcoError(quoteError || 'Enter a valid USDT amount.');
             return;
         }
         if (activePhase && quotedRace > activePhase.remaining) {
-            setError('Not enough RACE remaining in this phase.');
+            showIcoError('Not enough RACE remaining in this phase.');
             return;
         }
         if (usdtBalance < amountWei) {
-            setError('Insufficient USDT balance.');
+            showIcoError('Insufficient USDT balance.');
             return;
         }
 
@@ -513,21 +624,25 @@ export default function Isu({
         setError('');
         setSuccess(null);
         try {
-            if (engineContract) {
-                setBusy('register');
-                await ensureEngineReferralBeforeStake({
+            // Auto-approve when allowance is short so Buy is one flow.
+            const currentAllowance = await readErc20Allowance({
+                token: usdtContract,
+                owner: walletAddress,
+                spender: icoContract,
+            });
+            if (currentAllowance < amountWei) {
+                setBusy('approve');
+                await approveUsdtForIco({
                     walletAddress,
-                    engineContract,
-                    rpcUrl,
-                    sponsorWallet: on_chain_sponsor_wallet,
+                    icoContract,
+                    usdtContract,
+                    amountUsd,
+                    chainId: expectedChainId,
                     waitConfirmations: 1,
                 });
+                await refreshChainState();
             }
-            const raceBefore = await readErc20BalanceOf({
-                token: raceToken,
-                wallet: walletAddress,
-                rpcUrl,
-            });
+
             setBusy('buy');
             const txHash = await purchaseIcoRace({
                 walletAddress,
@@ -535,17 +650,11 @@ export default function Isu({
                 usdtContract,
                 amountUsd,
                 lockPeriodSeconds,
-                waitConfirmations: 3,
-            });
-            const raceAfter = await readErc20BalanceOf({
-                token: raceToken,
-                wallet: walletAddress,
+                chainId: expectedChainId,
+                waitConfirmations: 2,
                 rpcUrl,
             });
-            // Principal must NOT increase wallet balance
-            if (raceAfter > raceBefore) {
-                // Reward dust unlikely mid-tx; still show stake created
-            }
+
             const priceLabel = activePhase
                 ? `$${formatUsdPriceFromWei(activePhase.priceUsdt)}`
                 : PHASE_LABELS[currentPhaseId]?.displayPrice || '—';
@@ -560,19 +669,108 @@ export default function Isu({
                 dailyRoi: selectedPlan?.daily_roi_percent || selectedPlan?.dailyRoiPercent || '—',
                 lockLabel: selectedPlan?.lock_label || selectedPlan?.lockLabel || '—',
             });
-            // Index ICO → Engine stake so Member ID / participation flips Active ($50+).
+
+            showIcoSuccess(
+                `Bought ${formatTokenWei(quotedRace, 18, 4)} RACE (held). No level income on hold. After ICO completes → Create Your Stake (level income then). Tx ${txHash.slice(0, 10)}…`,
+            );
+
             try {
+                await syncBlockchainTx({ txHash });
+                router.reload();
+            } catch (syncErr) {
+                console.warn('ICO sync-tx:', syncErr?.message || syncErr);
+                notifyError(
+                    `On-chain buy OK, but DB sync lagged: ${syncErr?.message || syncErr}. Indexer will catch up.`,
+                    'ICO sync',
+                );
+            }
+            await refreshChainState();
+        } catch (err) {
+            showIcoError(err);
+        } finally {
+            setBusy('');
+        }
+    };
+
+    const onCreateStake = async (purchaseId = null) => {
+        if (!walletAddress) {
+            showIcoError('Connect your wallet first.');
+            return;
+        }
+        if (!(await ensureNetworkForTx())) {
+            return;
+        }
+        if (!icoCompleted) {
+            showIcoError('You Active Stake After Complete ICO.');
+            return;
+        }
+        if (pendingStakes <= 0 && heldRace <= 0n) {
+            showIcoError('No held ICO RACE to stake.');
+            return;
+        }
+
+        setBusy(purchaseId == null ? 'create-all' : `create-${purchaseId}`);
+        setError('');
+        setSuccess(null);
+        try {
+            if (engineContract) {
+                setBusy('register');
+                await ensureSponsorActiveForLevelIncome({
+                    sponsorWallet: on_chain_sponsor_wallet,
+                    engineContract,
+                    rpcUrl,
+                    stakeUsd: 50,
+                });
+                await ensureEngineReferralBeforeStake({
+                    walletAddress,
+                    engineContract,
+                    rpcUrl,
+                    sponsorWallet: on_chain_sponsor_wallet,
+                    chainId: expectedChainId,
+                    waitConfirmations: 1,
+                });
+            }
+            setBusy(purchaseId == null ? 'create-all' : `create-${purchaseId}`);
+            const txHash =
+                purchaseId == null
+                    ? await createAllIcoStakes({
+                          walletAddress,
+                          icoContract,
+                          chainId: expectedChainId,
+                          waitConfirmations: 2,
+                          rpcUrl,
+                      })
+                    : await createIcoStake({
+                          walletAddress,
+                          icoContract,
+                          purchaseId,
+                          chainId: expectedChainId,
+                          waitConfirmations: 2,
+                          rpcUrl,
+                      });
+
+            const endLabel = icoEndPrice > 0n ? `$${formatUsdPriceFromWei(icoEndPrice)}` : 'ICO end price';
+            showIcoSuccess(
+                `Stake created at ${endLabel}. Level income paid on this stake if ≥$50. Claim from next day. Tx ${txHash.slice(0, 10)}…`,
+            );
+
+            try {
+                await syncBlockchainTx({ txHash });
                 await syncParticipationTx({
                     txHash,
                     verifyUrl: '/participation/verify-onchain',
                 });
                 router.reload();
             } catch (syncErr) {
-                console.warn('ICO verify-onchain:', syncErr?.message || syncErr);
+                console.warn('ICO createStake sync:', syncErr?.message || syncErr);
+                notifyError(
+                    `On-chain stake OK, but DB sync lagged: ${syncErr?.message || syncErr}.`,
+                    'ICO sync',
+                );
             }
             await refreshChainState();
         } catch (err) {
-            setError(friendlyIcoError(err));
+            showIcoError(err);
         } finally {
             setBusy('');
         }
@@ -588,6 +786,7 @@ export default function Isu({
                       return 0n;
                   }
               };
+              const status = String(row.status || 'held').toLowerCase();
               return {
                   id: row.purchase_id,
                   phaseId: row.phase,
@@ -596,7 +795,8 @@ export default function Isu({
                   priceUsdt: toWei(row.price),
                   purchasedAt: row.created_at ? Math.floor(new Date(row.created_at).getTime() / 1000) : 0,
                   txHash: row.tx_hash,
-                  status: row.status || 'confirmed',
+                  status,
+                  staked: status === 'staked',
                   planLabel: row.plan_label || (row.lock_days ? `${row.lock_days}D` : ''),
                   stakeIndex: row.stake_index,
                   fromIndex: true,
@@ -604,18 +804,12 @@ export default function Isu({
           });
 
     return (
-        <AuthenticatedLayout
-            header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800 dark:text-gray-200">
-                    RACE ICO
-                </h2>
-            }
-        >
+        <AuthenticatedLayout pageTitle="ICO" mobileFintechPageTitle="ICO">
             <Head title="RACE ICO" />
             <MemberPageShell>
                 <MemberPageHero
                     title="RACE ICO"
-                    subtitle="USDT → admin wallet. Purchased RACE stakes into a FIXED plan only (180/365/730/1095). Flexible is not available during ICO."
+                    subtitle="Buy RACE (held). No level income on hold. After ICO completes, Create Your Stake — level income pays then if ≥$50."
                     logoSrc={RACE_LOGO_SRC}
                     bannerSrc={RACE_BANNER_STAKING}
                 />
@@ -634,7 +828,7 @@ export default function Isu({
                             {!engineContract ? (
                                 <li>
                                     CommunityEngine missing — set{' '}
-                                    <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code> in Laravel{' '}
+                                    <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code> in site{' '}
                                     <code className="font-mono">.env</code>.
                                 </li>
                             ) : null}
@@ -684,47 +878,17 @@ export default function Isu({
                     />
                 ) : null}
 
-                <div className="mt-6 grid gap-4 lg:grid-cols-3">
-                    {[1, 2, 3].map((id) => {
-                        const onChain = phases.find((p) => p.id === id);
-                        const meta = PHASE_LABELS[id];
-                        const isActive = currentPhaseId === id;
-                        return (
-                            <PanelCard
-                                key={id}
-                                className={`border ${isActive ? 'border-sky-400/60 ring-1 ring-sky-400/30' : 'border-fintech-line'}`}
-                            >
-                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                    {meta.label}
-                                    {isActive ? ' · Active' : ''}
-                                    {onChain?.completed ? ' · Sold out' : ''}
-                                </p>
-                                <p className="mt-2 text-2xl font-bold text-white">{meta.displayPrice} / RACE</p>
-                                <p className="mt-1 text-sm text-slate-300">Allocation: 200,000 RACE</p>
-                                {onChain && (
-                                    <div className="mt-3 space-y-1 text-xs text-slate-400">
-                                        <p>Sold: {formatTokenWei(onChain.sold, 18, 2)} RACE</p>
-                                        <p>Remaining: {formatTokenWei(onChain.remaining, 18, 2)} RACE</p>
-                                        <p>On-chain price: ${formatUsdPriceFromWei(onChain.priceUsdt)}</p>
-                                    </div>
-                                )}
-                            </PanelCard>
-                        );
-                    })}
-                </div>
+                <IcoPhaseProgress
+                    phases={phases}
+                    currentPhaseId={currentPhaseId}
+                    icoCompleted={icoCompleted}
+                    totalSold={totalSold}
+                    loading={loadingChain}
+                    canBuyNow={contractsReady && !icoCompleted}
+                    onBuy={scrollToBuy}
+                />
 
-                <div className="mt-4 rounded-xl border border-fintech-line bg-slate-950/40 p-4 text-sm text-slate-300">
-                    <p>
-                        Total ICO: <span className="font-semibold text-white">600,000 RACE</span>
-                        {' · '}
-                        Sold:{' '}
-                        <span className="font-semibold text-white">{formatTokenWei(totalSold, 18, 2)}</span>
-                        {icoCompleted ? ' · ICO completed' : ''}
-                        {loadingChain ? ' · refreshing…' : ''}
-                    </p>
-                </div>
-
-                <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                <div id="ico-buy" className="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-2">
                     <PanelCard title="Buy RACE">
                         <div className="space-y-4">
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -776,9 +940,15 @@ export default function Isu({
                                     Lock duration
                                 </span>
                                 <p className="mb-3 text-xs text-slate-500">
-                                    Fixed lock options only (180 / 365 / 730 / 1095). Flexible is not
-                                    available during ICO.
+                                    ICO uses fixed locks only. After ICO, Flexible is{' '}
+                                    <strong className="text-slate-200">{FLEXIBLE_DAILY_ROI_PERCENT}% daily</strong>.
                                 </p>
+                                <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-sm">
+                                    <p className="font-semibold text-emerald-200">Flexible · {FLEXIBLE_DAILY_ROI_PERCENT}% daily</p>
+                                    <p className="text-xs text-emerald-100/80">
+                                        Available after ICO completes — no fixed lock, withdraw anytime.
+                                    </p>
+                                </div>
                                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                                     {stakePlans.map((plan) => {
                                         const id = plan.id ?? String(plan.days);
@@ -879,7 +1049,23 @@ export default function Isu({
                             )}
 
                             <div className="flex flex-wrap gap-3">
-                                {needsApprove ? (
+                                {!icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
+                                    <PrimaryButton type="button" disabled>
+                                        You Active Stake After Complete ICO
+                                    </PrimaryButton>
+                                ) : null}
+                                {icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
+                                    <PrimaryButton
+                                        type="button"
+                                        onClick={() => onCreateStake(null)}
+                                        disabled={!walletAddress || !contractsReady || busy !== ''}
+                                    >
+                                        {busy === 'create-all' || busy === 'register'
+                                            ? 'Creating stake…'
+                                            : 'Create Your Stake'}
+                                    </PrimaryButton>
+                                ) : null}
+                                {!icoCompleted && needsApprove ? (
                                     <PrimaryButton
                                         type="button"
                                         onClick={onApprove}
@@ -887,19 +1073,20 @@ export default function Isu({
                                     >
                                         {busy === 'approve' ? 'Approving…' : 'Approve USDT'}
                                     </PrimaryButton>
-                                ) : (
+                                ) : null}
+                                {!icoCompleted && !needsApprove ? (
                                     <PrimaryButton
                                         type="button"
                                         onClick={onBuy}
                                         disabled={!canBuy}
                                     >
                                         {busy === 'buy'
-                                            ? 'Staking…'
+                                            ? 'Buying…'
                                             : !hasSelectedLock
                                               ? 'Select lock duration first'
-                                              : 'Buy & Stake RACE'}
+                                              : 'Buy RACE'}
                                     </PrimaryButton>
-                                )}
+                                ) : null}
                                 <button
                                     type="button"
                                     className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
@@ -909,23 +1096,38 @@ export default function Isu({
                                     Refresh
                                 </button>
                             </div>
+                            {icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
+                                <p className="mt-3 text-xs text-emerald-200/90">
+                                    Held: {formatTokenWei(heldRace, 18, 4)} RACE
+                                    {icoEndPrice > 0n
+                                        ? ` · Stake at $${formatUsdPriceFromWei(icoEndPrice)} (ICO end price)`
+                                        : ''}
+                                    . Claim income from the next day after stake.
+                                </p>
+                            ) : null}
+                            {!icoCompleted ? (
+                                <p className="mt-3 text-xs text-slate-400">
+                                    Bought RACE stays held in the ICO contract (not your wallet). You Active
+                                    Stake After Complete ICO. Level income pays when you create the stake.
+                                </p>
+                            ) : null}
                         </div>
                     </PanelCard>
 
                     <PanelCard title="Your staking positions">
                         <p className="mb-3 text-xs text-slate-500">
-                            Live from RaceCommunityEngine. Claim / Compound / Withdraw are on-chain only.
+                            Claimed income stays in hold. Open Income wallet to bring it to your wallet.
                         </p>
                         <p className="mb-3 rounded-lg border border-slate-700/80 bg-slate-900/40 px-3 py-2 text-xs text-slate-200">
                             {claimStatusMessage}
                         </p>
                         {!engineContract ? (
                             <p className="text-sm text-amber-200">
-                                CommunityEngine not loaded — check Laravel Testnet config (
+                                CommunityEngine not loaded — check Testnet config (
                                 <code className="font-mono">RACE_COMMUNITY_ENGINE_CONTRACT</code>).
                             </p>
                         ) : stakes.length === 0 ? (
-                            <p className="text-sm text-slate-400">No staking positions yet.</p>
+                            <p className="rx-empty">No staking positions yet.</p>
                         ) : (
                             <div className="space-y-3">
                                 {stakes.map((stake) => {
@@ -991,7 +1193,7 @@ export default function Isu({
                                             />
                                             <InfoRow label="Lock" value={lockDisplay} />
                                             <InfoRow
-                                                label="Claimable reward"
+                                                label="Claimable → income hold"
                                                 value={`${formatTokenWei(stake.pendingRewardRace || 0n, 18, 6)} RACE`}
                                             />
                                             <div className="mt-3 flex flex-wrap gap-2">
@@ -1004,14 +1206,23 @@ export default function Isu({
                                                         setBusy(`stake-${stake.index}`);
                                                         setError('');
                                                         try {
-                                                            await claimOnChainReward({
+                                                            const txHash = await claimOnChainReward({
                                                                 walletAddress,
                                                                 engineContract,
                                                                 stakeIndex: stake.index,
                                                             });
+                                                            try {
+                                                                await syncBlockchainTx({ txHash });
+                                                            } catch (syncErr) {
+                                                                console.warn(
+                                                                    'claim sync-tx:',
+                                                                    syncErr?.message || syncErr,
+                                                                );
+                                                            }
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));
+                                                            notifyError(friendlyEngineError(err), 'Stake');
                                                         } finally {
                                                             setBusy('');
                                                         }
@@ -1019,6 +1230,12 @@ export default function Isu({
                                                 >
                                                     Claim
                                                 </PrimaryButton>
+                                                <Link
+                                                    href={route('withdrawal')}
+                                                    className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+                                                >
+                                                    Bring to my wallet
+                                                </Link>
                                                 <button
                                                     type="button"
                                                     className="rounded-xl border border-sky-500/40 px-3 py-2 text-sm text-sky-200 hover:bg-sky-950/40 disabled:opacity-50"
@@ -1027,14 +1244,23 @@ export default function Isu({
                                                         setBusy(`stake-${stake.index}`);
                                                         setError('');
                                                         try {
-                                                            await compoundOnChainReward({
+                                                            const txHash = await compoundOnChainReward({
                                                                 walletAddress,
                                                                 engineContract,
                                                                 stakeIndex: stake.index,
                                                             });
+                                                            try {
+                                                                await syncBlockchainTx({ txHash });
+                                                            } catch (syncErr) {
+                                                                console.warn(
+                                                                    'compound sync-tx:',
+                                                                    syncErr?.message || syncErr,
+                                                                );
+                                                            }
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));
+                                                            notifyError(friendlyEngineError(err), 'Stake');
                                                         } finally {
                                                             setBusy('');
                                                         }
@@ -1055,14 +1281,23 @@ export default function Isu({
                                                         setBusy(`stake-${stake.index}`);
                                                         setError('');
                                                         try {
-                                                            await withdrawOnChainStake({
+                                                            const txHash = await withdrawOnChainStake({
                                                                 walletAddress,
                                                                 engineContract,
                                                                 stakeIndex: stake.index,
                                                             });
+                                                            try {
+                                                                await syncBlockchainTx({ txHash });
+                                                            } catch (syncErr) {
+                                                                console.warn(
+                                                                    'withdraw sync-tx:',
+                                                                    syncErr?.message || syncErr,
+                                                                );
+                                                            }
                                                             await refreshChainState();
                                                         } catch (err) {
                                                             setError(friendlyEngineError(err));
+                                                            notifyError(friendlyEngineError(err), 'Stake');
                                                         } finally {
                                                             setBusy('');
                                                         }
@@ -1080,13 +1315,15 @@ export default function Isu({
 
                     <PanelCard title="Purchase history">
                         <p className="mb-3 text-xs text-slate-500">
-                            On-chain purchases (source of truth). Laravel index is history only. Principal is staked — not a wallet claim.
+                            On-chain purchases. Held = in ICO contract until you Create Your Stake after ICO ends.
                         </p>
                         {historyRows.length === 0 ? (
-                            <p className="text-sm text-slate-400">No purchases yet.</p>
+                            <p className="rx-empty">No purchases yet.</p>
                         ) : (
                             <div className="space-y-3">
-                                {historyRows.map((buy) => (
+                                {historyRows.map((buy) => {
+                                    const isStaked = Boolean(buy.staked);
+                                    return (
                                     <div
                                         key={`${buy.id}-${buy.txHash || buy.purchasedAt}`}
                                         className="rounded-xl border border-slate-700/80 bg-slate-900/50 p-3 text-sm"
@@ -1108,14 +1345,34 @@ export default function Isu({
                                             value={`${formatTokenWei(buy.usdtPaid, 18, 4)} USDT`}
                                         />
                                         <InfoRow
-                                            label="RACE staked"
+                                            label="RACE"
                                             value={`${formatTokenWei(buy.raceAmount, 18, 4)} RACE`}
                                         />
                                         <InfoRow
-                                            label="Price"
+                                            label="Buy price"
                                             value={`$${formatUsdPriceFromWei(buy.priceUsdt)}`}
                                         />
-                                        <InfoRow label="Status" value="Stake Created / Active" />
+                                        <InfoRow
+                                            label="Status"
+                                            value={isStaked ? 'Stake Created' : 'Held in ICO'}
+                                        />
+                                        {!isStaked && !icoCompleted ? (
+                                            <p className="mt-2 text-xs font-semibold text-amber-200/90">
+                                                You Active Stake After Complete ICO
+                                            </p>
+                                        ) : null}
+                                        {!isStaked && icoCompleted ? (
+                                            <PrimaryButton
+                                                type="button"
+                                                className="mt-2"
+                                                onClick={() => onCreateStake(buy.id)}
+                                                disabled={busy !== ''}
+                                            >
+                                                {busy === `create-${buy.id}`
+                                                    ? 'Creating…'
+                                                    : 'Create Your Stake'}
+                                            </PrimaryButton>
+                                        ) : null}
                                         {buy.txHash && (
                                             <a
                                                 href={`${blockExplorer}/tx/${buy.txHash}`}
@@ -1127,7 +1384,8 @@ export default function Isu({
                                             </a>
                                         )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </PanelCard>

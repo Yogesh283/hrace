@@ -124,8 +124,8 @@ export default function Swap({
 
     const connectWallet = async () => {
         setWalletError(null);
-        if (typeof window === 'undefined' || !window.ethereum) {
-            setWalletError('No Web3 wallet detected. Install MetaMask or another EVM wallet.');
+        if (typeof window === 'undefined') {
+            setWalletError('Open this page in a browser, then connect any crypto wallet.');
             return;
         }
         setConnecting(true);
@@ -259,7 +259,7 @@ export default function Swap({
                 <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
                     <PanelCard title="1 · Connect crypto wallet" icon="wallet">
                         <p className="mb-4 text-sm text-fintech-muted">
-                            Connect MetaMask or another EVM wallet on BNB Smart Chain. USDT will be sent
+                            Connect any crypto wallet on BNB Smart Chain. USDT will be sent
                             from this address.
                         </p>
                         {wallet ? (
@@ -426,7 +426,7 @@ export default function Swap({
 
                 <PanelCard title="Recent swaps" icon="transactions" className="mt-6">
                     {swap_entries.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No swap transactions yet.</p>
+                        <p className="rx-empty">No swap transactions yet.</p>
                     ) : (
                         <div className="overflow-hidden rounded-xl border border-fintech-line bg-white">
                             <ul className="divide-y divide-fintech-line">

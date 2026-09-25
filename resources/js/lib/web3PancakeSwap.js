@@ -1,4 +1,5 @@
 import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, sendContractTx, waitForConfirmations } from '@/lib/web3Deposit';
+import { getWalletProvider, NO_WALLET_MESSAGE, walletRequest } from '@/lib/web3Wallet';
 
 const SELECTORS = {
     balanceOf: '0x70a08231',
@@ -52,9 +53,9 @@ function encodeSwapSupportingFee(amountIn, amountOutMin, path, to, deadline) {
 }
 
 async function ethCall({ to, data, rpcUrl }) {
-    if (typeof window !== 'undefined' && window.ethereum) {
+    if (typeof window !== 'undefined' && getWalletProvider()) {
         try {
-            const result = await window.ethereum.request({
+            const result = await walletRequest({
                 method: 'eth_call',
                 params: [{ to, data }, 'latest'],
             });
@@ -273,8 +274,8 @@ export function friendlySwapError(error) {
     if (code === 4001 || /user rejected|denied|cancelled/i.test(message)) {
         return 'Transaction rejected in your wallet.';
     }
-    if (/wrong network|chain/i.test(message)) {
-        return 'Please switch to BNB Smart Chain (BSC) in your wallet.';
+    if (/wrong network|please switch metamask to bsc testnet|please switch metamask to bnb smart chain/i.test(message)) {
+        return message;
     }
     if (/insufficient funds/i.test(message)) {
         return 'Insufficient BNB for network gas fees.';
@@ -283,7 +284,7 @@ export function friendlySwapError(error) {
         return 'Insufficient token balance for this swap.';
     }
     if (/No Web3 wallet/i.test(message)) {
-        return 'No Web3 wallet detected. Install MetaMask or Trust Wallet.';
+        return NO_WALLET_MESSAGE;
     }
     if (/Only official BEP20 USDT/i.test(message)) {
         return 'Only official BEP20 USDT is supported.';

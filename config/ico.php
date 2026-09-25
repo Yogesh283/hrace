@@ -12,6 +12,8 @@
  */
 return [
 
+    'contract' => env('ICO_CONTRACT', ''),
+    'admin_wallet' => env('ICO_ADMIN_WALLET', ''),
     'current_phase_id' => (int) env('ICO_CURRENT_PHASE_ID', 1),
 
     'phases' => [
@@ -21,8 +23,15 @@ return [
     ],
 
     /*
-    | ICO lock options — FIXED only (Flexible is post-ICO via Engine.participate).
+    | ICO lock options — FIXED only.
+    | Flexible 0.35% daily is post-ICO via Engine.participate after icoCompleted.
     */
+    'post_ico_flexible' => [
+        'days' => 0,
+        'label' => 'Flexible',
+        'daily_reward_percent' => 0.35,
+    ],
+
     'duration_tiers' => [
         ['days' => 180, 'label' => '180 Days', 'daily_reward_percent' => 0.50],
         ['days' => 365, 'label' => '365 Days', 'daily_reward_percent' => 0.70],

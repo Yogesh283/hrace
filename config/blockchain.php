@@ -52,10 +52,18 @@ return [
         'auto_liquidity' => env('RACE_AUTO_LIQUIDITY_CONTRACT', ''),
         'liquidity_locker' => env('RACE_LIQUIDITY_LOCKER_CONTRACT', ''),
         'ico' => env('RACE_ICO_CONTRACT', ''),
+        'ico_reserve' => env('ICO_CONTRACT', ''),
+        'ico_admin_wallet' => env('ICO_ADMIN_WALLET', ''),
         'income_vault' => env('RACE_INCOME_VAULT_CONTRACT', ''),
+        'income_hold' => env('RACE_INCOME_HOLD_CONTRACT', ''),
         // Testnet must override — never leave mainnet defaults when BSC_CHAIN_ID=97
         'pancake_router' => env('PANCAKE_ROUTER', '0x10ED43C718714eb63d5aA57B78B54704E256024E'),
         'usdt' => env('USDT_CONTRACT_BEP20', '0x55d398326f99059ff775485246999027b3197955'),
+    ],
+
+    /** Mirror CommunityReferralPaid into income_wallet_transactions (RACE asset, read-model only). */
+    'community_referral_mirror' => [
+        'enabled' => filter_var(env('BLOCKCHAIN_COMMUNITY_REFERRAL_MIRROR', true), FILTER_VALIDATE_BOOL),
     ],
 
     'indexer' => [

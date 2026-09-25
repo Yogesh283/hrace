@@ -7,9 +7,9 @@ const {
 } = require('./lib/loadContractsEnv');
 loadContractsEnv();
 
-// Vesting schedule caps (tokens minted later via minters / governance — deploy starts with 10L only).
+// Vesting schedule caps (tokens minted later via minters / governance — deploy starts with 10L LP + 6L ICO).
 const ALLOC = {
-    liquidity: hre.ethers.parseEther('500000'), // from INITIAL_MINT for LP seed
+    liquidity: hre.ethers.parseEther('400000'), // 4 lakh of the 10L admin bag — Pancake LP only
     strategicReserve: hre.ethers.parseEther('2500000'),
     developmentFund: hre.ethers.parseEther('2500000'),
     ecosystemGrowth: hre.ethers.parseEther('7500000'),
@@ -90,11 +90,34 @@ async function main() {
         process.env.REQUIRE_MULTISIG_SIGNERS === '1' ||
         process.env.REQUIRE_MULTISIG_SIGNERS === 'true';
 
-    // Explicit confirmation for live BSC Testnet deploys (CI/local hardhat exempt).
+    // Explicit confirmation for live BSC Mainnet deploys.
     if (isBscMainnet) {
-        throw new Error(
-            'STOP: BSC Mainnet (chain 56) deploy is blocked by this safety task. Use testnet only.',
-        );
+        if (process.env.DEPLOY_ENV !== 'mainnet') {
+            throw new Error(
+                'STOP: Set DEPLOY_ENV=mainnet in contracts/.env before BSC Mainnet deploy.',
+            );
+        }
+        if (process.env.CONFIRM_MAINNET_DEPLOYMENT !== 'YES') {
+            throw new Error(
+                'STOP: Set CONFIRM_MAINNET_DEPLOYMENT=YES to deploy to BSC Mainnet (chain 56). Real BNB will be spent.',
+            );
+        }
+        if (process.env.EXPECTED_CHAIN_ID && Number(process.env.EXPECTED_CHAIN_ID) !== 56) {
+            throw new Error('STOP: EXPECTED_CHAIN_ID must be 56 for mainnet deploy.');
+        }
+        if (looksLikePlaceholderKey(process.env.DEPLOYER_PRIVATE_KEY)) {
+            throw new Error(
+                'STOP: DEPLOYER_PRIVATE_KEY missing or placeholder. Put the real mainnet deployer key in contracts/.env',
+            );
+        }
+        if (!process.env.RACE_REWARD_PRICE_USDT || String(process.env.RACE_REWARD_PRICE_USDT).trim() === '1') {
+            throw new Error(
+                'STOP: Mainnet requires real RACE_REWARD_PRICE_USDT (not placeholder $1). Example: 0.05',
+            );
+        }
+        if (!process.env.ICO_ADMIN_WALLET || !String(process.env.ICO_ADMIN_WALLET).trim()) {
+            throw new Error('STOP: ICO_ADMIN_WALLET required on mainnet (USDT proceeds + 10L admin bag).');
+        }
     }
 
     if (isBscTestnet) {
@@ -286,9 +309,17 @@ async function main() {
     const raceIcoAddress = await raceIco.getAddress();
     console.log('RaceICO:', raceIcoAddress);
     console.log('ICO admin wallet (USDT proceeds):', icoAdminWallet);
+
+    const ICOContract = await hre.ethers.getContractFactory('ICOContract');
+    const icoReserve = await ICOContract.deploy(deployer.address, raceAddress, icoAdminWallet);
+    await icoReserve.waitForDeployment();
+    const icoReserveAddress = await icoReserve.getAddress();
+    await (await icoReserve.setRaceIco(raceIcoAddress)).wait();
+    await (await raceIco.setIcoReserve(icoReserveAddress)).wait();
+    console.log('ICO Contract:', icoReserveAddress);
     await (await raceIco.setStakingEngine(communityEngineAddress)).wait();
     await (await communityEngine.setIcoContract(raceIcoAddress)).wait();
-    console.log('RaceICO ↔ RaceCommunityEngine linked for ICO→stake');
+    console.log('ICO reserve ↔ RaceICO ↔ RaceCommunityEngine linked');
 
     // Reward mint conversion — NOT Pancake spot. Ops must keep price fresh (heartbeat).
     // Mainnet: refuse placeholder $1 — require explicit RACE_REWARD_PRICE_USDT.
@@ -320,10 +351,38 @@ async function main() {
         `($${process.env.RACE_REWARD_PRICE_USDT || '1'}/RACE)`,
     );
 
+    const RaceIncomeHold = await hre.ethers.getContractFactory('RaceIncomeHold');
+    const incomeHold = await RaceIncomeHold.deploy(
+        deployer.address,
+        raceAddress,
+        usdt,
+        icoAdminWallet,
+        rewardPriceOracleAddress,
+    );
+    await incomeHold.waitForDeployment();
+    const incomeHoldAddress = await incomeHold.getAddress();
+    await (await incomeHold.setVault(rewardVaultAddress)).wait();
+    await (await incomeHold.setEngine(communityEngineAddress)).wait();
+    await (await rewardVault.setIncomeHold(incomeHoldAddress)).wait();
+    await (await communityEngine.setIncomeHold(incomeHoldAddress)).wait();
+    await (await incomeHold.lockCreditors()).wait();
+    await (await rewardVault.lockWiring()).wait();
+    await (await communityEngine.lockIncomeHold()).wait();
+    console.log('RaceIncomeHold:', incomeHoldAddress, '(income wallet; fee → admin; creditors LOCKED)');
+
     // Fixed-maturity 10% fee → RaceTreasury, then permanently lock destination.
     await (await communityEngine.setMaturityTreasury(treasuryAddress)).wait();
     await (await communityEngine.lockMaturityTreasury()).wait();
     console.log('Engine maturityTreasury → RaceTreasury (LOCKED)');
+
+    // Freeze ICO/oracle wiring so ownership transfer cannot retarget attacker contracts.
+    await (await communityEngine.lockIcoContract()).wait();
+    await (await communityEngine.lockRewardPriceOracle()).wait();
+    await (await raceIco.lockStakingEngine()).wait();
+    await (await raceIco.lockIcoReserve()).wait();
+    await (await icoReserve.lockRaceIco()).wait();
+    await (await treasury.lockMultisig()).wait();
+    console.log('Security locks: Engine ICO/oracle/hold, RaceICO engine/reserve, ICOContract RaceICO, Treasury multisig');
 
     const RaceRewardPool = await hre.ethers.getContractFactory('RaceRewardPool');
     const rewardPool = await RaceRewardPool.deploy(deployer.address, raceAddress, stakingAddress);
@@ -404,7 +463,9 @@ async function main() {
         participationAddress,
         communityEngineAddress,
         rewardVaultAddress,
+        incomeHoldAddress,
         raceIcoAddress,
+        icoReserveAddress,
         treasuryAddress,
         developmentTreasuryAddress,
         marketingTreasuryAddress,
@@ -414,15 +475,23 @@ async function main() {
         await devVesting.getAddress(),
         await partnershipsVesting.getAddress(),
         pancakeRouter,
+        icoAdminWallet,
     ];
     for (const account of feeExempt) {
         await (await raceCoin.setFeeExempt(account, true)).wait();
     }
 
-    // Mint-on-demand: ICO buy + income (vault.pay) mint RACE to users — no pre-fund inventory.
-    await (await raceCoin.setMinter(raceIcoAddress, true)).wait();
+    // Total start = 10 lakh INITIAL_MINT only. No extra ICO mint.
+    // Admin wallet gets all 10L: 6L → ICO Contract deposit, 4L stays for LP.
+    const initialMint = await raceCoin.INITIAL_MINT();
+    if (icoAdminWallet.toLowerCase() !== deployer.address.toLowerCase()) {
+        await (await raceCoin.transfer(icoAdminWallet, initialMint)).wait();
+        console.log('10 lakh INITIAL_MINT sent to admin wallet:', icoAdminWallet);
+    } else {
+        console.log('10 lakh INITIAL_MINT already on admin wallet (deployer = ICO_ADMIN_WALLET)');
+    }
     await (await raceCoin.setMinter(rewardVaultAddress, true)).wait();
-    console.log('Minters enabled: RaceICO + RaceRewardVault');
+    console.log('Admin split: 6 lakh ICO deposit + 4 lakh LP. Minter enabled: RaceRewardVault only');
 
     let liquidityLockerAddress = null;
     if (process.env.LP_TOKEN) {
@@ -452,7 +521,9 @@ async function main() {
         raceStaking: stakingAddress,
         raceParticipation: participationAddress,
         raceICO: raceIcoAddress,
+        ico: icoReserveAddress,
         raceRewardVault: rewardVaultAddress,
+        raceIncomeHold: incomeHoldAddress,
         raceCommunityEngine: communityEngineAddress,
         raceRewardPriceOracle: rewardPriceOracleAddress,
         raceRewardPool: rewardPoolAddress,
@@ -463,6 +534,8 @@ async function main() {
         partnershipsVesting: await partnershipsVesting.getAddress(),
         raceLiquidityLocker: liquidityLockerAddress,
         initialMint: '1000000',
+        icoAllocation: '600000',
+        lpAllocation: '400000',
         maxSupply: '150000000',
         icoAdminWallet,
         icoStakingEngine: communityEngineAddress,
@@ -516,10 +589,12 @@ async function main() {
         await (await raceCoin.transferOwnership(multiSigAddress)).wait();
         // RaceICO: startPhase / wallet / engine settings leave deployer EOA.
         await (await raceIco.transferOwnership(multiSigAddress)).wait();
+        await (await icoReserve.transferOwnership(multiSigAddress)).wait();
         // Vault: setEngine must not remain single-EOA after wiring.
         await (await rewardVault.transferOwnership(multiSigAddress)).wait();
+        await (await incomeHold.transferOwnership(multiSigAddress)).wait();
         console.log(
-            'Governance hardened: Engine/Oracle/Treasury/RaceCoin/ICO/Vault ownership → RaceMultiSig',
+            'Governance hardened: Engine/Oracle/Treasury/RaceCoin/ICO/Vault/IncomeHold ownership → RaceMultiSig',
         );
     } else {
         console.warn(
@@ -539,7 +614,13 @@ async function main() {
     const oracleOwner = await rewardPriceOracle.owner();
     const raceCoinOwner = await raceCoin.owner();
     const icoOwner = await raceIco.owner();
+    const icoReserveOwner = await icoReserve.owner();
+    const icoAdminOnChain = await icoReserve.admin();
     const vaultOwner = await rewardVault.owner();
+    const incomeHoldOwner = await incomeHold.owner();
+    const vaultIncomeHold = await rewardVault.incomeHold();
+    const engineIncomeHold = await communityEngine.incomeHold();
+    const incomeHoldAdmin = await incomeHold.adminWallet();
     const updaterIsActive = await rewardPriceOracle.isUpdater(oracleUpdater);
 
     const expectedOwner = hardenGovernance ? multiSigAddress : deployer.address;
@@ -576,8 +657,26 @@ async function main() {
     if (icoOwner.toLowerCase() !== expectedOwner.toLowerCase()) {
         throw new Error(`ASSERT FAIL: RaceICO.owner ${icoOwner} != ${expectedOwner}`);
     }
+    if (icoReserveOwner.toLowerCase() !== expectedOwner.toLowerCase()) {
+        throw new Error(`ASSERT FAIL: ICO.owner ${icoReserveOwner} != ${expectedOwner}`);
+    }
+    if (icoAdminOnChain.toLowerCase() !== icoAdminWallet.toLowerCase()) {
+        throw new Error(`ASSERT FAIL: ICO.admin ${icoAdminOnChain} != ${icoAdminWallet}`);
+    }
     if (vaultOwner.toLowerCase() !== expectedOwner.toLowerCase()) {
         throw new Error(`ASSERT FAIL: RaceRewardVault.owner ${vaultOwner} != ${expectedOwner}`);
+    }
+    if (incomeHoldOwner.toLowerCase() !== expectedOwner.toLowerCase()) {
+        throw new Error(`ASSERT FAIL: RaceIncomeHold.owner ${incomeHoldOwner} != ${expectedOwner}`);
+    }
+    if (vaultIncomeHold.toLowerCase() !== incomeHoldAddress.toLowerCase()) {
+        throw new Error(`ASSERT FAIL: Vault.incomeHold ${vaultIncomeHold} != ${incomeHoldAddress}`);
+    }
+    if (engineIncomeHold.toLowerCase() !== incomeHoldAddress.toLowerCase()) {
+        throw new Error(`ASSERT FAIL: Engine.incomeHold ${engineIncomeHold} != ${incomeHoldAddress}`);
+    }
+    if (incomeHoldAdmin.toLowerCase() !== icoAdminWallet.toLowerCase()) {
+        throw new Error(`ASSERT FAIL: IncomeHold.admin ${incomeHoldAdmin} != ${icoAdminWallet}`);
     }
     if (!updaterIsActive) {
         throw new Error(`ASSERT FAIL: Oracle updater ${oracleUpdater} not active`);
@@ -614,6 +713,7 @@ async function main() {
     console.log('RACECOIN OWNER:      ', raceCoinOwner);
     console.log('ICO OWNER:           ', icoOwner);
     console.log('VAULT OWNER:         ', vaultOwner);
+    console.log('INCOME HOLD:         ', incomeHoldAddress, '(admin fees →', incomeHoldAdmin, ')');
     console.log('MATURITY TREASURY:   ', engineTreasury, treasuryLocked ? '(LOCKED)' : '(UNLOCKED)');
     console.log('HARDEN_GOVERNANCE:   ', hardenGovernance);
     console.log('NOTE: Dev/Marketing/Ops RACE funding split of Expense ≤30M = PENDING BUSINESS APPROVAL');
@@ -655,10 +755,10 @@ async function main() {
     }
 
     console.log('\nNext steps:');
-    console.log('1. Mint model: ICO mints RACE on buy (USDT → ICO_ADMIN_WALLET); vault mints income to users.');
-    console.log('2. raceICO.startPhase(1) when ready to launch ICO (NOT auto-started).');
-    console.log('3. Set RACE_ICO_CONTRACT (+ optional ICO_ADMIN_WALLET) in Laravel .env and rebuild frontend.');
-    console.log('4. After ICO: Add RACE/USDT liquidity on PancakeSwap from deployer INITIAL_MINT balance.');
+    console.log('1. Total 10 lakh on admin wallet: deposit 6 lakh into ICO Contract; keep 4 lakh for LP.');
+    console.log('2. After ICO: add 4 lakh RACE + USDT on Pancake (from admin wallet).');
+    console.log('3. raceICO.startPhase(1) when ready to launch ICO (NOT auto-started).');
+    console.log('4. Set RACE_ICO_CONTRACT + ICO_CONTRACT + ICO_ADMIN_WALLET + RACE_INCOME_HOLD_CONTRACT in Laravel .env.');
     console.log('5. raceCoin.setFeeExempt(pairAddress, true)');
     console.log('6. Transfer LP tokens to RaceLiquidityLocker (deploy with LP_TOKEN or run lock-lp script).');
     console.log('7. Keep oracle price fresh via ORACLE_UPDATER (or Multisig) before claims/compounds.');

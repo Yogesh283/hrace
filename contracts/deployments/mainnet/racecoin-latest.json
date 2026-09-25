@@ -1,0 +1,11 @@
+{
+  "network": "bsc",
+  "chainId": 56,
+  "deployedAt": "2026-09-25T10:25:29.516Z",
+  "raceCoin": "0x093C8ebEdd1248f96E3dfbC4941059c3dbBb495C",
+  "maxSupply": "150000000",
+  "initialMint": "1000000",
+  "icoAdminWallet": "0x568B11c83A104c81c70cde58cCdbF4aa9c97b225",
+  "raceMultiSig": "0x46aC99282929bb95B4362Aa06CbbAdecEC3D2e4B",
+  "note": "ICO/Engine still point at previous token until core rewired or redeployed."
+}

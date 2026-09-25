@@ -88,10 +88,8 @@ export default function Deposit({
 
     const connectWallet = async () => {
         setWalletError(null);
-        if (typeof window === 'undefined' || !window.ethereum) {
-            setWalletError(
-                'No Web3 wallet detected. Install MetaMask or another EVM wallet.',
-            );
+        if (typeof window === 'undefined') {
+            setWalletError('Open this page in a browser, then connect any crypto wallet.');
             return;
         }
         setConnecting(true);
@@ -196,7 +194,7 @@ export default function Deposit({
                 <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
                     <PanelCard title="1 · Connect crypto wallet" icon="wallet">
                         <p className="mb-4 text-sm text-fintech-muted">
-                            Connect MetaMask or another EVM wallet on BNB Smart Chain. We store your public
+                            Connect any crypto wallet on BNB Smart Chain. We store your public
                             address for deposit verification and withdrawals.
                         </p>
                         {wallet ? (
@@ -292,7 +290,7 @@ export default function Deposit({
 
                 <PanelCard title="Recent deposits" icon="transactions" className="mt-6">
                     {deposit_entries.length === 0 ? (
-                        <p className="text-sm text-fintech-muted">No deposit transactions yet.</p>
+                        <p className="rx-empty">No deposit transactions yet.</p>
                     ) : (
                         <div className="space-y-3">
                             <div className="flex items-center justify-between gap-3 text-xs text-fintech-muted">

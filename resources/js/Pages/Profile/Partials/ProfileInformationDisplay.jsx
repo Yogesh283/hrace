@@ -16,7 +16,7 @@ function ReadOnlyField({ label, value, mono = false, emptyText = '—', hint = n
 
     return (
         <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-300">{label}</p>
             <p
                 className={`mt-1 rounded-xl border border-white/15 bg-[#0F172A]/55 px-3 py-2.5 text-sm text-slate-100 shadow-inner backdrop-blur-sm ${
                     mono ? 'break-all font-mono text-xs sm:text-sm' : 'font-medium'
@@ -24,7 +24,7 @@ function ReadOnlyField({ label, value, mono = false, emptyText = '—', hint = n
             >
                 {display}
             </p>
-            {hint ? <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">{hint}</p> : null}
+            {hint ? <p className="mt-1.5 text-[11px] leading-relaxed text-slate-300">{hint}</p> : null}
         </div>
     );
 }
@@ -60,7 +60,7 @@ export default function ProfileInformationDisplay({ profile = {}, className = ''
         <section className={className}>
             <header>
                 <h2 className="text-lg font-semibold text-white">Profile Information</h2>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-slate-300">
                     Your account details are read-only. Contact support if something needs to change.
                 </p>
             </header>

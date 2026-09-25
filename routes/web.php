@@ -178,6 +178,10 @@ Route::middleware(['auth'])->group(function () {
         ->middleware('throttle:10,1')
         ->name('participation.verify_onchain');
 
+    Route::post('/blockchain/sync-tx', [\App\Http\Controllers\BlockchainTxSyncController::class, 'sync'])
+        ->middleware('throttle:30,1')
+        ->name('blockchain.sync_tx');
+
     Route::get('/deposit', function (Request $request) {
         return Inertia::render('Deposit', [
             'depositAddress' => SiteSetting::depositAddressPayload(),

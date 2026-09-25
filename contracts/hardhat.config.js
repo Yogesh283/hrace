@@ -22,8 +22,9 @@ module.exports = {
             chainId: 31337,
         },
         bscTestnet: {
-            url: process.env.BSC_TESTNET_RPC || 'https://data-seed-prebsc-1-s1.binance.org:8545',
+            url: process.env.BSC_TESTNET_RPC || 'https://bsc-testnet-rpc.publicnode.com',
             chainId: 97,
+            timeout: 120_000,
             accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
         },
         bsc: {

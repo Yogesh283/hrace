@@ -71,8 +71,8 @@ export default function Register({
                             from your sponsor.
                         </li>
                         <li>
-                            <span className="font-semibold text-white">2.</span> Connect MetaMask (or another EVM
-                            wallet).
+                            <span className="font-semibold text-white">2.</span> Connect any crypto wallet on BNB
+                            Smart Chain.
                         </li>
                         <li>
                             <span className="font-semibold text-white">3.</span> Sign the message to create your
@@ -100,7 +100,7 @@ export default function Register({
                                 onChange={(e) => setJoinCode(normalizeJoinCode(e.target.value))}
                             />
                         </div>
-                        <p className="mt-1 text-[11px] text-slate-400 sm:text-xs">
+                        <p className="mt-1 text-[11px] text-slate-300 sm:text-xs">
                             {joinCodeLocked
                                 ? 'Join code locked from your invitation link.'
                                 : 'Required — use the registration link or code shared by your sponsor.'}

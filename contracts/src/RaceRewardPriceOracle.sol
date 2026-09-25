@@ -88,7 +88,7 @@ contract RaceRewardPriceOracle is Ownable, IRaceRewardPriceOracle {
         onlyOwner
     {
         if (minPriceUsdt_ == 0 || maxPriceUsdt_ < minPriceUsdt_) revert OracleBadConfig();
-        if (maxUpdateDeviationBps_ > BPS) revert OracleBadConfig();
+        if (maxUpdateDeviationBps_ == 0 || maxUpdateDeviationBps_ > BPS) revert OracleBadConfig();
         minPriceUsdt = minPriceUsdt_;
         maxPriceUsdt = maxPriceUsdt_;
         maxUpdateDeviationBps = maxUpdateDeviationBps_;

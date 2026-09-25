@@ -47,7 +47,7 @@ final class CommunityEngineRpcReader
             return null;
         }
 
-        $raw = strtolower(ltrim($hex, '0x'));
+        $raw = \App\Support\Hex::stripPrefix($hex);
         $words = [];
         for ($i = 0; $i < 8; $i++) {
             $slice = substr($raw, $i * 64, 64);

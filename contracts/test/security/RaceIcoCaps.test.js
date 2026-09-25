@@ -31,7 +31,9 @@ describe('Security: RaceICO allocation caps', function () {
         await vault.setEngine(await engine.getAddress());
         await ico.setStakingEngine(await engine.getAddress());
         await engine.setIcoContract(await ico.getAddress());
-        await race.setMinter(await ico.getAddress(), true);
+        await race.setMinter(owner.address, true);
+        await race.mint(await ico.getAddress(), ethers.parseEther('600000'));
+        await race.setMinter(owner.address, false);
         await ico.startPhase(1);
 
         const phaseCap = await ico.phaseUsdtCap(1);

@@ -72,11 +72,8 @@ const memberNav = [
     { routeKey: 'dashboard', label: 'Dashboard', iconKey: 'dashboard' },
     { routeKey: 'profile.edit', label: 'Profile', iconKey: 'profile.edit' },
     { routeKey: 'swap', label: 'Swap', iconKey: 'swap' },
-    { routeKey: 'governance', label: 'Governance', iconKey: 'leadership' },
-    { routeKey: 'deposit', label: 'Deposit (Race coin)', iconKey: 'deposit' },
     { routeKey: 'race-token', label: 'Race coin', iconKey: 'race-token' },
     { routeKey: 'ico', label: 'ICO', iconKey: 'isu' },
-    { routeKey: 'lending', label: 'Lending & Borrowing', iconKey: 'investment' },
     { routeKey: 'investment', label: 'Staking', iconKey: 'investment' },
     {
         routeKey: 'transactions',
@@ -107,7 +104,7 @@ const memberNav = [
     { routeKey: 'direct-team', label: 'Direct Team', iconKey: 'direct-team' },
     { routeKey: 'team', label: 'Total Team', iconKey: 'team' },
     { routeKey: 'transactions', label: 'Total Earnings', iconKey: 'transactions' },
-    { routeKey: 'withdrawal', label: 'Payouts', iconKey: 'withdrawal' },
+    { routeKey: 'withdrawal', label: 'Income wallet', iconKey: 'withdrawal' },
     { routeKey: 'wallet', label: 'Wallet', iconKey: 'wallet' },
     { routeKey: 'about', label: 'Support', iconKey: 'about' },
 ];
@@ -141,12 +138,12 @@ function MemberPopupModal() {
 
     return (
         <Modal show={open} onClose={close} maxWidth="md">
-            <div className="rounded-2xl border border-sky-200 bg-white p-6 text-fintech-ink shadow-lg">
-                <h3 className="text-lg font-semibold text-[#0F172A]">{title}</h3>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{message}</p>
+            <div className="p-5 sm:p-6">
+                <h3 className="font-poppins text-lg font-semibold text-white">{title}</h3>
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-200">{message}</p>
                 <button
                     type="button"
-                    className="mt-6 w-full rounded-xl border border-transparent bg-gradient-to-r from-[#2563EB] to-[#38BDF8] py-2.5 text-sm font-semibold text-white shadow-md hover:brightness-105"
+                    className="mt-6 min-h-[2.75rem] w-full rounded-xl border border-transparent bg-gradient-to-r from-[#1D4ED8] to-[#0369A1] py-2.5 text-sm font-semibold text-white shadow-md hover:brightness-110"
                     onClick={close}
                 >
                     OK
@@ -369,7 +366,7 @@ const ROUTE_TITLES = {
     'direct-team': 'Direct Team',
     team: 'Total Team',
     transactions: 'Total Earnings',
-    withdrawal: 'Payouts',
+    withdrawal: 'Income wallet',
     wallet: 'Wallet',
     about: 'Support',
     'self-hold': 'Self Hold',
@@ -394,7 +391,7 @@ export default function AuthenticatedLayout({
     children,
     pageTitle: pageTitleProp,
     memberSurface = 'race',
-    showMobileFintechNav = false,
+    showMobileFintechNav = true,
     mobileFintechPageTitle,
     /** Floating “Share referral link” FAB — only Dashboard should enable this. */
     showReferralFab = false,
@@ -402,6 +399,9 @@ export default function AuthenticatedLayout({
     const { auth, incomeHub } = usePage().props;
     const user = auth.user;
     const [open, setOpen] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(
+        () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
+    );
     const [fabCopied, setFabCopied] = useState(false);
     const pageTitle = usePageTitle(pageTitleProp);
     const isRaceShell =
@@ -423,6 +423,7 @@ export default function AuthenticatedLayout({
         if (typeof window === 'undefined') return undefined;
         const mq = window.matchMedia('(min-width: 1024px)');
         const onChange = (e) => {
+            setIsDesktop(e.matches);
             if (e.matches) setOpen(false);
         };
         mq.addEventListener?.('change', onChange);
@@ -486,7 +487,7 @@ export default function AuthenticatedLayout({
                     type="button"
                     onClick={() => setOpen(false)}
                     aria-label="Close menu"
-                    className="rounded-lg border border-white/10 bg-white/[0.06] p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-white lg:hidden"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] text-slate-200 transition hover:bg-white/10 hover:text-white lg:hidden"
                 >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -494,7 +495,10 @@ export default function AuthenticatedLayout({
                 </button>
             </div>
 
-            <nav className="relative flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain py-0.5">
+            <nav
+                className="relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain py-0.5"
+                aria-label="Member menu"
+            >
                 {memberNav.map((item, idx) => {
                     const active = navActive(item);
                     const href = navHref(item);
@@ -503,10 +507,11 @@ export default function AuthenticatedLayout({
                             key={`${item.iconKey}-${item.label}-${idx}`}
                             href={href}
                             onClick={() => setOpen(false)}
-                            className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 text-[0.8125rem] font-semibold leading-tight transition ${
+                            aria-current={active ? 'page' : undefined}
+                            className={`group flex min-h-[2.5rem] items-center gap-2 rounded-lg px-2 py-1.5 text-[0.8125rem] font-semibold leading-tight transition ${
                                 active
                                     ? 'bg-[#2563EB]/25 text-white shadow-[inset_0_0_0_1px_rgba(56,189,248,0.3)]'
-                                    : 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                                    : 'text-slate-200 hover:bg-white/[0.06] hover:text-white'
                             }`}
                         >
                             <span
@@ -534,7 +539,7 @@ export default function AuthenticatedLayout({
                     href={routeHref('logout')}
                     method="post"
                     as="button"
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-red-500/70 bg-red-600 px-2 py-2 text-xs font-semibold text-white shadow-[0_4px_14px_-4px_rgba(220,38,38,0.55)] transition hover:border-red-400 hover:bg-red-500 active:bg-red-700"
+                    className="flex min-h-[2.75rem] w-full items-center justify-center gap-1.5 rounded-lg border border-red-500/70 bg-red-600 px-2 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_-4px_rgba(220,38,38,0.55)] transition hover:border-red-400 hover:bg-red-500 active:bg-red-700"
                 >
                     <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden>
                         <path
@@ -554,9 +559,9 @@ export default function AuthenticatedLayout({
             <Link
                 href={routeHref('profile.edit')}
                 aria-label="Settings"
-                className="hidden min-[380px]:inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#2563EB]/30 bg-[#0F172A]/80 text-slate-300 shadow-sm transition hover:border-[#38BDF8]/40 hover:text-white sm:h-10 sm:w-10 sm:rounded-xl"
+                className="hidden min-[380px]:inline-flex h-11 w-11 items-center justify-center rounded-xl border border-[#2563EB]/30 bg-[#0F172A]/80 text-slate-200 shadow-sm transition hover:border-[#38BDF8]/40 hover:text-white"
             >
-                <svg className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} aria-hidden>
                     <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -569,9 +574,11 @@ export default function AuthenticatedLayout({
                 <Dropdown.Trigger>
                     <button
                         type="button"
-                        className="flex items-center gap-1.5 rounded-xl border border-[#2563EB]/30 bg-[#0F172A]/80 py-1 pl-1 pr-1.5 shadow-sm transition hover:border-[#38BDF8]/35 sm:gap-2.5 sm:rounded-2xl sm:py-1.5 sm:pl-1.5 sm:pr-3"
+                        aria-label="Account menu"
+                        aria-haspopup="menu"
+                        className="flex min-h-[2.75rem] items-center gap-1.5 rounded-xl border border-[#2563EB]/30 bg-[#0F172A]/80 py-1 pl-1 pr-1.5 shadow-sm transition hover:border-[#38BDF8]/35 sm:gap-2.5 sm:rounded-2xl sm:py-1.5 sm:pl-1.5 sm:pr-3"
                     >
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#2563EB] to-[#38BDF8] text-[0.65rem] font-bold text-white sm:h-9 sm:w-9 sm:rounded-xl sm:text-xs">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#1D4ED8] to-[#2563EB] text-xs font-bold text-white sm:rounded-xl">
                             {initials}
                         </span>
                         <span className="hidden min-w-0 text-left md:block">
@@ -608,9 +615,9 @@ export default function AuthenticatedLayout({
             {open ? (
                 <button
                     type="button"
-                    className={`fixed inset-x-0 bottom-0 z-[90] bg-[#0F172A]/45 backdrop-blur-[6px] lg:hidden ${
+                    className={`fixed inset-x-0 bottom-0 z-[90] bg-[#020617]/60 backdrop-blur-[6px] lg:hidden ${
                         showMobileFintechNav
-                            ? 'top-[calc(5.85rem+env(safe-area-inset-top,0px))]'
+                            ? 'top-[calc(4.1rem+env(safe-area-inset-top,0px))]'
                             : 'top-0'
                     }`}
                     aria-label="Close menu"
@@ -621,7 +628,7 @@ export default function AuthenticatedLayout({
             <aside
                 className={`fixed bottom-0 left-0 z-[100] max-w-[min(100vw-1rem,${SIDEBAR_W}px)] transition-transform duration-300 ease-out lg:inset-y-0 lg:top-0 lg:max-w-none lg:translate-x-0 ${
                     showMobileFintechNav
-                        ? 'top-[calc(5.85rem+env(safe-area-inset-top,0px))]'
+                        ? 'top-[calc(4.1rem+env(safe-area-inset-top,0px))]'
                         : 'top-0'
                 } ${
                     open
@@ -629,7 +636,9 @@ export default function AuthenticatedLayout({
                         : '-translate-x-full pointer-events-none lg:pointer-events-auto lg:translate-x-0'
                 }`}
                 style={{ width: SIDEBAR_W }}
-                aria-hidden={!open}
+                id="member-sidebar"
+                aria-hidden={!open && !isDesktop ? true : undefined}
+                inert={!open && !isDesktop ? '' : undefined}
             >
                 {sidebar}
             </aside>
@@ -642,7 +651,6 @@ export default function AuthenticatedLayout({
                     initials={initials}
                     profileHref={routeHref('profile.edit')}
                     logoutHref={routeHref('logout')}
-                    dropdownSurface={dropdownSurface}
                 />
             ) : null}
 
@@ -677,7 +685,7 @@ export default function AuthenticatedLayout({
                         }
                         ${
                             showReferralFab && showMobileFintechNav
-                                ? `#referral-fab { bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px)) !important; }`
+                                ? `#referral-fab { bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)) !important; }`
                                 : ''
                         }
                     }
@@ -701,7 +709,7 @@ export default function AuthenticatedLayout({
                         <>
                             <button
                                 type="button"
-                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#2563EB]/30 bg-[#0F172A]/80 text-slate-200 shadow-sm transition hover:border-[#38BDF8]/40 active:scale-[0.98] sm:h-10 sm:w-10 sm:rounded-xl"
+                                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#2563EB]/30 bg-[#0F172A]/80 text-slate-100 shadow-sm transition hover:border-[#38BDF8]/40 active:scale-[0.98]"
                                 onClick={() => setOpen((v) => !v)}
                                 aria-expanded={open}
                                 aria-label={open ? 'Close menu' : 'Open menu'}
@@ -741,8 +749,8 @@ export default function AuthenticatedLayout({
                     id="member-main"
                     className={`relative mx-auto w-full max-w-[100vw] px-2.5 sm:px-5 lg:max-w-none lg:px-8 lg:pb-10 lg:pt-[calc(6rem+env(safe-area-inset-top,0px))] ${
                         showMobileFintechNav
-                            ? 'pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(6.75rem+env(safe-area-inset-top,0px))] sm:pb-[calc(8.5rem+env(safe-area-inset-bottom,0px))] sm:pt-[calc(7rem+env(safe-area-inset-top,0px))]'
-                            : 'pb-24 pt-[calc(3.5rem+env(safe-area-inset-top,0px)+0.25rem)] sm:pt-[calc(4rem+env(safe-area-inset-top,0px)+0.25rem)] lg:pb-10'
+                            ? 'pb-[calc(var(--rx-ds-bottomnav-h)+1.5rem+env(safe-area-inset-bottom,0px))] pt-[calc(5rem+env(safe-area-inset-top,0px))] sm:pt-[calc(5.5rem+env(safe-area-inset-top,0px))]'
+                            : 'pb-12 pt-[calc(3.5rem+env(safe-area-inset-top,0px)+1rem)] sm:pt-[calc(4rem+env(safe-area-inset-top,0px)+1.25rem)] lg:pb-10'
                     }`}
                 >
                     <div className="mx-auto w-full min-w-0 max-w-[1600px]">
@@ -762,7 +770,7 @@ export default function AuthenticatedLayout({
                         type="button"
                         disabled={!referralLink}
                         onClick={copyReferral}
-                        className={`flex w-full max-w-md items-center justify-center gap-1.5 rounded-full border border-[#2563EB]/20 bg-gradient-to-r from-[#2563EB] to-[#38BDF8] px-3 py-2 text-[11px] font-semibold text-white shadow-[0_12px_32px_-8px_rgba(37,99,235,0.45)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-xs lg:w-auto lg:max-w-none lg:px-5 lg:py-3 lg:text-sm ${
+                        className={`flex w-full max-w-md items-center justify-center gap-1.5 rounded-full border border-[#2563EB]/20 bg-gradient-to-r from-[#2563EB] to-[#38BDF8] px-3 py-2 text-[11px] font-semibold text-white shadow-[0_12px_32px_-8px_rgba(37,99,235,0.45)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-xs lg:w-auto lg:max-w-none lg:px-5 lg:py-3 lg:text-sm ${
                             showMobileFintechNav ? 'max-lg:hidden lg:flex' : ''
                         }`}
                     >

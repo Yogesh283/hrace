@@ -87,6 +87,7 @@ export default {
                 'rx-shimmer': 'rx-shimmer 2.4s linear infinite',
                 'rx-spin-slow': 'rx-spin 26s linear infinite',
                 'rx-grid-drift': 'rx-grid-drift 60s linear infinite',
+                'ico-pop': 'ico-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)',
             },
             keyframes: {
                 'rx-orb': {
@@ -111,6 +112,10 @@ export default {
                 'rx-grid-drift': {
                     '0%': { transform: 'translate3d(0,0,0)' },
                     '100%': { transform: 'translate3d(-56px,-56px,0)' },
+                },
+                'ico-pop': {
+                    '0%': { transform: 'scale(0.6)', opacity: '0' },
+                    '100%': { transform: 'scale(1)', opacity: '1' },
                 },
             },
         },

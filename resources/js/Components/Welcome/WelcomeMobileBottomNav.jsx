@@ -115,11 +115,11 @@ export default function WelcomeMobileBottomNav() {
                                     key={item.id}
                                     href={item.href}
                                     onClick={() => setActiveId(item.id)}
-                                    className="group relative flex min-h-[52px] min-w-0 flex-col items-center justify-end px-0.5 pb-0.5 pt-1.5 font-poppins transition duration-200 active:scale-95"
+                                    className="group relative flex min-h-[58px] min-w-0 flex-col items-center justify-end px-0.5 pb-1 pt-1.5 font-poppins transition duration-200 active:scale-95"
                                     aria-current={active ? 'page' : undefined}
                                 >
                                     <span
-                                        className={`relative flex h-9 w-9 items-center justify-center rounded-2xl transition-all duration-300 sm:h-10 sm:w-10 ${
+                                        className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all duration-300 sm:h-11 sm:w-11 ${
                                             active
                                                 ? isCta
                                                     ? 'bg-gradient-to-br from-[#F59E0B] to-[#FBBF24] text-[#0B0B0B] shadow-[0_8px_22px_-6px_rgba(245,158,11,0.7),inset_0_1px_0_rgba(255,255,255,0.35)] ring-2 ring-[#FBBF24]/70'
@@ -152,14 +152,14 @@ export default function WelcomeMobileBottomNav() {
                                     />
 
                                     <span
-                                        className={`mt-0.5 max-w-full truncate text-[9px] font-semibold leading-none tracking-wide sm:text-[10px] ${
+                                        className={`mt-0.5 max-w-full truncate text-[10px] font-semibold leading-none tracking-wide sm:text-[11px] ${
                                             active
                                                 ? isCta
                                                     ? 'font-bold text-[#FCD34D]'
                                                     : 'font-bold text-sky-200'
                                                 : isCta
                                                   ? 'text-[#F59E0B]'
-                                                  : 'text-slate-400 group-hover:text-sky-300'
+                                                  : 'text-slate-300 group-hover:text-sky-200'
                                         }`}
                                     >
                                         {item.label}
