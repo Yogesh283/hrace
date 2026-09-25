@@ -31,6 +31,11 @@ class IcoContractSettingsScreen extends Screen
 
         $status = $this->onChainStatus($raceToken, $icoContract, $adminWallet, $raceIco);
 
+        $multisig = (string) config('blockchain.contracts.multisig', '');
+        if ($multisig === '') {
+            $multisig = '0x46aC99282929bb95B4362Aa06CbbAdecEC3D2e4B';
+        }
+
         return [
             'ico_contract' => $icoContract,
             'race_ico_contract' => $raceIco,
@@ -38,6 +43,14 @@ class IcoContractSettingsScreen extends Screen
             'income_hold' => SiteSetting::incomeHoldAddress(),
             'race_token' => $raceToken,
             'chain_id' => $chainId,
+            'multisig_contract' => $multisig,
+            'multisig_signers' => [
+                '0xCc2B87f8E8AABc295e1119E186c3021bA6F32339',
+                '0x8B2Ac41931d4869E7a53144BaF5C1fa052E8Df24',
+                '0xDE64cA155dEb48B459360FB8E3c4e7167Bfeb150',
+                '0xE9db9ea0fC494fB1Fc743DAfD5a0a436cA19EECA',
+                '0x71DDFC006c21756DF7b07fB4357f6F6B33CE11f9',
+            ],
             'allocation_race' => '600000',
             'admin_race' => $status['admin_race'],
             'contract_race' => $status['contract_race'],

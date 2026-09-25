@@ -24,12 +24,29 @@
 </div>
 
 <div class="bg-white rounded shadow-sm p-4 mb-3">
-    <h5 class="mb-2">{{ __('Start ICO (Phase 1)') }}</h5>
-    <p class="small text-muted">{{ __('Connect the RaceICO owner wallet in MetaMask (deployer, or a wallet that can confirm Multisig). This opens Phase 1 so members can buy. Deposit 6 lakh RACE into ICO Contract first.') }}</p>
+    <h5 class="mb-2">{{ __('Start ICO (Phase 1) — TokenPocket') }}</h5>
+    <ol class="small mb-3">
+        <li>{{ __('TokenPocket mein BNB Smart Chain kholo. Admin wallet nahi — neeche wale 5 Multisig accounts mein se koi 3.') }}</li>
+        <li>{{ __('Pehle account se “1. Submit Phase 1” dabao. Confirm karo. Contract Multisig hona chahiye, RaceICO nahi.') }}</li>
+        <li>{{ __('TokenPocket mein dusra account switch karo, “2. Confirm Phase 1” dabao.') }}</li>
+        <li>{{ __('Teesra account switch karo, phir “2. Confirm Phase 1” dabao. 3rd confirm par Phase 1 start ho jayega.') }}</li>
+    </ol>
+    <p class="small mb-2"><strong>{{ __('Multisig contract') }}:</strong> <code class="user-select-all">{{ $multisig_contract }}</code></p>
+    <p class="small mb-2"><strong>{{ __('Use these 5 wallets only') }}:</strong></p>
+    <ul class="small mb-3">
+        @foreach ($multisig_signers ?? [] as $signer)
+            <li><code class="user-select-all">{{ $signer }}</code></li>
+        @endforeach
+    </ul>
     <p class="small mb-2" id="ico-start-status"></p>
-    <button type="button" class="btn btn-success" id="ico-start-btn">
-        {{ __('Start Phase 1') }}
-    </button>
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-success" id="ico-start-btn">
+            {{ __('1. Submit Phase 1') }}
+        </button>
+        <button type="button" class="btn btn-outline-success" id="ico-confirm-btn">
+            {{ __('2. Confirm Phase 1') }}
+        </button>
+    </div>
 </div>
 
 <div class="bg-white rounded shadow-sm p-4 mb-3">
@@ -135,41 +152,108 @@
     }
 
     const startBtn = document.getElementById('ico-start-btn');
+    const confirmBtn = document.getElementById('ico-confirm-btn');
     const startStatus = document.getElementById('ico-start-status');
     const startSel = '0x1c9ed381';
+    const submitSel = 'c6427474';
+    const confirmSel = 'c01a8c84';
+    const txCountSel = '0xb77bf600';
+    const isSignerSel = '0x7df73e27';
+    const multiSig = @json($multisig_contract ?? '');
+    const signers = (@json($multisig_signers ?? [])).map((s) => String(s).toLowerCase());
+
     function setStartStatus(msg) {
         if (startStatus) startStatus.textContent = msg;
     }
+
+    function encodeSubmit(to, innerData) {
+        const raw = String(innerData || '').replace(/^0x/, '');
+        const padBytes = (32 - ((raw.length / 2) % 32)) % 32;
+        return '0x' + submitSel + padAddr(to) + padUint(0) + padUint(96) + padUint(raw.length / 2) + raw + '00'.repeat(padBytes);
+    }
+
+    async function connectSigner() {
+        if (!window.ethereum) {
+            throw new Error(@json(__('TokenPocket / MetaMask not found. Open this page inside TokenPocket DApp browser.')));
+        }
+        if (!raceIco || !multiSig) {
+            throw new Error(@json(__('Save RaceICO and Multisig addresses first.')));
+        }
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        const from = (accounts[0] || '').toLowerCase();
+        const liveChain = await window.ethereum.request({ method: 'eth_chainId' });
+        if (Number(liveChain) !== chainId) {
+            await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: toHexChain(chainId) }],
+            });
+        }
+        if (!signers.includes(from)) {
+            throw new Error(@json(__('Wrong wallet. In TokenPocket switch to one of the 5 Multisig signer accounts. Not the admin USDT wallet.')));
+        }
+        const signerHex = await window.ethereum.request({
+            method: 'eth_call',
+            params: [{ to: multiSig, data: isSignerSel + padAddr(from) }, 'latest'],
+        });
+        if (BigInt(signerHex || '0x0') !== 1n) {
+            throw new Error(@json(__('This account is not a Multisig signer on-chain.')));
+        }
+        return from;
+    }
+
     if (startBtn) {
         startBtn.addEventListener('click', async function () {
             try {
-                if (!window.ethereum) {
-                    setStartStatus(@json(__('MetaMask not found.')));
-                    return;
-                }
-                if (!raceIco) {
-                    setStartStatus(@json(__('Save RaceICO sale contract first.')));
-                    return;
-                }
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                const from = (accounts[0] || '').toLowerCase();
-                const liveChain = await window.ethereum.request({ method: 'eth_chainId' });
-                if (Number(liveChain) !== chainId) {
-                    await window.ethereum.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: toHexChain(chainId) }],
-                    });
-                }
-                setStartStatus(@json(__('Starting Phase 1…')));
+                const from = await connectSigner();
+                setStartStatus(@json(__('Submitting Phase 1 to Multisig… Confirm in TokenPocket. To address must be Multisig, not RaceICO.')));
+                const inner = startSel + padUint(1);
                 const tx = await window.ethereum.request({
                     method: 'eth_sendTransaction',
                     params: [{
                         from: from,
-                        to: raceIco,
-                        data: startSel + padUint(1),
+                        to: multiSig,
+                        data: encodeSubmit(raceIco, inner),
                     }],
                 });
-                setStartStatus(@json(__('Start submitted:')) + ' ' + tx);
+                const countHex = await window.ethereum.request({
+                    method: 'eth_call',
+                    params: [{ to: multiSig, data: txCountSel }, 'latest'],
+                });
+                const txId = (BigInt(countHex || '0x0') - 1n).toString();
+                window.localStorage.setItem('race.multisig.phase1.txId', txId);
+                setStartStatus(@json(__('Submit OK. Now switch TokenPocket to a SECOND signer and tap Confirm Phase 1. Tx:')) + ' ' + tx + ' · id ' + txId);
+            } catch (err) {
+                setStartStatus(err && err.message ? err.message : String(err));
+            }
+        });
+    }
+
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async function () {
+            try {
+                const from = await connectSigner();
+                let txId = window.localStorage.getItem('race.multisig.phase1.txId');
+                if (txId == null || txId === '') {
+                    const countHex = await window.ethereum.request({
+                        method: 'eth_call',
+                        params: [{ to: multiSig, data: txCountSel }, 'latest'],
+                    });
+                    const count = BigInt(countHex || '0x0');
+                    if (count <= 0n) {
+                        throw new Error(@json(__('No Multisig tx yet. First tap Submit Phase 1 from one signer.')));
+                    }
+                    txId = (count - 1n).toString();
+                }
+                setStartStatus(@json(__('Confirming Phase 1… Confirm in TokenPocket.')) + ' id ' + txId);
+                const tx = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: from,
+                        to: multiSig,
+                        data: '0x' + confirmSel + padUint(txId),
+                    }],
+                });
+                setStartStatus(@json(__('Confirm sent. Switch to the NEXT signer and tap Confirm again until 3 confirms. Tx:')) + ' ' + tx);
             } catch (err) {
                 setStartStatus(err && err.message ? err.message : String(err));
             }
