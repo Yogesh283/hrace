@@ -1,6 +1,5 @@
 import IcoPhaseProgress from '@/Components/Ico/IcoPhaseProgress';
 import PanelCard from '@/Components/PanelCard';
-import Web3NetworkBanner from '@/Components/Web3NetworkBanner';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import PrimaryButton from '@/Components/PrimaryButton';
@@ -219,15 +218,7 @@ export default function Isu({
         });
     }, [expectedChainId, usdtContract, rpcUrl]);
 
-    const {
-        chainOk,
-        switching: networkSwitching,
-        networkError: networkSwitchError,
-        switchNetwork,
-        connectWallet: connectWalletOnNetwork,
-        connectedLabel,
-        switchButtonLabel,
-    } = useWalletNetwork({ expectedChainId });
+    const { chainOk, switchNetwork } = useWalletNetwork({ expectedChainId });
 
     useEffect(() => {
         if (!import.meta.env.DEV) {
@@ -259,7 +250,6 @@ export default function Isu({
     ]);
 
     const [walletAddress, setWalletAddress] = useState(boundWallet);
-    const [connecting, setConnecting] = useState(false);
     const [amountUsd, setAmountUsd] = useState('100');
     const [planId, setPlanId] = useState('180');
     const [busy, setBusy] = useState('');
@@ -535,19 +525,11 @@ export default function Isu({
         notifySuccess(msg, 'ICO');
     };
 
-    const connectWallet = async () => {
-        setConnecting(true);
-        setError('');
-        try {
-            const address = await connectWalletOnNetwork();
-            setWalletAddress(address);
-            showIcoSuccess(`Wallet connected: ${address.slice(0, 6)}…${address.slice(-4)}`);
-        } catch (err) {
-            showIcoError(err);
-        } finally {
-            setConnecting(false);
+    useEffect(() => {
+        if (boundWallet) {
+            setWalletAddress(boundWallet);
         }
-    };
+    }, [boundWallet]);
 
     const ensureNetworkForTx = async () => {
         if (chainOk) {
@@ -814,18 +796,6 @@ export default function Isu({
                     bannerSrc={RACE_BANNER_STAKING}
                 />
 
-                {walletAddress ? (
-                    <Web3NetworkBanner
-                        className="mt-4"
-                        chainOk={chainOk}
-                        connectedLabel={connectedLabel}
-                        switchButtonLabel={switchButtonLabel}
-                        switching={networkSwitching}
-                        networkError={networkSwitchError}
-                        onSwitch={switchNetwork}
-                    />
-                ) : null}
-
                 <IcoPhaseProgress
                     phases={phases}
                     currentPhaseId={currentPhaseId}
@@ -839,18 +809,11 @@ export default function Isu({
                 <div id="ico-buy" className="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-2">
                     <PanelCard title="Buy RACE">
                         <div className="space-y-4">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                    <p className="text-xs uppercase text-slate-400">Wallet</p>
-                                    <p className="font-mono text-sm text-slate-100">
-                                        {walletAddress ? shortenAddress(walletAddress) : 'Not connected'}
-                                    </p>
-                                </div>
-                                {!boundWallet ? (
-                                    <PrimaryButton type="button" onClick={connectWallet} disabled={connecting || networkSwitching}>
-                                        {connecting || networkSwitching ? 'Connecting…' : 'Connect wallet'}
-                                    </PrimaryButton>
-                                ) : null}
+                            <div>
+                                <p className="text-xs uppercase text-slate-400">Wallet</p>
+                                <p className="font-mono text-sm text-slate-100">
+                                    {walletAddress ? shortenAddress(walletAddress) : 'Not connected'}
+                                </p>
                             </div>
 
                             <InfoRow

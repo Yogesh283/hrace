@@ -1,7 +1,6 @@
 import {
     configureWeb3Network,
     connectWalletWithNetwork,
-    ensureBscNetworkQuietOnce,
     getActiveChainId,
     isChainIdMatch,
     isTestnetMode,
@@ -78,22 +77,6 @@ export function useWalletNetwork({ expectedChainId } = {}) {
                 onAccountsChanged: refreshChain,
             });
             await refreshChain();
-            if (cancelled || !boundWallet || !getWalletProvider()) {
-                return;
-            }
-            try {
-                const hex = await readWalletChainIdHex();
-                if (!isChainIdMatch(hex, targetChainId)) {
-                    await ensureBscNetworkQuietOnce(targetChainId);
-                    if (!cancelled) {
-                        await refreshChain();
-                    }
-                }
-            } catch {
-                if (!cancelled) {
-                    await refreshChain();
-                }
-            }
         }
 
         boot();

@@ -509,31 +509,26 @@ export async function connectWalletForAuth() {
     }
     requireEthereum();
 
-    showWalletPending('Connect / unlock your wallet…');
-    try {
-        const address = await readPreferredAccount(readWalletSession()?.address || '');
-        if (!address) {
-            throw new Error('No account returned from the wallet.');
-        }
-        rememberWalletChoice(picked, address);
-
-        let chainIdHex = '';
-        try {
-            chainIdHex = await readWalletChainIdHex();
-        } catch {
-            chainIdHex = '';
-        }
-
-        debugLog({
-            phase: 'auth-connect',
-            walletAddress: address,
-            currentChainId: chainIdHex,
-        });
-
-        return { address, chainIdHex };
-    } finally {
-        hideWalletPending();
+    const address = await readPreferredAccount(readWalletSession()?.address || '');
+    if (!address) {
+        throw new Error('No account returned from the wallet.');
     }
+    rememberWalletChoice(picked, address);
+
+    let chainIdHex = '';
+    try {
+        chainIdHex = await readWalletChainIdHex();
+    } catch {
+        chainIdHex = '';
+    }
+
+    debugLog({
+        phase: 'auth-connect',
+        walletAddress: address,
+        currentChainId: chainIdHex,
+    });
+
+    return { address, chainIdHex };
 }
 
 /**
@@ -555,47 +550,37 @@ export async function connectWalletWithNetwork(chainIdOverride, options = {}) {
     requireEthereum();
     const targetChainId = resolveChainId(chainIdOverride);
 
-    const alreadyKnown = Boolean(boundAddress || hasWalletSession());
-    if (!alreadyKnown) {
-        showWalletPending('Connect / unlock your wallet…');
+    const address = await readPreferredAccount(boundAddress);
+    if (!address) {
+        throw new Error('No account returned from the wallet.');
     }
+    rememberWalletChoice(picked, address);
+
+    debugLog({
+        phase: 'connect-accounts',
+        walletAddress: address,
+        targetChainId: chainIdToHex(targetChainId),
+    });
+
+    let chainIdHex = '';
     try {
-        const address = await readPreferredAccount(boundAddress);
-        if (!address) {
-            throw new Error('No account returned from the wallet.');
-        }
-        rememberWalletChoice(picked, address);
-
-        debugLog({
-            phase: 'connect-accounts',
-            walletAddress: address,
-            targetChainId: chainIdToHex(targetChainId),
-        });
-
-        let currentHex = '';
-        try {
-            currentHex = await readWalletChainIdHex();
-        } catch {
-            currentHex = '';
-        }
-
-        let chainIdHex = currentHex;
-        if (!isChainIdMatch(currentHex, targetChainId)) {
-            showWalletPending('Switch network in your wallet if asked…');
-            ({ chainIdHex } = await ensureBscNetwork(targetChainId));
-        }
-
-        debugLog({
-            phase: 'connect-success',
-            walletAddress: address,
-            currentChainId: chainIdHex,
-            targetChainId: chainIdToHex(targetChainId),
-        });
-
-        return { address, chainIdHex };
-    } finally {
-        hideWalletPending();
+        chainIdHex = await readWalletChainIdHex();
+    } catch {
+        chainIdHex = '';
     }
+
+    if (options.enforceNetwork && !isChainIdMatch(chainIdHex, targetChainId)) {
+        ({ chainIdHex } = await ensureBscNetwork(targetChainId));
+    }
+
+    debugLog({
+        phase: 'connect-success',
+        walletAddress: address,
+        currentChainId: chainIdHex,
+        targetChainId: chainIdToHex(targetChainId),
+    });
+
+    return { address, chainIdHex };
 }
 
 /**
