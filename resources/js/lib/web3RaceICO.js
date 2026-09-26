@@ -95,11 +95,31 @@ function padAddress(address) {
 }
 
 function padUint256(value) {
-    return BigInt(value).toString(16).padStart(64, '0');
+    return hexToBigInt(value).toString(16).padStart(64, '0');
 }
 
 function padUint8(value) {
-    return BigInt(value).toString(16).padStart(64, '0');
+    return hexToBigInt(value).toString(16).padStart(64, '0');
+}
+
+/** Wallet/RPC often returns empty "0x"; BigInt("0x") throws. */
+function normalizeEthHex(hex) {
+    const n = String(hex ?? '').trim();
+    if (!n || n === '0x' || n === '0X') {
+        return '0x0';
+    }
+    return n;
+}
+
+function hexToBigInt(value) {
+    if (typeof value === 'bigint') return value;
+    if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.trunc(value));
+    const n = normalizeEthHex(value);
+    try {
+        return BigInt(n);
+    } catch {
+        return 0n;
+    }
 }
 
 async function ethCall({ to, data, rpcUrl }) {
@@ -109,7 +129,7 @@ async function ethCall({ to, data, rpcUrl }) {
                 method: 'eth_call',
                 params: [{ to, data }, 'latest'],
             });
-            return result || '0x0';
+            return normalizeEthHex(result);
         } catch {
             // fall through to RPC
         }
@@ -126,7 +146,7 @@ async function ethCall({ to, data, rpcUrl }) {
         }),
     });
     const payload = await response.json();
-    return payload?.result || '0x0';
+    return normalizeEthHex(payload?.result);
 }
 
 function word(hex, index) {
@@ -255,6 +275,9 @@ export function friendlyIcoError(err) {
     if (lower.includes('transaction failed on chain')) {
         return msg;
     }
+    if (lower.includes('cannot convert 0x') || lower.includes('convert 0x to a bigint')) {
+        return 'Could not read ICO from the wallet RPC. Stay on BNB Smart Chain and refresh.';
+    }
     if (isLikelyWrongNetworkError(msg)) {
         return friendlyNetworkSwitchMessage(getActiveChainId());
     }
@@ -274,17 +297,17 @@ export async function readIcoAdminWallet({ icoContract, rpcUrl }) {
 
 export async function readIcoCurrentPhase({ icoContract, rpcUrl }) {
     if (!icoContract) return 0;
-    return Number(BigInt(await ethCall({ to: icoContract, data: SELECTORS.getCurrentPhase, rpcUrl })));
+    return Number(hexToBigInt(await ethCall({ to: icoContract, data: SELECTORS.getCurrentPhase, rpcUrl })));
 }
 
 export async function readIcoCompleted({ icoContract, rpcUrl }) {
     if (!icoContract) return false;
-    return BigInt(await ethCall({ to: icoContract, data: SELECTORS.icoCompleted, rpcUrl })) === 1n;
+    return hexToBigInt(await ethCall({ to: icoContract, data: SELECTORS.icoCompleted, rpcUrl })) === 1n;
 }
 
 export async function readTotalIcoSold({ icoContract, rpcUrl }) {
     if (!icoContract) return 0n;
-    return BigInt(await ethCall({ to: icoContract, data: SELECTORS.totalICOSold, rpcUrl }));
+    return hexToBigInt(await ethCall({ to: icoContract, data: SELECTORS.totalICOSold, rpcUrl }));
 }
 
 export async function readIcoPhase({ icoContract, phaseId, rpcUrl }) {
@@ -303,19 +326,19 @@ export async function readAllIcoPhases({ icoContract, rpcUrl }) {
 export async function quoteIcoRaceOut({ icoContract, phaseId, usdtAmount, rpcUrl }) {
     const amountWei = parseTokenAmount(usdtAmount, 18);
     const data = SELECTORS.quoteRaceOut + padUint8(phaseId) + padUint256(amountWei);
-    return BigInt(await ethCall({ to: icoContract, data, rpcUrl }));
+    return hexToBigInt(await ethCall({ to: icoContract, data, rpcUrl }));
 }
 
 export async function readErc20Allowance({ token, owner, spender, rpcUrl }) {
     if (!token || !owner || !spender) return 0n;
     const data = SELECTORS.allowance + padAddress(owner) + padAddress(spender);
-    return BigInt(await ethCall({ to: token, data, rpcUrl }));
+    return hexToBigInt(await ethCall({ to: token, data, rpcUrl }));
 }
 
 export async function readErc20BalanceOf({ token, wallet, rpcUrl }) {
     if (!token || !wallet) return 0n;
     const data = SELECTORS.balanceOf + padAddress(wallet);
-    return BigInt(await ethCall({ to: token, data, rpcUrl }));
+    return hexToBigInt(await ethCall({ to: token, data, rpcUrl }));
 }
 
 export async function readUserIcoAllocation({ icoContract, wallet, rpcUrl }) {
@@ -377,7 +400,7 @@ export async function approveUsdtForIco({
 
 export async function readUserHeldRace({ icoContract, wallet, rpcUrl }) {
     if (!wallet || !icoContract) return 0n;
-    return BigInt(
+    return hexToBigInt(
         await ethCall({ to: icoContract, data: SELECTORS.userHeldRace + padAddress(wallet), rpcUrl }),
     );
 }
@@ -385,7 +408,7 @@ export async function readUserHeldRace({ icoContract, wallet, rpcUrl }) {
 export async function readPendingStakeCount({ icoContract, wallet, rpcUrl }) {
     if (!wallet || !icoContract) return 0;
     return Number(
-        BigInt(
+        hexToBigInt(
             await ethCall({
                 to: icoContract,
                 data: SELECTORS.pendingStakeCount + padAddress(wallet),
@@ -397,7 +420,7 @@ export async function readPendingStakeCount({ icoContract, wallet, rpcUrl }) {
 
 export async function readIcoEndPriceUsdt({ icoContract, rpcUrl }) {
     if (!icoContract) return 0n;
-    return BigInt(await ethCall({ to: icoContract, data: SELECTORS.icoEndPriceUsdt, rpcUrl }));
+    return hexToBigInt(await ethCall({ to: icoContract, data: SELECTORS.icoEndPriceUsdt, rpcUrl }));
 }
 
 /**

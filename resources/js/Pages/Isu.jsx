@@ -456,8 +456,15 @@ export default function Isu({
                 }
             }
         } catch (err) {
-            setError(friendlyIcoError(err));
-            notifyError(friendlyIcoError(err), 'ICO');
+            const msg = friendlyIcoError(err);
+            const raw = String(err?.message || err || '').toLowerCase();
+            // Empty wallet/RPC "0x" is not a user action failure — don't block the ICO page.
+            if (raw.includes('cannot convert 0x') || raw.includes('convert 0x to a bigint')) {
+                console.warn('ICO chain snapshot skipped:', msg);
+            } else {
+                setError(msg);
+                notifyError(msg, 'ICO');
+            }
         } finally {
             setLoadingChain(false);
         }
