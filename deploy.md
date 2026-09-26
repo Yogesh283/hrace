@@ -18,6 +18,8 @@ If that folder does not exist, try:
 
 Do **not** use `arogyaspaa.com` — that is a different host.
 
+On the apex host `racenetwork.live` keep `SESSION_DOMAIN` **empty**. `SESSION_DOMAIN=.racenetwork.live` causes CSRF 419 in TokenPocket / in-app browsers.
+
 ### 0) One-shot: pull code + set APP_URL + new contracts
 
 SSH into the live server, then paste this entire block once:

@@ -1,5 +1,6 @@
 /** Official Tether USD (USDT) on BSC mainnet — never use on Testnet. */
 import { hideWalletPending, showWalletPending } from '@/lib/appNotify';
+import { csrfHeaders } from '@/lib/csrf';
 import {
     getWalletProvider,
     hasWalletSession,
@@ -610,11 +611,6 @@ export function subscribeWalletEvents({ onChainChanged, onAccountsChanged } = {}
     };
 }
 
-function getCsrfToken() {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
-}
-
 function normalizeAddress(address) {
     return String(address ?? '').trim().toLowerCase();
 }
@@ -821,7 +817,7 @@ export async function verifyOnChainDeposit({ txHash, amountUsd, verifyUrl, extra
             Accept: 'application/json',
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': getCsrfToken(),
+            ...csrfHeaders(),
         },
         body: JSON.stringify({
             tx_hash: txHash,
@@ -856,7 +852,7 @@ export async function syncBlockchainTx({ txHash, syncUrl = '/blockchain/sync-tx'
                     Accept: 'application/json',
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': getCsrfToken(),
+                    ...csrfHeaders(),
                 },
                 body: JSON.stringify({ tx_hash: txHash }),
             });
