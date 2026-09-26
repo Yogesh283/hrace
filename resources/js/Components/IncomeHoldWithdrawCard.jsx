@@ -167,21 +167,21 @@ export default function IncomeHoldWithdrawCard({ raceLevelIncome = null, compact
                     Value ≈ {formatIncomeAmount(quote.valueUsdt, usdtDecimals, 2)} USDT
                 </p>
                 <p className="mt-2 text-sm font-semibold text-fintech-ink">
-                    You receive: {formatIncomeAmount(quote.netRace || quote.raceAmount, 18, 4)} RACE
+                    1. Admin fee first: {formatIncomeAmount(quote.feeUsdt, usdtDecimals, 2)} USDT
                 </p>
                 <p className="mt-1 text-sm text-fintech-muted">
-                    Team Reward 10%: {formatIncomeAmount(quote.teamRace || 0n, 18, 4)} RACE (L1–L10)
+                    2. Team Reward 10%: {formatIncomeAmount(quote.teamRace || 0n, 18, 4)} RACE (L1–L10)
                 </p>
                 <p className="mt-1 text-sm font-semibold text-fintech-ink">
-                    Admin fee: {formatIncomeAmount(quote.feeUsdt, usdtDecimals, 2)} USDT
+                    3. You receive: {formatIncomeAmount(quote.netRace || quote.raceAmount, 18, 4)} RACE
                 </p>
                 <p className="mt-1 text-xs text-fintech-muted">{feeRule}</p>
             </div>
 
             {!compact ? (
                 <p className="rounded-xl border border-sky-400/50 bg-[#0a1838]/80 px-3 py-2.5 text-sm leading-relaxed text-sky-100">
-                    Claimed income stays here. Tap one button: 10% RACE goes to Team Reward (L1–L10), you receive
-                    90%, and you pay the USDT admin fee. $1–$99 value = $1. $100+ = 1%.
+                    Claimed income stays here. Tap one button: admin USDT fee is cut first, then 10% RACE goes to
+                    Team Reward (L1–L10), then you receive 90%. $1–$99 value = $1. $100+ = 1%.
                 </p>
             ) : (
                 <p className="text-sm text-fintech-muted">

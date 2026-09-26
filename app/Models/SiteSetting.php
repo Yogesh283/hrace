@@ -128,32 +128,32 @@ class SiteSetting extends Model
     public static function icoContractAddress(): string
     {
         return static::firstNonEmpty(
-            static::get(static::KEY_ICO_CONTRACT),
             (string) config('blockchain.contracts.ico_reserve', ''),
+            static::get(static::KEY_ICO_CONTRACT),
         );
     }
 
     public static function raceIcoContractAddress(): string
     {
         return static::firstNonEmpty(
-            static::get(static::KEY_RACE_ICO_CONTRACT),
             (string) config('blockchain.contracts.ico', ''),
+            static::get(static::KEY_RACE_ICO_CONTRACT),
         );
     }
 
     public static function icoAdminWallet(): string
     {
         return static::firstNonEmpty(
-            static::get(static::KEY_ICO_ADMIN_WALLET),
             (string) config('blockchain.contracts.ico_admin_wallet', ''),
+            static::get(static::KEY_ICO_ADMIN_WALLET),
         );
     }
 
     public static function incomeHoldAddress(): string
     {
         return static::firstNonEmpty(
-            static::get(static::KEY_INCOME_HOLD),
             (string) config('blockchain.contracts.income_hold', ''),
+            static::get(static::KEY_INCOME_HOLD),
         );
     }
 

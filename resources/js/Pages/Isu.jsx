@@ -26,17 +26,19 @@ import {
     readErc20BalanceOf,
     readIcoCompleted,
     readIcoCurrentPhase,
-    readIcoEndPriceUsdt,
+    readLiveStakePriceUsdt,
     readPendingStakeCount,
     readTotalIcoSold,
     readUserHeldRace,
     readUserIcoPurchases,
 } from '@/lib/web3RaceICO';
 import {
+    claimOnChainMaturityEmi,
     claimOnChainReward,
     claimPolicyMessage,
     compoundOnChainReward,
     friendlyEngineError,
+    matureOnChainStake,
     readAllOnChainStakes,
     readClaimPolicyState,
     withdrawOnChainStake,
@@ -274,7 +276,7 @@ export default function Isu({
     const [purchases, setPurchases] = useState([]);
     const [heldRace, setHeldRace] = useState(0n);
     const [pendingStakes, setPendingStakes] = useState(0);
-    const [icoEndPrice, setIcoEndPrice] = useState(0n);
+    const [liveStakePrice, setLiveStakePrice] = useState(0n);
     const [stakes, setStakes] = useState([]);
     const [loadingChain, setLoadingChain] = useState(false);
     const [claimEnabledOnChain, setClaimEnabledOnChain] = useState(false);
@@ -386,7 +388,7 @@ export default function Isu({
 
             if (walletAddress) {
                 try {
-                    const [usdtBal, raceBal, allow, held, pending, endPrice] = await Promise.all([
+                    const [usdtBal, raceBal, allow, held, pending, pancakePrice] = await Promise.all([
                         readErc20BalanceOf({ token: usdtContract, wallet: walletAddress, rpcUrl }),
                         readErc20BalanceOf({ token: raceToken, wallet: walletAddress, rpcUrl }),
                         readErc20Allowance({
@@ -397,14 +399,14 @@ export default function Isu({
                         }),
                         readUserHeldRace({ icoContract, wallet: walletAddress, rpcUrl }),
                         readPendingStakeCount({ icoContract, wallet: walletAddress, rpcUrl }),
-                        readIcoEndPriceUsdt({ icoContract, rpcUrl }),
+                        readLiveStakePriceUsdt({ icoContract, rpcUrl }),
                     ]);
                     setUsdtBalance(usdtBal);
                     setRaceBalance(raceBal);
                     setAllowance(allow);
                     setHeldRace(held);
                     setPendingStakes(pending);
-                    setIcoEndPrice(endPrice);
+                    setLiveStakePrice(pancakePrice);
                 } catch (walletErr) {
                     console.warn('ICO wallet snapshot:', walletErr?.message || walletErr);
                 }
@@ -775,9 +777,9 @@ export default function Isu({
                           rpcUrl,
                       });
 
-            const endLabel = icoEndPrice > 0n ? `$${formatUsdPriceFromWei(icoEndPrice)}` : 'ICO end price';
+            const liveLabel = liveStakePrice > 0n ? `$${formatUsdPriceFromWei(liveStakePrice)}` : 'live Pancake price';
             showIcoSuccess(
-                `Stake created at ${endLabel}. Level income paid on this stake if ≥$50. Claim from next day. Tx ${txHash.slice(0, 10)}…`,
+                `Stake created at ${liveLabel}. Level income and ROI on this stake use that locked price. Claim from next day. Tx ${txHash.slice(0, 10)}…`,
             );
 
             try {
@@ -835,7 +837,7 @@ export default function Isu({
     const displayHeldRace = heldRace > 0n ? heldRace : heldFromHistory;
     const displayQuotedRace = quotedRace > 0n ? quotedRace : localQuotedRace;
     const hasHeldPosition = displayHeldRace > 0n || pendingStakes > 0 || historyRows.some((row) => !row.staked);
-    const showPostBuyHold = hasHeldPosition || success?.kind === 'purchase';
+    const showPostBuyHold = hasHeldPosition || success?.kind === 'purchase' || icoCompleted;
 
     const renderBuyForm = (opts = {}) => (
         <div
@@ -1096,16 +1098,14 @@ export default function Isu({
                                         </p>
                                         <p className="mt-1 text-sm text-slate-300">
                                             {icoCompleted
-                                                ? hasHeldPosition
-                                                    ? `ICO is complete. Create your stake${
-                                                          icoEndPrice > 0n
-                                                              ? ` at $${formatUsdPriceFromWei(icoEndPrice)}`
-                                                              : ''
-                                                      }. Level income starts after stake.`
-                                                    : 'No held RACE left to stake.'
+                                                ? `ICO is complete. Create Your Stake uses the live PancakeSwap price${
+                                                      liveStakePrice > 0n
+                                                          ? ` (now $${formatUsdPriceFromWei(liveStakePrice)})`
+                                                          : ''
+                                                  }. Held RACE moves into your Engine stake. ROI and level income lock at that price. Level income pays on this step if ≥$50.`
                                                 : 'Activate stake after ICO completes. Until then this stays held — not in your wallet.'}
                                         </p>
-                                        {icoCompleted && hasHeldPosition ? (
+                                        {icoCompleted ? (
                                             <PrimaryButton
                                                 type="button"
                                                 className="mt-3"
@@ -1118,9 +1118,7 @@ export default function Isu({
                                             </PrimaryButton>
                                         ) : (
                                             <PrimaryButton type="button" className="mt-3" disabled>
-                                                {icoCompleted
-                                                    ? 'No held RACE to stake'
-                                                    : 'Activate stake after ICO completes'}
+                                                Activate stake after ICO completes
                                             </PrimaryButton>
                                         )}
                                     </div>
@@ -1172,15 +1170,22 @@ export default function Isu({
                                 {stakes.map((stake) => {
                                     const nowSec = Math.floor(Date.now() / 1000);
                                     const isFlexible = Number(stake.lockPeriod) === 0;
-                                    const matured =
+                                    const lockEnded =
                                         isFlexible ||
                                         (Number(stake.unlockAt) > 0 && nowSec >= Number(stake.unlockAt));
                                     const withdrawn = Boolean(stake.withdrawn);
-                                    const statusLabel = withdrawn
+                                    const emi = stake.maturityEmi || {};
+                                    const emiMatured = Boolean(emi.matured);
+                                    const emiClosed = Boolean(emi.closed);
+                                    const statusLabel = withdrawn || emiClosed
                                         ? 'CLOSED'
-                                        : matured
-                                          ? 'WITHDRAWABLE'
-                                          : 'LOCKED';
+                                        : emiMatured
+                                          ? 'EMI ACTIVE'
+                                          : lockEnded
+                                            ? isFlexible
+                                                ? 'WITHDRAWABLE'
+                                                : 'MATURE READY'
+                                            : 'LOCKED';
                                     const lockDisplay = isFlexible
                                         ? 'Withdraw Anytime'
                                         : Number(stake.unlockAt)
@@ -1278,7 +1283,12 @@ export default function Isu({
                                                 <button
                                                     type="button"
                                                     className="rounded-xl border border-sky-500/40 px-3 py-2 text-sm text-sky-200 hover:bg-sky-950/40 disabled:opacity-50"
-                                                    disabled={withdrawn || stakeBusy || busy !== ''}
+                                                    disabled={
+                                                        withdrawn ||
+                                                        emiMatured ||
+                                                        stakeBusy ||
+                                                        busy !== ''
+                                                    }
                                                     onClick={async () => {
                                                         setBusy(`stake-${stake.index}`);
                                                         setError('');
@@ -1307,44 +1317,163 @@ export default function Isu({
                                                 >
                                                     Compound
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    className="rounded-xl border border-emerald-500/40 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-950/40 disabled:opacity-50"
-                                                    disabled={
-                                                        withdrawn ||
-                                                        !matured ||
-                                                        stakeBusy ||
-                                                        busy !== ''
-                                                    }
-                                                    onClick={async () => {
-                                                        setBusy(`stake-${stake.index}`);
-                                                        setError('');
-                                                        try {
-                                                            const txHash = await withdrawOnChainStake({
-                                                                walletAddress,
-                                                                engineContract,
-                                                                stakeIndex: stake.index,
-                                                            });
-                                                            try {
-                                                                await syncBlockchainTx({ txHash });
-                                                            } catch (syncErr) {
-                                                                console.warn(
-                                                                    'withdraw sync-tx:',
-                                                                    syncErr?.message || syncErr,
-                                                                );
-                                                            }
-                                                            await refreshChainState();
-                                                        } catch (err) {
-                                                            setError(friendlyEngineError(err));
-                                                            notifyError(friendlyEngineError(err), 'Stake');
-                                                        } finally {
-                                                            setBusy('');
+                                                {isFlexible ? (
+                                                    <button
+                                                        type="button"
+                                                        className="rounded-xl border border-emerald-500/40 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-950/40 disabled:opacity-50"
+                                                        disabled={
+                                                            withdrawn ||
+                                                            !lockEnded ||
+                                                            stakeBusy ||
+                                                            busy !== ''
                                                         }
-                                                    }}
-                                                >
-                                                    {isFlexible ? 'Withdraw / Exit' : 'Withdraw principal'}
-                                                </button>
+                                                        onClick={async () => {
+                                                            setBusy(`stake-${stake.index}`);
+                                                            setError('');
+                                                            try {
+                                                                const txHash = await withdrawOnChainStake({
+                                                                    walletAddress,
+                                                                    engineContract,
+                                                                    stakeIndex: stake.index,
+                                                                });
+                                                                try {
+                                                                    await syncBlockchainTx({ txHash });
+                                                                } catch (syncErr) {
+                                                                    console.warn(
+                                                                        'withdraw sync-tx:',
+                                                                        syncErr?.message || syncErr,
+                                                                    );
+                                                                }
+                                                                await refreshChainState();
+                                                            } catch (err) {
+                                                                setError(friendlyEngineError(err));
+                                                                notifyError(friendlyEngineError(err), 'Stake');
+                                                            } finally {
+                                                                setBusy('');
+                                                            }
+                                                        }}
+                                                    >
+                                                        Withdraw / Exit
+                                                    </button>
+                                                ) : !emiMatured ? (
+                                                    <button
+                                                        type="button"
+                                                        className="rounded-xl border border-amber-500/40 px-3 py-2 text-sm text-amber-200 hover:bg-amber-950/40 disabled:opacity-50"
+                                                        disabled={
+                                                            withdrawn ||
+                                                            !lockEnded ||
+                                                            stakeBusy ||
+                                                            busy !== ''
+                                                        }
+                                                        onClick={async () => {
+                                                            setBusy(`stake-${stake.index}`);
+                                                            setError('');
+                                                            try {
+                                                                const txHash = await matureOnChainStake({
+                                                                    walletAddress,
+                                                                    engineContract,
+                                                                    stakeIndex: stake.index,
+                                                                });
+                                                                try {
+                                                                    await syncBlockchainTx({ txHash });
+                                                                } catch (syncErr) {
+                                                                    console.warn(
+                                                                        'mature sync-tx:',
+                                                                        syncErr?.message || syncErr,
+                                                                    );
+                                                                }
+                                                                await refreshChainState();
+                                                            } catch (err) {
+                                                                setError(friendlyEngineError(err));
+                                                                notifyError(friendlyEngineError(err), 'Stake');
+                                                            } finally {
+                                                                setBusy('');
+                                                            }
+                                                        }}
+                                                    >
+                                                        Mature + start EMI
+                                                    </button>
+                                                ) : null}
                                             </div>
+                                            {isFlexible && !withdrawn ? (
+                                                <p className="mt-2 text-[11px] text-slate-500">
+                                                    Exit: 90% to you, 10% to Treasury (Multisig). No EMI.
+                                                </p>
+                                            ) : null}
+                                            {!isFlexible && !emiMatured && !withdrawn ? (
+                                                <p className="mt-2 text-[11px] text-slate-500">
+                                                    After lock: Mature sends 10% to Treasury, then EMI 1/2/3 at +30/+60/+90 days.
+                                                </p>
+                                            ) : null}
+                                            {emiMatured && !emiClosed
+                                                ? [1, 2, 3].map((emiNumber) => {
+                                                      const claimed =
+                                                          emiNumber === 1
+                                                              ? emi.claimed1
+                                                              : emiNumber === 2
+                                                                ? emi.claimed2
+                                                                : emi.claimed3;
+                                                      const dueAt =
+                                                          emiNumber === 1
+                                                              ? emi.due1
+                                                              : emiNumber === 2
+                                                                ? emi.due2
+                                                                : emi.due3;
+                                                      const amount =
+                                                          emiNumber === 1
+                                                              ? emi.emi1Race
+                                                              : emiNumber === 2
+                                                                ? emi.emi2Race
+                                                                : emi.emi3Race;
+                                                      const due = Number(dueAt || 0) > 0 && nowSec >= Number(dueAt);
+                                                      return (
+                                                          <button
+                                                              key={`emi-${stake.index}-${emiNumber}`}
+                                                              type="button"
+                                                              className="mt-2 mr-2 rounded-xl border border-violet-500/40 px-3 py-2 text-sm text-violet-200 hover:bg-violet-950/40 disabled:opacity-50"
+                                                              disabled={
+                                                                  claimed ||
+                                                                  !due ||
+                                                                  withdrawn ||
+                                                                  stakeBusy ||
+                                                                  busy !== ''
+                                                              }
+                                                              onClick={async () => {
+                                                                  setBusy(`stake-${stake.index}`);
+                                                                  setError('');
+                                                                  try {
+                                                                      const txHash = await claimOnChainMaturityEmi({
+                                                                          walletAddress,
+                                                                          engineContract,
+                                                                          stakeIndex: stake.index,
+                                                                          emiNumber,
+                                                                      });
+                                                                      try {
+                                                                          await syncBlockchainTx({ txHash });
+                                                                      } catch (syncErr) {
+                                                                          console.warn(
+                                                                              'emi sync-tx:',
+                                                                              syncErr?.message || syncErr,
+                                                                          );
+                                                                      }
+                                                                      await refreshChainState();
+                                                                  } catch (err) {
+                                                                      setError(friendlyEngineError(err));
+                                                                      notifyError(friendlyEngineError(err), 'EMI');
+                                                                  } finally {
+                                                                      setBusy('');
+                                                                  }
+                                                              }}
+                                                          >
+                                                              {claimed
+                                                                  ? `EMI ${emiNumber} claimed`
+                                                                  : due
+                                                                    ? `Claim EMI ${emiNumber} · ${formatTokenWei(amount || 0n, 18, 4)} RACE`
+                                                                    : `EMI ${emiNumber} · due ${dueAt ? formatPurchaseDate(dueAt) : '—'}`}
+                                                          </button>
+                                                      );
+                                                  })
+                                                : null}
                                         </div>
                                     );
                                 })}

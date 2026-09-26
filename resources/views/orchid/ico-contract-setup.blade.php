@@ -1,8 +1,8 @@
 <div class="bg-white rounded shadow-sm p-4 mb-3">
     <h5 class="mb-2">{{ __('How this is set') }}</h5>
     <ol class="mb-0 small">
-        <li>{{ __('Total 10 lakh RACE go to the admin wallet (6 lakh ICO + 4 lakh LP).') }}</li>
-        <li>{{ __('Admin deposits 6 lakh into ICO Contract. Keep 4 lakh in the admin wallet for Pancake LP.') }}</li>
+        <li>{{ __('Total 1,000,000 RACE go to the admin wallet (600,000 ICO + 400,000 LP).') }}</li>
+        <li>{{ __('Admin deposits 600,000 into ICO Contract. Keep 400,000 in the admin wallet for Pancake LP.') }}</li>
         <li>{{ __('Every ICO buy sends USDT to the same admin wallet.') }}</li>
         <li>{{ __('Hold and Create Stake stay on RaceICO. Income mint stays on RewardVault.') }}</li>
         <li>{{ __('There is no ICO admin role in this panel — only this wallet + ICO Contract.') }}</li>
@@ -26,10 +26,10 @@
 <div class="bg-white rounded shadow-sm p-4 mb-3">
     <h5 class="mb-2">{{ __('Start ICO (Phase 1) — TokenPocket') }}</h5>
     <ol class="small mb-3">
-        <li>{{ __('TokenPocket mein BNB Smart Chain kholo. Admin wallet nahi — neeche wale 5 Multisig accounts mein se koi 3.') }}</li>
-        <li>{{ __('Pehle account se “1. Submit Phase 1” dabao. Confirm karo. Contract Multisig hona chahiye, RaceICO nahi.') }}</li>
-        <li>{{ __('TokenPocket mein dusra account switch karo, “2. Confirm Phase 1” dabao.') }}</li>
-        <li>{{ __('Teesra account switch karo, phir “2. Confirm Phase 1” dabao. 3rd confirm par Phase 1 start ho jayega.') }}</li>
+        <li>{{ __('Open BNB Smart Chain in TokenPocket. Do not use the admin wallet — use any 3 of the 5 Multisig signer accounts listed below.') }}</li>
+        <li>{{ __('From the first account, tap “1. Submit Phase 1” and confirm. The contract must be Multisig, not RaceICO.') }}</li>
+        <li>{{ __('Switch to the second Multisig account in TokenPocket, then tap “2. Confirm Phase 1”.') }}</li>
+        <li>{{ __('Switch to the third Multisig account, then tap “2. Confirm Phase 1” again. After the 3rd confirmation, Phase 1 starts.') }}</li>
     </ol>
     <p class="small mb-2"><strong>{{ __('Multisig contract') }}:</strong> <code class="user-select-all">{{ $multisig_contract }}</code></p>
     <p class="small mb-2"><strong>{{ __('Use these 5 wallets only') }}:</strong></p>

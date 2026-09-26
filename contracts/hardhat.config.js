@@ -30,7 +30,30 @@ module.exports = {
         bsc: {
             url: process.env.BSC_MAINNET_RPC || 'https://bsc-dataseed.binance.org',
             chainId: 56,
+            timeout: 180_000,
             accounts: process.env.DEPLOYER_PRIVATE_KEY ? [process.env.DEPLOYER_PRIVATE_KEY] : [],
         },
+    },
+    etherscan: {
+        apiKey: {
+            bsc: process.env.BSCSCAN_API_KEY || process.env.ETHERSCAN_API_KEY || '',
+        },
+        // BscScan moved to Etherscan API v2 (old api.bscscan.com/api 308s).
+        customChains: [
+            {
+                network: 'bsc',
+                chainId: 56,
+                urls: {
+                    apiURL: 'https://api.etherscan.io/v2/api?chainid=56',
+                    browserURL: 'https://bscscan.com',
+                },
+            },
+        ],
+        enabled: Boolean(process.env.BSCSCAN_API_KEY || process.env.ETHERSCAN_API_KEY),
+    },
+    sourcify: {
+        enabled: true,
+        apiUrl: 'https://sourcify.dev/server',
+        browserUrl: 'https://repo.sourcify.dev',
     },
 };

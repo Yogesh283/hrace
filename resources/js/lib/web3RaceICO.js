@@ -15,7 +15,7 @@ import { getWalletProvider, walletRequest } from '@/lib/web3Wallet';
 /**
  * RaceICO hold-then-stake helpers.
  * purchase → USDT to admin, RACE allocated from ICO reserve and held (not wallet, not stake).
- * createStake / createAllStakes → after icoCompleted, open Engine stake at icoEndPrice.
+ * createStake / createAllStakes → after icoCompleted, open Engine stake at live Pancake price.
  */
 const SELECTORS = {
     approve: '0x095ea7b3',
@@ -36,6 +36,7 @@ const SELECTORS = {
     userHeldRace: '0xf884e36f',
     pendingStakeCount: '0x0f29b783',
     icoEndPriceUsdt: '0x43548e19',
+    liveStakePriceUsdt: '0x925dbb46',
 };
 
 const STAKE_NOT_CREATED = (1n << 256n) - 1n;
@@ -421,6 +422,12 @@ export async function readPendingStakeCount({ icoContract, wallet, rpcUrl }) {
 export async function readIcoEndPriceUsdt({ icoContract, rpcUrl }) {
     if (!icoContract) return 0n;
     return hexToBigInt(await ethCall({ to: icoContract, data: SELECTORS.icoEndPriceUsdt, rpcUrl }));
+}
+
+/** Live PancakeSwap RACE/USDT used when the user creates a stake. */
+export async function readLiveStakePriceUsdt({ icoContract, rpcUrl }) {
+    if (!icoContract) return 0n;
+    return hexToBigInt(await ethCall({ to: icoContract, data: SELECTORS.liveStakePriceUsdt, rpcUrl }));
 }
 
 /**

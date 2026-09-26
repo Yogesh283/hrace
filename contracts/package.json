@@ -30,6 +30,7 @@
     "deploy:testnet": "node scripts/preflight-testnet.js && npx hardhat run scripts/deploy.js --network bscTestnet",
     "deploy:mainnet": "npx hardhat run scripts/deploy.js --network bsc",
     "deploy:mainnet-core": "npx hardhat run scripts/deploy-mainnet-core.js --network bsc",
+    "verify:mainnet": "npx hardhat run scripts/verify-mainnet-bsc.js --network bsc",
     "preflight:mainnet": "node scripts/preflight-mainnet.js",
     "export:abis": "node scripts/export-abis.js",
     "deploy:governance:testnet": "npx hardhat run scripts/deploy-governance-testnet.js --network bscTestnet",

@@ -33,7 +33,7 @@ class IcoContractSettingsScreen extends Screen
 
         $multisig = (string) config('blockchain.contracts.multisig', '');
         if ($multisig === '') {
-            $multisig = '0x46aC99282929bb95B4362Aa06CbbAdecEC3D2e4B';
+            $multisig = '0x81BffBF2C2a258E662e9df0a0f6e34150b33F3df';
         }
 
         return [
@@ -69,7 +69,7 @@ class IcoContractSettingsScreen extends Screen
 
     public function description(): ?string
     {
-        return __('Total 10 lakh RACE go to the admin wallet: deposit 6 lakh into ICO Contract, keep 4 lakh for LP. Admin can withdraw unsold ICO RACE. Every ICO buy sends USDT to this admin wallet.');
+        return __('Total 1,000,000 RACE go to the admin wallet: deposit 600,000 into ICO Contract, keep 400,000 for LP. Admin can withdraw unsold ICO RACE. Every ICO buy sends USDT to this admin wallet.');
     }
 
     /**
