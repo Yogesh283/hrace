@@ -1,9 +1,25 @@
 import { getCsrfToken } from '@/lib/csrf';
 import { walletAuthPayload } from '@/lib/web3Auth';
 import { connectWalletForAuth } from '@/lib/web3Deposit';
-import { router } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+
+/** Full-page POST so TokenPocket / phone WebViews keep the session cookie (Inertia XHR often drops it). */
+function submitWalletAuthForm(actionUrl, fields) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = actionUrl;
+    form.style.display = 'none';
+    Object.entries(fields).forEach(([name, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = String(value ?? '');
+        form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+}
 
 function Spinner({ className = 'h-5 w-5' }) {
     return (
@@ -83,18 +99,9 @@ export default function WalletConnectAuthButton({
                     : { address, signature, _token: getCsrfToken() };
 
             setPhase(action === 'register' ? 'register' : 'login');
-            router.post(route(routeName), payload, {
-                preserveScroll: true,
-                onError: (errors) => {
-                    const message =
-                        errors?.address ||
-                        errors?.join_code ||
-                        'Wallet authentication failed. Please try again.';
-                    setLocalError(message);
-                    onError?.(message);
-                    stopLoading();
-                },
-                onFinish: () => stopLoading(),
+            submitWalletAuthForm(route(routeName), {
+                ...payload,
+                remember: '1',
             });
         } catch (error) {
             const message = error?.message || 'Wallet connection was cancelled or failed.';

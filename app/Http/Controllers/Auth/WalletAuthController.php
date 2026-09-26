@@ -123,7 +123,7 @@ class WalletAuthController extends Controller
             $user->forceFill(['email_verified_at' => now()])->save();
         }
 
-        Auth::login($user, (bool) $request->boolean('remember'));
+        Auth::login($user, true);
         $request->session()->regenerate();
         $this->queueWalletIndexSync($user->id);
 
@@ -200,7 +200,7 @@ class WalletAuthController extends Controller
             'is_blocked' => false,
         ]);
 
-        Auth::login($user);
+        Auth::login($user, true);
         $request->session()->regenerate();
         $this->queueWalletIndexSync($user->id);
 
