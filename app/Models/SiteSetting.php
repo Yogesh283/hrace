@@ -36,23 +36,41 @@ class SiteSetting extends Model
         'value',
     ];
 
+    /** @var array<string, string|null> */
+    private static array $getMemo = [];
+
     public static function get(string $key, ?string $default = null): ?string
     {
+        if (array_key_exists($key, self::$getMemo)) {
+            $cached = self::$getMemo[$key];
+
+            return $cached !== null && $cached !== '' ? $cached : $default;
+        }
+
         if (! static::usesKeyValueSchema()) {
-            return static::legacyGet($key, $default);
+            $value = static::legacyGet($key, $default);
+            self::$getMemo[$key] = is_string($value) ? trim($value) : $value;
+
+            return $value;
         }
 
         $value = static::query()->where('key', $key)->value('value');
 
         if (is_string($value) && trim($value) !== '') {
-            return trim($value);
+            self::$getMemo[$key] = trim($value);
+
+            return self::$getMemo[$key];
         }
+
+        self::$getMemo[$key] = null;
 
         return $default;
     }
 
     public static function set(string $key, ?string $value): void
     {
+        unset(self::$getMemo[$key]);
+
         if (! static::usesKeyValueSchema()) {
             static::legacySet($key, $value);
 

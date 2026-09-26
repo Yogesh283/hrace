@@ -138,7 +138,7 @@ class BlockchainEventIngestService
                     ? '0x'.substr((string) $topics[$walletTopicIndex], 26)
                     : '';
                 $userId = $wallet !== ''
-                    ? User::query()->whereRaw('LOWER(wallet_address) = ?', [strtolower($wallet)])->value('id')
+                    ? User::idByWallet($wallet)
                     : null;
                 $this->storeIcoPurchaseFromEvent($eventName, $topics, (string) ($log['data'] ?? ''), $txHash, $blockNumber, $userId);
             }
@@ -156,7 +156,7 @@ class BlockchainEventIngestService
             : '';
 
         $userId = $wallet !== ''
-            ? User::query()->whereRaw('LOWER(wallet_address) = ?', [strtolower($wallet)])->value('id')
+            ? User::idByWallet($wallet)
             : null;
 
         BlockchainEvent::query()->create([
@@ -250,7 +250,7 @@ class BlockchainEventIngestService
                 ? '0x'.substr((string) $topics[$walletTopicIndex], 26)
                 : '';
             $userId = $wallet !== ''
-                ? User::query()->whereRaw('LOWER(wallet_address) = ?', [strtolower($wallet)])->value('id')
+                ? User::idByWallet($wallet)
                 : null;
             $this->storeIcoPurchaseFromEvent(
                 $eventName,
@@ -365,7 +365,7 @@ class BlockchainEventIngestService
 
         IcoPurchase::query()
             ->where('purchase_id', $purchaseId)
-            ->whereRaw('LOWER(wallet_address) = ?', [strtolower($wallet)])
+            ->where('wallet_address', strtolower($wallet))
             ->whereIn('status', ['held', 'confirmed'])
             ->update(['status' => 'staked']);
     }
