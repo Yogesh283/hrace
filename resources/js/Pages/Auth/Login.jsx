@@ -49,6 +49,10 @@ export default function Login({ status }) {
                     <WalletConnectAuthButton action="login" label="Connect wallet & sign in" />
 
                     <p className="text-center text-[11px] text-slate-300 sm:text-xs">
+                        On phone: open this site inside TokenPocket / Trust / MetaMask DApp browser, then tap
+                        Connect. Chrome or Safari alone often cannot finish wallet login.
+                    </p>
+                    <p className="text-center text-[11px] text-slate-300 sm:text-xs">
                         Wallet not registered yet? Use your sponsor join code on the register page first.
                     </p>
                 </div>

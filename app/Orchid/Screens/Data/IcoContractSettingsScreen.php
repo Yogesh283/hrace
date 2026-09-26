@@ -31,6 +31,11 @@ class IcoContractSettingsScreen extends Screen
 
         $status = $this->onChainStatus($raceToken, $icoContract, $adminWallet, $raceIco);
 
+        $multisig = (string) config('blockchain.contracts.multisig', '');
+        if ($multisig === '') {
+            $multisig = '0x81BffBF2C2a258E662e9df0a0f6e34150b33F3df';
+        }
+
         return [
             'ico_contract' => $icoContract,
             'race_ico_contract' => $raceIco,
@@ -38,6 +43,14 @@ class IcoContractSettingsScreen extends Screen
             'income_hold' => SiteSetting::incomeHoldAddress(),
             'race_token' => $raceToken,
             'chain_id' => $chainId,
+            'multisig_contract' => $multisig,
+            'multisig_signers' => [
+                '0xCc2B87f8E8AABc295e1119E186c3021bA6F32339',
+                '0x8B2Ac41931d4869E7a53144BaF5C1fa052E8Df24',
+                '0xDE64cA155dEb48B459360FB8E3c4e7167Bfeb150',
+                '0xE9db9ea0fC494fB1Fc743DAfD5a0a436cA19EECA',
+                '0x71DDFC006c21756DF7b07fB4357f6F6B33CE11f9',
+            ],
             'allocation_race' => '600000',
             'admin_race' => $status['admin_race'],
             'contract_race' => $status['contract_race'],
@@ -56,7 +69,7 @@ class IcoContractSettingsScreen extends Screen
 
     public function description(): ?string
     {
-        return __('Total 10 lakh RACE go to the admin wallet: deposit 6 lakh into ICO Contract, keep 4 lakh for LP. Admin can withdraw unsold ICO RACE. Every ICO buy sends USDT to this admin wallet.');
+        return __('Total 1,000,000 RACE go to the admin wallet: deposit 600,000 into ICO Contract, keep 400,000 for LP. Admin can withdraw unsold ICO RACE. Every ICO buy sends USDT to this admin wallet.');
     }
 
     /**

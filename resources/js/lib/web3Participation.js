@@ -1,3 +1,4 @@
+import { csrfHeaders } from '@/lib/csrf';
 import { assertOfficialUsdtContract, ensureBscNetwork, parseTokenAmount, sendContractTx } from '@/lib/web3Deposit';
 
 const SELECTORS = {
@@ -6,11 +7,6 @@ const SELECTORS = {
     claimReward: '0xae169a50',
     withdrawStake: '0x25d5971f',
 };
-
-function getCsrfToken() {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
-}
 
 function padAddress(address) {
     return address.slice(2).toLowerCase().padStart(64, '0');
@@ -72,7 +68,7 @@ export async function syncParticipationTx({ txHash, verifyUrl }) {
         headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
-            'X-XSRF-TOKEN': getCsrfToken(),
+            ...csrfHeaders(),
         },
         credentials: 'same-origin',
         body: JSON.stringify({ tx_hash: txHash }),

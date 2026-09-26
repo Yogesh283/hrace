@@ -29,12 +29,14 @@ export function notifyError(message, title = 'Error') {
     notifyApp(message, { variant: 'error', title });
 }
 
-/** Show full-screen loader while wallet popup / confirmations are pending. */
+/** Show full-screen loader only for real wallet tx / payment confirms. */
 export function showWalletPending(message = 'Confirm in your wallet…') {
     if (typeof document === 'undefined') {
         return;
     }
-    walletPendingDepth += 1;
+    if (walletPendingDepth === 0) {
+        walletPendingDepth = 1;
+    }
     document.dispatchEvent(
         new CustomEvent('app:wallet-pending', {
             detail: { active: true, message: String(message || 'Confirm in your wallet…') },
@@ -54,6 +56,18 @@ export function hideWalletPending() {
             }),
         );
     }
+}
+
+export function forceHideWalletPending() {
+    if (typeof document === 'undefined') {
+        return;
+    }
+    walletPendingDepth = 0;
+    document.dispatchEvent(
+        new CustomEvent('app:wallet-pending', {
+            detail: { active: false },
+        }),
+    );
 }
 
 export async function withWalletPending(fn, message = 'Confirm in your wallet…') {
