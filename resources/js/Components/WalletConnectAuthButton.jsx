@@ -1,3 +1,4 @@
+import { getCsrfToken } from '@/lib/csrf';
 import { walletAuthPayload } from '@/lib/web3Auth';
 import { connectWalletForAuth } from '@/lib/web3Deposit';
 import { router } from '@inertiajs/react';
@@ -78,8 +79,8 @@ export default function WalletConnectAuthButton({
                 action === 'register' ? 'wallet-auth.register' : 'wallet-auth.login';
             const payload =
                 action === 'register'
-                    ? { address, signature, join_code: normalizedJoinCode }
-                    : { address, signature };
+                    ? { address, signature, join_code: normalizedJoinCode, _token: getCsrfToken() }
+                    : { address, signature, _token: getCsrfToken() };
 
             setPhase(action === 'register' ? 'register' : 'login');
             router.post(route(routeName), payload, {

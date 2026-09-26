@@ -1,9 +1,5 @@
+import { csrfHeaders, getCsrfToken } from '@/lib/csrf';
 import { walletRequest } from '@/lib/web3Wallet';
-
-function getCsrfToken() {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
-}
 
 export { hasWeb3Wallet } from '@/lib/web3Wallet';
 
@@ -27,13 +23,13 @@ async function fetchAuthNonce({ address, action, joinCode = null }) {
         headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': getCsrfToken(),
+            ...csrfHeaders(),
         },
         body: JSON.stringify({
             address,
             action,
             join_code: joinCode,
+            _token: getCsrfToken(),
         }),
     });
 

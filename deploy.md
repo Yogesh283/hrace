@@ -40,7 +40,7 @@ set_env() {
 set_env APP_NAME '"racenetwork.live"'
 set_env APP_URL https://racenetwork.live
 set_env ASSET_URL https://racenetwork.live
-set_env SESSION_DOMAIN .racenetwork.live
+set_env SESSION_DOMAIN ""
 set_env SESSION_SECURE_COOKIE true
 set_env BSC_CHAIN_ID 56
 set_env BSC_NETWORK bsc
