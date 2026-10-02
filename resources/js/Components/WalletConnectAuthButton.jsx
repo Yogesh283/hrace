@@ -81,7 +81,7 @@ export default function WalletConnectAuthButton({
         setPhase('wallet');
         try {
             // Auth only — no network-switch popup (ICO/stake pages still enforce BSC mainnet).
-            await connectWalletForAuth();
+            const connected = await connectWalletForAuth();
             const normalizedJoinCode = String(joinCode ?? '')
                 .replace(/\s/g, '')
                 .slice(0, 8)
@@ -89,6 +89,7 @@ export default function WalletConnectAuthButton({
             const { address, signature } = await walletAuthPayload({
                 action,
                 joinCode: action === 'register' ? normalizedJoinCode : null,
+                address: connected?.address || null,
             });
 
             const routeName =

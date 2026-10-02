@@ -38,17 +38,15 @@ class WalletAuthController extends Controller
                 'nullable',
                 'string',
                 'size:8',
-                Rule::exists('users', 'referral_code'),
             ],
         ]);
 
         if ($validated['action'] === 'register') {
-            $sponsorBlocked = User::query()
+            $sponsor = User::query()
                 ->where('referral_code', strtoupper($validated['join_code'] ?? ''))
-                ->where('is_blocked', true)
-                ->exists();
+                ->first(['id', 'is_blocked']);
 
-            if ($sponsorBlocked) {
+            if (! $sponsor || $sponsor->is_blocked) {
                 throw ValidationException::withMessages([
                     'join_code' => __('The selected join code is invalid.'),
                 ]);
@@ -141,12 +139,7 @@ class WalletAuthController extends Controller
         $validated = $request->validate([
             'address' => ['required', 'string', 'max:66', 'regex:/^0x[a-fA-F0-9]{40}$/'],
             'signature' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{130}$/'],
-            'join_code' => [
-                'required',
-                'string',
-                'size:8',
-                Rule::exists('users', 'referral_code')->where('is_blocked', false),
-            ],
+            'join_code' => ['required', 'string', 'size:8'],
         ]);
 
         $address = $this->walletAuth->normalizeAddress($validated['address']);
@@ -171,7 +164,7 @@ class WalletAuthController extends Controller
 
         $email = $this->walletAuth->syntheticEmail($address);
 
-        if (User::query()->whereRaw('LOWER(email) = ?', [strtolower($email)])->exists()) {
+        if (User::query()->where('email', $email)->exists()) {
             throw ValidationException::withMessages([
                 'address' => __('This wallet is already registered. Please log in.'),
             ]);

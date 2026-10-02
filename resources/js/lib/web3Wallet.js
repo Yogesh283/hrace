@@ -368,12 +368,17 @@ export async function findWalletByAddress(address) {
             continue;
         }
         try {
-            const accounts = await wallet.provider.request({ method: 'eth_accounts' });
+            const accounts = await Promise.race([
+                wallet.provider.request({ method: 'eth_accounts' }),
+                new Promise((_, reject) => {
+                    window.setTimeout(() => reject(new Error('wallet-accounts-timeout')), 2500);
+                }),
+            ]);
             if ((accounts || []).some((item) => String(item).toLowerCase() === target)) {
                 return wallet;
             }
         } catch {
-            // Provider not ready or locked — try the next one.
+            // Provider not ready, locked, or hung — try the next one.
         }
     }
     return null;

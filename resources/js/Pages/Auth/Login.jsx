@@ -1,9 +1,12 @@
 import AuthPremiumShell from '@/Components/Auth/AuthPremiumShell';
 import WalletConnectAuthButton from '@/Components/WalletConnectAuthButton';
 import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 
 export default function Login({ status }) {
+    const pageErrors = usePage().props.errors || {};
+    const firstError = (value) => (Array.isArray(value) ? value[0] : value) || null;
+    const serverError = firstError(pageErrors.address) || firstError(pageErrors.signature);
     return (
         <GuestLayout
             hideHeader
@@ -45,6 +48,12 @@ export default function Login({ status }) {
                             dashboard.
                         </li>
                     </ol>
+
+                    {serverError ? (
+                        <p className="rounded-xl border border-red-200/80 bg-red-50/90 px-3 py-2 text-center text-xs text-red-700 sm:text-sm">
+                            {serverError}
+                        </p>
+                    ) : null}
 
                     <WalletConnectAuthButton action="login" label="Connect wallet & sign in" />
 
