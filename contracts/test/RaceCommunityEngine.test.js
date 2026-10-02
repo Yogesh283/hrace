@@ -46,7 +46,10 @@ describe('RaceCommunityEngine', function () {
 
         await engine.connect(sponsor).participate(USDT_50, 0);
 
-        return { owner, sponsor, user, funder, usdt, race, router, vault, engine, oracle };
+        const treasuryWallet = (await ethers.getSigners())[5];
+        await engine.setMaturityTreasury(treasuryWallet.address);
+
+        return { owner, sponsor, user, funder, usdt, race, router, vault, engine, oracle, treasuryWallet };
     }
 
     it('auto-registers on participate when not registered', async function () {
@@ -88,6 +91,24 @@ describe('RaceCommunityEngine', function () {
         expect(await race.balanceOf(user.address)).to.be.gt(0);
     });
 
+    it('locks Pancake live price on the stake; later pool moves do not change ROI mint', async function () {
+        const { user, engine, router } = await deployFixture();
+
+        await engine.connect(user).participate(USDT_50, 0);
+        const created = await engine.stakeAt(user.address, 0);
+        const locked = created.rewardPriceUsdt;
+        expect(locked).to.be.gt(0n);
+
+        await router.setRate(20, 1);
+        expect(await engine.liveRacePriceUsdt()).to.not.equal(locked);
+
+        await engine.setClaimEnabled(true);
+        await time.increase(ONE_DAY);
+        const pending = await engine.pendingRewardRace(user.address, 0);
+        const rewardUsdt = (USDT_50 * 35n * 1n) / 10_000n;
+        expect(pending).to.equal((rewardUsdt * 10n ** 18n) / locked);
+    });
+
     it('pays community referrals on participate', async function () {
         const { sponsor, user, engine } = await deployFixture();
 
@@ -126,17 +147,22 @@ describe('RaceCommunityEngine', function () {
         expect(stats[3]).to.equal(1n); // participationDirectCount
     });
 
-    it('charges team reward fee on withdraw', async function () {
-        const { user, sponsor, engine, race } = await deployFixture();
+    it('sends flexible 10% fee to RaceTreasury', async function () {
+        const { user, sponsor, engine, race, treasuryWallet } = await deployFixture();
 
         await engine.connect(user).participate(USDT_50, 0);
+        const stake = await engine.stakeAt(user.address, 0);
+        const fee = (stake.stakedRace * 1000n) / 10_000n;
+        const treasuryBefore = await race.balanceOf(treasuryWallet.address);
         const sponsorBefore = await race.balanceOf(sponsor.address);
 
         await time.increase(ONE_DAY);
-        await engine.connect(user).withdrawStake(0);
+        await expect(engine.connect(user).withdrawStake(0))
+            .to.emit(engine, 'MaturityFeePaid')
+            .withArgs(user.address, 0, treasuryWallet.address, fee);
 
-        const sponsorAfter = await race.balanceOf(sponsor.address);
-        expect(sponsorAfter).to.be.gt(sponsorBefore);
+        expect(await race.balanceOf(treasuryWallet.address)).to.equal(treasuryBefore + fee);
+        expect(await race.balanceOf(sponsor.address)).to.equal(sponsorBefore);
     });
 
     it('only vault engine may pay rewards', async function () {

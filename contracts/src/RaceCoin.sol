@@ -8,19 +8,31 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @title RaceCoin
  * @notice RACE mintable BEP20.
  * @dev Model:
- *   - Deploy pe sirf 10 lakh (1,000,000) RACE owner ko (ops / LP).
- *   - Baaki MAX_SUPPLY tak ICO + RewardVault authorized minters mint karte hain.
- *   - ICO buy → mint user/lock; Income → mint user. Admin ko income coins nahi milte.
+ *   - On deploy, only 1,000,000 RACE is minted to the owner (ops / LP).
+ *   - Remaining supply up to MAX_SUPPLY is minted by authorized ICO + RewardVault minters.
+ *   - ICO buy → mint to user/lock; income → mint to user. Admin does not receive income coins.
+ *   - Expense / marketing / extra: max 30,000,000 via owner (Multisig 3-of-5) expenseMint.
+ *   - Six member incomes can mint via incomeMint (minter or owner) when wired.
  *   - 4% transfer fee (exempt addresses skip).
- *   - Optional governanceMint still capped 1%/month, within MAX_SUPPLY.
+ *   - Optional governanceMint still capped at 1%/month, within MAX_SUPPLY.
  */
 contract RaceCoin is ERC20, Ownable {
     uint256 public constant MAX_SUPPLY = 150_000_000 ether;
-    uint256 public constant INITIAL_MINT = 1_000_000 ether; // 10 lakh — starting circulate
+    uint256 public constant INITIAL_MINT = 1_000_000 ether; // 1,000,000 starting circulating supply
     uint256 public constant TOTAL_SUPPLY = MAX_SUPPLY; // backward-compatible name
+    uint256 public constant EXPENSE_ALLOCATION = 30_000_000 ether; // 30 million — Multisig only
     uint256 public constant FEE_BPS = 400;
     uint256 public constant FEE_PART_BPS = 100;
     uint256 public constant MONTHLY_MINT_CAP_BPS = 100;
+
+    /// @notice Official member incomes (coding hook). 1=Staking 2=Referral 3=RoiShare 4=Leadership 5=Royalty 6=Team
+    uint8 public constant INCOME_STAKING = 1;
+    uint8 public constant INCOME_REFERRAL = 2;
+    uint8 public constant INCOME_ROI_SHARING = 3;
+    uint8 public constant INCOME_LEADERSHIP = 4;
+    uint8 public constant INCOME_ROYALTY = 5;
+    uint8 public constant INCOME_TEAM_REWARDS = 6;
+    uint8 public constant INCOME_KIND_MAX = 6;
 
     address public autoLiquidity;
     address public treasury;
@@ -30,9 +42,11 @@ contract RaceCoin is ERC20, Ownable {
 
     uint256 public currentMintMonth;
     uint256 public mintedThisMonth;
+    uint256 public expenseMinted;
 
     mapping(address => bool) public isFeeExempt;
     mapping(address => bool) public isMinter;
+    mapping(uint8 => uint256) public incomeMintedByKind;
 
     event FeeRecipientsUpdated(
         address autoLiquidity,
@@ -46,6 +60,8 @@ contract RaceCoin is ERC20, Ownable {
     event GovernanceMint(address indexed to, uint256 amount);
     event MinterUpdated(address indexed account, bool allowed);
     event MinterMint(address indexed minter, address indexed to, uint256 amount);
+    event ExpenseMinted(address indexed to, uint256 amount, uint256 expenseMinted);
+    event IncomeMinted(address indexed to, uint256 amount, uint8 indexed kind, address indexed caller);
 
     modifier onlyGovernance() {
         require(msg.sender == governance || msg.sender == owner(), "RaceCoin: not governance");
@@ -81,7 +97,7 @@ contract RaceCoin is ERC20, Ownable {
         _setFeeExempt(rewardPool_, true);
         _setFeeExempt(devFund_, true);
 
-        // Starting circulate only — ICO/income mint baaki supply.
+        // Starting circulating supply only — ICO/income mint the remaining supply.
         _mint(initialOwner, INITIAL_MINT);
     }
 
@@ -91,6 +107,46 @@ contract RaceCoin is ERC20, Ownable {
 
     function remainingMintable() external view returns (uint256) {
         return MAX_SUPPLY - totalSupply();
+    }
+
+    function remainingExpense() external view returns (uint256) {
+        return EXPENSE_ALLOCATION - expenseMinted;
+    }
+
+    function isValidIncomeKind(uint8 kind) public pure returns (bool) {
+        return kind >= INCOME_STAKING && kind <= INCOME_KIND_MAX;
+    }
+
+    /**
+     * @notice Mint RACE for one of the 6 member incomes. Hook for Engine/Vault later.
+     * @dev kind: 1 staking · 2 referral · 3 roi sharing · 4 leadership · 5 royalty · 6 team.
+     *      Minter (Vault) or owner (Multisig) only. Still bounded by MAX_SUPPLY. Not the 30M expense bucket.
+     */
+    function incomeMint(address to, uint256 amount, uint8 kind) external {
+        require(msg.sender == owner() || isMinter[msg.sender], "RaceCoin: not income minter");
+        require(isValidIncomeKind(kind), "RaceCoin: bad income");
+        require(to != address(0), "RaceCoin: zero to");
+        require(amount > 0, "RaceCoin: zero amount");
+        require(totalSupply() + amount <= MAX_SUPPLY, "RaceCoin: max supply");
+
+        incomeMintedByKind[kind] += amount;
+        _mint(to, amount);
+        emit IncomeMinted(to, amount, kind, msg.sender);
+    }
+
+    /**
+     * @notice Marketing / dev / extra from the 30M bucket. Owner = Multisig after harden.
+     * @dev Any amount ≤ remainingExpense, no monthly %. Still bounded by MAX_SUPPLY.
+     */
+    function expenseMint(address to, uint256 amount) external onlyOwner {
+        require(to != address(0), "RaceCoin: zero to");
+        require(amount > 0, "RaceCoin: zero amount");
+        require(expenseMinted + amount <= EXPENSE_ALLOCATION, "RaceCoin: expense cap");
+        require(totalSupply() + amount <= MAX_SUPPLY, "RaceCoin: max supply");
+
+        expenseMinted += amount;
+        _mint(to, amount);
+        emit ExpenseMinted(to, amount, expenseMinted);
     }
 
     function setGovernance(address governance_) external onlyOwner {

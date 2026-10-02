@@ -133,16 +133,16 @@ class ExplainStakeReferralsCommand extends Command
         if (! $paid) {
             if ($referrerForReason === null) {
                 $reason = 'NO_ON_CHAIN_SPONSOR';
-                $fix = 'Stake se pehle Engine.register(sponsor) — warna ICO tx andar 0x0 referrer se register ho jata hai; ab UI pehle sponsor bind+active karti hai.';
+                $fix = 'Call Engine.register(sponsor) before stake — otherwise the ICO tx registers with a zero referrer; the UI now binds and activates the sponsor first.';
             } elseif (! $sponsorActiveAtBlock && ($sponsorActiveNow || $referrerAtBlock === null)) {
                 $reason = 'SPONSOR_NOT_ACTIVE_AT_STAKE';
-                $fix = 'Sponsor pehle $50+ Buy & Stake (on-chain active), phir downline — level income usi downline stake tx mein jati hai.';
+                $fix = 'Sponsor must complete $50+ Buy & Stake (on-chain active) before the downline; level income is paid in that downline stake tx.';
             } elseif (! $sponsorActiveAtBlock) {
                 $reason = 'SPONSOR_NOT_ACTIVE_AT_STAKE';
-                $fix = 'Sponsor ab bhi active nahi — pehle sponsor ka $50+ stake complete karo.';
+                $fix = 'Sponsor is still inactive — complete the sponsor $50+ stake first.';
             } else {
                 $reason = 'REFERRAL_NOT_EMITTED_OTHER';
-                $fix = 'Receipt / oracle / vault check; tx support ko bhejo.';
+                $fix = 'Check receipt / oracle / vault; send the tx hash to support.';
             }
         }
 

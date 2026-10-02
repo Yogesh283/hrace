@@ -15,6 +15,7 @@ contract MockIcoStakeReceiver is IRaceIcoStakeReceiver {
     bool public holdProcessed;
     bool public revertNext;
     bool public revertHold;
+    uint256 public mockLivePrice = 0.1 ether;
 
     function setRevertNext(bool v) external {
         revertNext = v;
@@ -22,6 +23,14 @@ contract MockIcoStakeReceiver is IRaceIcoStakeReceiver {
 
     function setRevertHold(bool v) external {
         revertHold = v;
+    }
+
+    function setLivePrice(uint256 price) external {
+        mockLivePrice = price;
+    }
+
+    function liveRacePriceUsdt() external view returns (uint256) {
+        return mockLivePrice;
     }
 
     function bindIcoPurchaseReferrer(address buyer, uint256 icoPurchaseId) external {

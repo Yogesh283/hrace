@@ -14,16 +14,18 @@ import {IRaceIcoStakeReceiver} from "./interfaces/IRaceIcoStakeReceiver.sol";
 import {IRaceTeamRewardFromHold} from "./interfaces/IRaceTeamRewardFromHold.sol";
 import {IRaceIcoCompletion} from "./interfaces/IRaceIcoCompletion.sol";
 import {IRaceRewardPriceOracle} from "./interfaces/IRaceRewardPriceOracle.sol";
+import {PancakePrice} from "./libraries/PancakePrice.sol";
 /**
  * @title RaceCommunityEngine
  * @notice Single on-chain entry point for RACE Community Rewards (PDF program).
  * @dev Participation + ICO stakes + referrals, leadership, team rewards.
  *      Stake daily rates (FINAL): Flexible=35bps (0.35%), 180=50bps, 365=70, 730=90, 1095=100.
- *      ROI is USD-notional (principalUsdt × bps); reward RACE mint size uses RaceRewardPriceOracle
- *      (NOT raw Pancake spot). Pancake remains for participate swaps / MLM USD→RACE path only.
+ *      ROI is USD-notional (principalUsdt × bps). Stake create snapshots live PancakeSwap RACE/USDT
+ *      price; all ROI + level income for that stake mint at that locked price (not the oracle).
+ *      Pancake also swaps USDT→RACE on participate. Liquidity must exist before createStake.
  *      ICO createStake → openIcoStake: FIXED plans only (no Flexible). Flexible only via participate after RaceICO.icoCompleted.
  *      Fixed maturity: settle reward → 10% RaceTreasury → 90% EMI escrow (30/30/rest @ +30/+60/+90d).
- *      Flexible: anytime withdrawStake (10% team rewards fee) — no EMI schedule.
+ *      Flexible: anytime withdrawStake (10% RaceTreasury, Multisig-gated) — no EMI schedule.
  */
 contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStakeReceiver, IRaceTeamRewardFromHold {
     using SafeERC20 for IERC20;
@@ -59,7 +61,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     uint256 public constant LOCK_730 = 730 days;
     uint256 public constant LOCK_1095 = 1095 days;
 
-    /// @notice RaceTreasury — receives fixed-stake maturity fee (10%). Set then permanently lock for production.
+    /// @notice RaceTreasury — receives 10% on flexible withdraw and fixed maturity. Set then permanently lock.
     address public maturityTreasury;
     /// @notice Once true, maturityTreasury can never be changed (even by owner/governance).
     bool public maturityTreasuryLocked;
@@ -96,6 +98,8 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         uint256 unlockAt;
         uint256 lastRewardAt;
         uint256 dailyRateBps;
+        /// @notice Pancake RACE/USDT price locked at stake create (18-decimal USDT per 1 RACE).
+        uint256 rewardPriceUsdt;
         bool withdrawn;
     }
 
@@ -319,7 +323,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         paid = _creditTeamRewardsOnHold(withdrawer, feeRace);
     }
 
-    /// @notice Configure maturity fee destination (RaceTreasury). Reverts after lockMaturityTreasury.
+    /// @notice Configure 10% fee destination (RaceTreasury) for flexible withdraw + fixed maturity.
     function setMaturityTreasury(address maturityTreasury_) external onlyOwner {
         require(!maturityTreasuryLocked, "engine: treasury locked");
         require(maturityTreasury_ != address(0), "engine: zero treasury");
@@ -402,7 +406,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
 
     /**
      * @notice ICO createStake: RaceICO transfers `raceAmount` then calls this.
-     * @dev `usdtPaid` = end-price notional for ROI. Level income skipped if already paid at hold.
+     * @dev Principal and ROI use live Pancake price × raceAmount. Level income skipped if already paid at hold.
      *      If hold step was skipped: pays level income here once (must not miss).
      */
     function openIcoStake(
@@ -418,6 +422,10 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         require(raceToken.balanceOf(address(this)) >= totalLockedRace + raceAmount, "engine: race not funded");
         uint256 dailyRateBps = _dailyRateBps(lockPeriod);
         require(dailyRateBps > 0, "engine: invalid lock");
+
+        uint256 price = _livePancakeRacePriceUsdt();
+        uint256 principalUsdt = (raceAmount * price) / 1e18;
+        require(principalUsdt > 0, "engine: dust principal");
 
         MemberInfo storage m = _members[buyer];
         if (!m.registered) {
@@ -446,7 +454,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
             icoHoldLevelIncomePaid[icoPurchaseId] = true;
         }
 
-        uint256 stakeDailyRoiUsdt = (usdtPaid * dailyRateBps) / 10_000;
+        uint256 stakeDailyRoiUsdt = (principalUsdt * dailyRateBps) / 10_000;
         _addTeamDailyRoi(ref, stakeDailyRoiUsdt);
 
         uint256 unlockAt = lockPeriod == LOCK_FLEXIBLE ? block.timestamp : block.timestamp + lockPeriod;
@@ -454,13 +462,14 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
 
         _stakes[buyer].push(
             StakeInfo({
-                principalUsdt: usdtPaid,
+                principalUsdt: principalUsdt,
                 stakedRace: raceAmount,
                 lockPeriod: lockPeriod,
                 startedAt: block.timestamp,
                 unlockAt: unlockAt,
                 lastRewardAt: block.timestamp,
                 dailyRateBps: dailyRateBps,
+                rewardPriceUsdt: price,
                 withdrawn: false
             })
         );
@@ -469,9 +478,9 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         totalStakesCreated += 1;
 
         emit ICOStakeCreated(
-            buyer, stakeIndex, icoPurchaseId, usdtPaid, raceAmount, lockPeriod, dailyRateBps, unlockAt
+            buyer, stakeIndex, icoPurchaseId, principalUsdt, raceAmount, lockPeriod, dailyRateBps, unlockAt
         );
-        emit ParticipationPurchased(buyer, stakeIndex, usdtPaid, raceAmount, lockPeriod, dailyRateBps);
+        emit ParticipationPurchased(buyer, stakeIndex, principalUsdt, raceAmount, lockPeriod, dailyRateBps);
     }
 
     /**
@@ -491,8 +500,8 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         uint256 rewardUsdt = (s.principalUsdt * s.dailyRateBps * daysOwed) / 10_000;
         require(rewardUsdt > 0, "engine: zero reward");
 
-        uint256 price = _rewardRacePriceUsdt();
-        require(price > 0, "engine: no price");
+        uint256 price = s.rewardPriceUsdt;
+        require(price > 0, "engine: no stake price");
         uint256 rewardRace = (rewardUsdt * 1e18) / price;
         require(rewardRace > 0, "engine: zero race");
 
@@ -544,6 +553,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         usdt.safeTransferFrom(msg.sender, address(this), usdtAmount);
         uint256 raceReceived = _swapUsdtToRace(usdtAmount);
         require(raceReceived > 0, "engine: swap failed");
+        uint256 price = _livePancakeRacePriceUsdt();
 
         if (qualifying) {
             bool firstParticipation = !m.participationActive;
@@ -576,6 +586,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
                 unlockAt: unlockAt,
                 lastRewardAt: block.timestamp,
                 dailyRateBps: dailyRateBps,
+                rewardPriceUsdt: price,
                 withdrawn: false
             })
         );
@@ -601,7 +612,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
 
     /**
      * @notice Flexible-only principal exit. Fixed plans must use matureStake + claimMaturityEmi.
-     * @dev Settles accrued reward, 10% team rewards fee, 90% to user immediately. No EMI.
+     * @dev Settles accrued reward, 10% to RaceTreasury (Multisig withdraw), 90% to user. No EMI.
      */
     function withdrawStake(uint256 stakeIndex) external nonReentrant whenNotPaused {
         StakeInfo storage s = _stakes[msg.sender][stakeIndex];
@@ -609,6 +620,7 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         require(!_maturityEmis[msg.sender][stakeIndex].matured, "engine: matured");
         require(s.lockPeriod == LOCK_FLEXIBLE, "engine: use matureStake");
         require(block.timestamp >= s.unlockAt, "engine: locked");
+        require(maturityTreasury != address(0), "engine: no treasury");
 
         uint256 amount = s.stakedRace;
         require(amount > 0, "engine: empty stake");
@@ -629,7 +641,8 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         uint256 netRace = amount - feeRace;
 
         if (feeRace > 0) {
-            _payTeamRewards(msg.sender, feeRace);
+            raceToken.safeTransfer(maturityTreasury, feeRace);
+            emit MaturityFeePaid(msg.sender, stakeIndex, maturityTreasury, feeRace);
         }
 
         raceToken.safeTransfer(msg.sender, netRace);
@@ -811,7 +824,8 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
             uint256 unlockAt,
             uint256 lastRewardAt,
             uint256 dailyRateBps,
-            bool withdrawn
+            bool withdrawn,
+            uint256 rewardPriceUsdt
         )
     {
         StakeInfo storage s = _stakes[user][index];
@@ -823,7 +837,8 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
             s.unlockAt,
             s.lastRewardAt,
             s.dailyRateBps,
-            s.withdrawn
+            s.withdrawn,
+            s.rewardPriceUsdt
         );
     }
 
@@ -855,13 +870,9 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
     function pendingRewardRace(address user, uint256 stakeIndex) external view returns (uint256) {
         uint256 rewardUsdt = this.pendingRewardUsdt(user, stakeIndex);
         if (rewardUsdt == 0) return 0;
-        if (address(rewardPriceOracle) == address(0)) return 0;
-        try rewardPriceOracle.racePriceUsdt() returns (uint256 price) {
-            if (price == 0) return 0;
-            return (rewardUsdt * 1e18) / price;
-        } catch {
-            return 0;
-        }
+        uint256 price = _stakes[user][stakeIndex].rewardPriceUsdt;
+        if (price == 0) return 0;
+        return (rewardUsdt * 1e18) / price;
     }
 
     function memberStats(address user)
@@ -1114,7 +1125,8 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         uint256 rewardUsdt = (s.principalUsdt * s.dailyRateBps * daysOwed) / 10_000;
         require(rewardUsdt > 0, "engine: zero reward");
 
-        uint256 price = _rewardRacePriceUsdt();
+        uint256 price = s.rewardPriceUsdt;
+        require(price > 0, "engine: no stake price");
         rewardRace = (rewardUsdt * 1e18) / price;
         require(rewardRace > 0, "engine: zero race");
 
@@ -1147,14 +1159,12 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         rewardVault.pay(to, raceAmount);
     }
 
-    /// @dev USDT→RACE for vault mint payouts (referrals / leadership).
-    ///      Uses reward oracle — NOT Pancake spot — so ICO/referral works pre-listing
-    ///      when no USDT/RACE pool exists (Pancake getAmountsOut would silent-revert).
+    /// @dev USDT→RACE for vault mint payouts (referrals / leadership) at live Pancake price.
     function _usdtToRace(uint256 usdtAmount) internal view returns (uint256) {
         if (usdtAmount == 0) {
             return 0;
         }
-        uint256 price = _rewardRacePriceUsdt();
+        uint256 price = _livePancakeRacePriceUsdt();
         return (usdtAmount * 1e18) / price;
     }
 
@@ -1180,12 +1190,19 @@ contract RaceCommunityEngine is Ownable, ReentrancyGuard, Pausable, IRaceIcoStak
         raceReceived = raceToken.balanceOf(address(this)) - balanceBefore;
     }
 
-    /// @notice Reward mint conversion price — RaceRewardPriceOracle only (never Pancake spot).
-    function _rewardRacePriceUsdt() internal view returns (uint256) {
-        require(address(rewardPriceOracle) != address(0), "engine: no reward oracle");
-        uint256 price = rewardPriceOracle.racePriceUsdt();
-        require(price > 0, "engine: no price");
-        return price;
+    /// @notice Live PancakeSwap RACE/USDT (18-decimal USDT per 1 RACE).
+    function liveRacePriceUsdt() public view returns (uint256) {
+        return _livePancakeRacePriceUsdt();
+    }
+
+    function _livePancakeRacePriceUsdt() internal view returns (uint256 price) {
+        price = PancakePrice.raceToUsdt(
+            pancakeRouter,
+            address(raceToken),
+            address(usdt),
+            1 ether
+        );
+        require(price > 0, "engine: no pancake price");
     }
 
     /// @notice Flexible normal staking only after RaceICO.icoCompleted (or no ICO wired).

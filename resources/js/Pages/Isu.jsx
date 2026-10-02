@@ -1,6 +1,5 @@
 import IcoPhaseProgress from '@/Components/Ico/IcoPhaseProgress';
 import PanelCard from '@/Components/PanelCard';
-import Web3NetworkBanner from '@/Components/Web3NetworkBanner';
 import MemberPageHero from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import PrimaryButton from '@/Components/PrimaryButton';
@@ -27,17 +26,19 @@ import {
     readErc20BalanceOf,
     readIcoCompleted,
     readIcoCurrentPhase,
-    readIcoEndPriceUsdt,
+    readLiveStakePriceUsdt,
     readPendingStakeCount,
     readTotalIcoSold,
     readUserHeldRace,
     readUserIcoPurchases,
 } from '@/lib/web3RaceICO';
 import {
+    claimOnChainMaturityEmi,
     claimOnChainReward,
     claimPolicyMessage,
     compoundOnChainReward,
     friendlyEngineError,
+    matureOnChainStake,
     readAllOnChainStakes,
     readClaimPolicyState,
     withdrawOnChainStake,
@@ -60,6 +61,11 @@ const ICO_PHASE_POLL_MS = 20_000;
 function shortenAddress(address) {
     if (!address || address.length < 10) return address || '—';
     return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function quoteRaceFromPrice(usdtWei, priceUsdt) {
+    if (!usdtWei || !priceUsdt || priceUsdt === 0n) return 0n;
+    return (usdtWei * (10n ** 18n)) / priceUsdt;
 }
 
 function InfoRow({ label, value, mono = false }) {
@@ -219,15 +225,7 @@ export default function Isu({
         });
     }, [expectedChainId, usdtContract, rpcUrl]);
 
-    const {
-        chainOk,
-        switching: networkSwitching,
-        networkError: networkSwitchError,
-        switchNetwork,
-        connectWallet: connectWalletOnNetwork,
-        connectedLabel,
-        switchButtonLabel,
-    } = useWalletNetwork({ expectedChainId });
+    const { chainOk, switchNetwork } = useWalletNetwork({ expectedChainId });
 
     useEffect(() => {
         if (!import.meta.env.DEV) {
@@ -259,12 +257,12 @@ export default function Isu({
     ]);
 
     const [walletAddress, setWalletAddress] = useState(boundWallet);
-    const [connecting, setConnecting] = useState(false);
     const [amountUsd, setAmountUsd] = useState('100');
     const [planId, setPlanId] = useState('180');
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(null);
+    const [buyMoreOpen, setBuyMoreOpen] = useState(false);
 
     const [currentPhaseId, setCurrentPhaseId] = useState(0);
     const [icoCompleted, setIcoCompleted] = useState(false);
@@ -278,7 +276,7 @@ export default function Isu({
     const [purchases, setPurchases] = useState([]);
     const [heldRace, setHeldRace] = useState(0n);
     const [pendingStakes, setPendingStakes] = useState(0);
-    const [icoEndPrice, setIcoEndPrice] = useState(0n);
+    const [liveStakePrice, setLiveStakePrice] = useState(0n);
     const [stakes, setStakes] = useState([]);
     const [loadingChain, setLoadingChain] = useState(false);
     const [claimEnabledOnChain, setClaimEnabledOnChain] = useState(false);
@@ -338,9 +336,14 @@ export default function Isu({
     }, [planId, selectedPlan]);
 
     const activePhase = useMemo(
-        () => phases.find((p) => p.id === currentPhaseId) ?? null,
+        () =>
+            phases.find((p) => p.id === currentPhaseId) ||
+            phases.find((p) => p.started && !p.completed) ||
+            null,
         [phases, currentPhaseId],
     );
+
+    const quotePhase = activePhase || phases.find((p) => p.id === 1) || null;
 
     const amountWei = useMemo(() => {
         try {
@@ -350,6 +353,11 @@ export default function Isu({
             return 0n;
         }
     }, [amountUsd]);
+
+    const localQuotedRace = useMemo(
+        () => quoteRaceFromPrice(amountWei, quotePhase?.priceUsdt ?? 0n),
+        [amountWei, quotePhase?.priceUsdt],
+    );
 
     const needsApprove = amountWei > 0n && allowance < amountWei;
     const hasSelectedLock = lockPeriodSeconds > 0 && Boolean(selectedPlan);
@@ -379,27 +387,39 @@ export default function Isu({
             setTotalSold(sold);
 
             if (walletAddress) {
-                const [usdtBal, raceBal, allow, history, held, pending, endPrice] = await Promise.all([
-                    readErc20BalanceOf({ token: usdtContract, wallet: walletAddress, rpcUrl }),
-                    readErc20BalanceOf({ token: raceToken, wallet: walletAddress, rpcUrl }),
-                    readErc20Allowance({
-                        token: usdtContract,
-                        owner: walletAddress,
-                        spender: icoContract,
+                try {
+                    const [usdtBal, raceBal, allow, held, pending, pancakePrice] = await Promise.all([
+                        readErc20BalanceOf({ token: usdtContract, wallet: walletAddress, rpcUrl }),
+                        readErc20BalanceOf({ token: raceToken, wallet: walletAddress, rpcUrl }),
+                        readErc20Allowance({
+                            token: usdtContract,
+                            owner: walletAddress,
+                            spender: icoContract,
+                            rpcUrl,
+                        }),
+                        readUserHeldRace({ icoContract, wallet: walletAddress, rpcUrl }),
+                        readPendingStakeCount({ icoContract, wallet: walletAddress, rpcUrl }),
+                        readLiveStakePriceUsdt({ icoContract, rpcUrl }),
+                    ]);
+                    setUsdtBalance(usdtBal);
+                    setRaceBalance(raceBal);
+                    setAllowance(allow);
+                    setHeldRace(held);
+                    setPendingStakes(pending);
+                    setLiveStakePrice(pancakePrice);
+                } catch (walletErr) {
+                    console.warn('ICO wallet snapshot:', walletErr?.message || walletErr);
+                }
+                try {
+                    const history = await readUserIcoPurchases({
+                        icoContract,
+                        wallet: walletAddress,
                         rpcUrl,
-                    }),
-                    readUserIcoPurchases({ icoContract, wallet: walletAddress, rpcUrl }),
-                    readUserHeldRace({ icoContract, wallet: walletAddress, rpcUrl }),
-                    readPendingStakeCount({ icoContract, wallet: walletAddress, rpcUrl }),
-                    readIcoEndPriceUsdt({ icoContract, rpcUrl }),
-                ]);
-                setUsdtBalance(usdtBal);
-                setRaceBalance(raceBal);
-                setAllowance(allow);
-                setPurchases(history.slice().reverse());
-                setHeldRace(held);
-                setPendingStakes(pending);
-                setIcoEndPrice(endPrice);
+                    });
+                    setPurchases(history.slice().reverse());
+                } catch (historyErr) {
+                    console.warn('ICO purchase history:', historyErr?.message || historyErr);
+                }
                 try {
                     const policy = await readClaimPolicyState({
                         walletAddress,
@@ -438,8 +458,15 @@ export default function Isu({
                 }
             }
         } catch (err) {
-            setError(friendlyIcoError(err));
-            notifyError(friendlyIcoError(err), 'ICO');
+            const msg = friendlyIcoError(err);
+            const raw = String(err?.message || err || '').toLowerCase();
+            // Empty wallet/RPC "0x" is not a user action failure — don't block the ICO page.
+            if (raw.includes('cannot convert 0x') || raw.includes('convert 0x to a bigint')) {
+                console.warn('ICO chain snapshot skipped:', msg);
+            } else {
+                setError(msg);
+                notifyError(msg, 'ICO');
+            }
         } finally {
             setLoadingChain(false);
         }
@@ -493,29 +520,35 @@ export default function Isu({
     }, [contractsReady, refreshPhaseState]);
 
     const scrollToBuy = useCallback(() => {
-        document.getElementById('ico-buy')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setBuyMoreOpen(true);
+        requestAnimationFrame(() => {
+            const target =
+                document.getElementById('ico-buy-more') || document.getElementById('ico-buy');
+            target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     }, []);
 
     useEffect(() => {
         let cancelled = false;
         async function runQuote() {
             setQuoteError('');
-            if (!contractsReady || !currentPhaseId || !amountUsd || Number(amountUsd) <= 0) {
+            const phaseId = currentPhaseId || quotePhase?.id || 0;
+            if (!contractsReady || !phaseId || !amountUsd || Number(amountUsd) <= 0) {
                 setQuotedRace(0n);
                 return;
             }
             try {
                 const out = await quoteIcoRaceOut({
                     icoContract,
-                    phaseId: currentPhaseId,
+                    phaseId,
                     usdtAmount: amountUsd,
                     rpcUrl,
                 });
                 if (!cancelled) setQuotedRace(out);
             } catch (err) {
                 if (!cancelled) {
-                    setQuotedRace(0n);
-                    setQuoteError(friendlyIcoError(err));
+                    setQuotedRace(localQuotedRace);
+                    setQuoteError(localQuotedRace > 0n ? '' : friendlyIcoError(err));
                 }
             }
         }
@@ -523,7 +556,7 @@ export default function Isu({
         return () => {
             cancelled = true;
         };
-    }, [contractsReady, icoContract, currentPhaseId, amountUsd, rpcUrl]);
+    }, [contractsReady, icoContract, currentPhaseId, quotePhase?.id, amountUsd, rpcUrl, localQuotedRace]);
 
     const showIcoError = (errOrMsg) => {
         const msg = typeof errOrMsg === 'string' ? errOrMsg : friendlyIcoError(errOrMsg);
@@ -535,19 +568,11 @@ export default function Isu({
         notifySuccess(msg, 'ICO');
     };
 
-    const connectWallet = async () => {
-        setConnecting(true);
-        setError('');
-        try {
-            const address = await connectWalletOnNetwork();
-            setWalletAddress(address);
-            showIcoSuccess(`Wallet connected: ${address.slice(0, 6)}…${address.slice(-4)}`);
-        } catch (err) {
-            showIcoError(err);
-        } finally {
-            setConnecting(false);
+    useEffect(() => {
+        if (boundWallet) {
+            setWalletAddress(boundWallet);
         }
-    };
+    }, [boundWallet]);
 
     const ensureNetworkForTx = async () => {
         if (chainOk) {
@@ -572,7 +597,6 @@ export default function Isu({
         }
         setBusy('approve');
         setError('');
-        setSuccess(null);
         try {
             await approveUsdtForIco({
                 walletAddress,
@@ -607,11 +631,12 @@ export default function Isu({
             showIcoError('Select a stake plan: 180 / 365 / 730 / 1095 days.');
             return;
         }
-        if (quotedRace <= 0n) {
+        const raceOut = quotedRace > 0n ? quotedRace : localQuotedRace;
+        if (raceOut <= 0n) {
             showIcoError(quoteError || 'Enter a valid USDT amount.');
             return;
         }
-        if (activePhase && quotedRace > activePhase.remaining) {
+        if (activePhase && raceOut > activePhase.remaining) {
             showIcoError('Not enough RACE remaining in this phase.');
             return;
         }
@@ -660,18 +685,20 @@ export default function Isu({
                 : PHASE_LABELS[currentPhaseId]?.displayPrice || '—';
 
             setSuccess({
+                kind: 'purchase',
                 txHash,
                 usdtPaid: amountUsd,
-                raceStaked: formatTokenWei(quotedRace, 18, 4),
+                raceHeld: formatTokenWei(raceOut, 18, 4),
                 price: priceLabel,
                 phase: currentPhaseId,
                 plan: selectedPlan?.label || '—',
                 dailyRoi: selectedPlan?.daily_roi_percent || selectedPlan?.dailyRoiPercent || '—',
                 lockLabel: selectedPlan?.lock_label || selectedPlan?.lockLabel || '—',
             });
+            setBuyMoreOpen(false);
 
             showIcoSuccess(
-                `Bought ${formatTokenWei(quotedRace, 18, 4)} RACE (held). No level income on hold. After ICO completes → Create Your Stake (level income then). Tx ${txHash.slice(0, 10)}…`,
+                `Bought ${formatTokenWei(raceOut, 18, 4)} RACE (held). No level income on hold. After ICO completes → Create Your Stake (level income then). Tx ${txHash.slice(0, 10)}…`,
             );
 
             try {
@@ -704,7 +731,8 @@ export default function Isu({
             showIcoError('You Active Stake After Complete ICO.');
             return;
         }
-        if (pendingStakes <= 0 && heldRace <= 0n) {
+        const hasUnstakedPurchase = purchases.some((row) => !row.staked);
+        if (pendingStakes <= 0 && heldRace <= 0n && !hasUnstakedPurchase) {
             showIcoError('No held ICO RACE to stake.');
             return;
         }
@@ -749,9 +777,9 @@ export default function Isu({
                           rpcUrl,
                       });
 
-            const endLabel = icoEndPrice > 0n ? `$${formatUsdPriceFromWei(icoEndPrice)}` : 'ICO end price';
+            const liveLabel = liveStakePrice > 0n ? `$${formatUsdPriceFromWei(liveStakePrice)}` : 'live Pancake price';
             showIcoSuccess(
-                `Stake created at ${endLabel}. Level income paid on this stake if ≥$50. Claim from next day. Tx ${txHash.slice(0, 10)}…`,
+                `Stake created at ${liveLabel}. Level income and ROI on this stake use that locked price. Claim from next day. Tx ${txHash.slice(0, 10)}…`,
             );
 
             try {
@@ -803,6 +831,182 @@ export default function Isu({
               };
           });
 
+    const heldFromHistory = historyRows
+        .filter((row) => !row.staked)
+        .reduce((sum, row) => sum + (row.raceAmount || 0n), 0n);
+    const displayHeldRace = heldRace > 0n ? heldRace : heldFromHistory;
+    const displayQuotedRace = quotedRace > 0n ? quotedRace : localQuotedRace;
+    const hasHeldPosition = displayHeldRace > 0n || pendingStakes > 0 || historyRows.some((row) => !row.staked);
+    const showPostBuyHold = hasHeldPosition || success?.kind === 'purchase' || icoCompleted;
+
+    const renderBuyForm = (opts = {}) => (
+        <div
+            id={opts.boxed ? 'ico-buy-more' : undefined}
+            className={
+                opts.boxed
+                    ? 'scroll-mt-24 space-y-4 rounded-xl border border-sky-500/25 bg-slate-950/50 p-4'
+                    : 'space-y-4'
+            }
+        >
+            {opts.title ? (
+                <div>
+                    <p className="text-sm font-semibold text-white">{opts.title}</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                        Separate from your held ICO position. New buy stays held until ICO completes.
+                    </p>
+                </div>
+            ) : null}
+
+            <InfoRow
+                label="Current phase"
+                value={
+                    currentPhaseId
+                        ? `${PHASE_LABELS[currentPhaseId]?.label || currentPhaseId}`
+                        : icoCompleted
+                          ? 'Completed'
+                          : quotePhase
+                            ? `${PHASE_LABELS[quotePhase.id]?.label || quotePhase.id}`
+                            : 'None active'
+                }
+            />
+            <InfoRow
+                label="Current price"
+                value={quotePhase ? `$${formatUsdPriceFromWei(quotePhase.priceUsdt)} / RACE` : '—'}
+            />
+            <InfoRow
+                label="Phase remaining"
+                value={quotePhase ? `${formatTokenWei(quotePhase.remaining ?? 0n, 18, 2)} RACE` : '—'}
+            />
+
+            <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase text-slate-400">Lock duration</span>
+                <p className="mb-3 text-xs text-slate-500">
+                    ICO uses fixed locks only. After ICO, Flexible is{' '}
+                    <strong className="text-slate-200">{FLEXIBLE_DAILY_ROI_PERCENT}% daily</strong>.
+                </p>
+                <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-sm">
+                    <p className="font-semibold text-emerald-200">
+                        Flexible · {FLEXIBLE_DAILY_ROI_PERCENT}% daily
+                    </p>
+                    <p className="text-xs text-emerald-100/80">
+                        Available after ICO completes — no fixed lock, withdraw anytime.
+                    </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {stakePlans.map((plan) => {
+                        const id = plan.id ?? String(plan.days);
+                        const active = String(planId) === String(id);
+                        const roi = plan.daily_roi_percent || plan.dailyRoiPercent;
+                        const lock = plan.lock_label || plan.lockLabel;
+                        const dayLabel = plan.days ? `${plan.days}D` : plan.label;
+                        return (
+                            <button
+                                key={id}
+                                type="button"
+                                onClick={() => setPlanId(String(id))}
+                                className={`rounded-xl border p-3 text-left text-sm transition ${
+                                    active
+                                        ? 'border-sky-400 bg-sky-950/40 ring-1 ring-sky-400/40'
+                                        : 'border-slate-700 bg-slate-900/40 hover:border-slate-500'
+                                }`}
+                            >
+                                <p className="font-semibold text-white">{dayLabel}</p>
+                                <p className="text-emerald-300">{roi}% daily</p>
+                                <p className="mt-1 text-xs text-slate-400">{lock || plan.label}</p>
+                            </button>
+                        );
+                    })}
+                </div>
+            </label>
+
+            <InfoRow
+                label="Selected lock"
+                value={
+                    selectedPlan
+                        ? `${selectedPlan.days ?? selectedPlan.id} days — ${
+                              selectedPlan.lock_label || selectedPlan.lockLabel || selectedPlan.label
+                          }`
+                        : 'Select a lock duration'
+                }
+            />
+
+            <label className="block">
+                <span className="mb-1 block text-xs font-medium uppercase text-slate-400">USDT amount</span>
+                <input
+                    className={fieldClass}
+                    value={amountUsd}
+                    onChange={(e) => setAmountUsd(e.target.value)}
+                    inputMode="decimal"
+                    placeholder="100"
+                    disabled={!contractsReady || busy !== ''}
+                />
+            </label>
+
+            <div className="rounded-xl border border-brand/30 bg-brand/[0.07] p-3">
+                <p className="text-xs font-bold uppercase tracking-wide text-brand">You will receive</p>
+                <p className="mt-1 text-2xl font-bold text-white">
+                    {displayQuotedRace > 0n
+                        ? `${formatTokenWei(displayQuotedRace, 18, 4)} RACE`
+                        : quoteError || 'Enter USDT amount'}
+                </p>
+                <p className="mt-1 text-sm text-slate-300">
+                    For {amountUsd || '0'} USDT
+                    {quotePhase ? ` at $${formatUsdPriceFromWei(quotePhase.priceUsdt)} / RACE` : ''}
+                </p>
+            </div>
+
+            <p className="text-xs text-slate-500">
+                Price from RaceICO. Bought RACE stays held in the ICO contract until you activate stake
+                after ICO completes.
+            </p>
+
+            {error && (
+                <div className="rounded-lg border border-rose-500/40 bg-rose-950/40 p-3 text-sm text-rose-100">
+                    {error}
+                </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+                {needsApprove ? (
+                    <PrimaryButton
+                        type="button"
+                        onClick={onApprove}
+                        disabled={!walletAddress || !contractsReady || busy !== '' || amountWei <= 0n}
+                    >
+                        {busy === 'approve' ? 'Approving…' : 'Approve USDT'}
+                    </PrimaryButton>
+                ) : (
+                    <PrimaryButton type="button" onClick={onBuy} disabled={!canBuy}>
+                        {busy === 'buy'
+                            ? 'Buying…'
+                            : !hasSelectedLock
+                              ? 'Select lock duration first'
+                              : opts.boxed
+                                ? 'Buy more RACE'
+                                : 'Buy RACE'}
+                    </PrimaryButton>
+                )}
+                <button
+                    type="button"
+                    className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                    onClick={refreshChainState}
+                    disabled={loadingChain || busy !== ''}
+                >
+                    Refresh
+                </button>
+                {opts.onHide ? (
+                    <button
+                        type="button"
+                        className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                        onClick={opts.onHide}
+                    >
+                        Hide
+                    </button>
+                ) : null}
+            </div>
+        </div>
+    );
+
     return (
         <AuthenticatedLayout pageTitle="ICO" mobileFintechPageTitle="ICO">
             <Head title="RACE ICO" />
@@ -813,18 +1017,6 @@ export default function Isu({
                     logoSrc={RACE_LOGO_SRC}
                     bannerSrc={RACE_BANNER_STAKING}
                 />
-
-                {walletAddress ? (
-                    <Web3NetworkBanner
-                        className="mt-4"
-                        chainOk={chainOk}
-                        connectedLabel={connectedLabel}
-                        switchButtonLabel={switchButtonLabel}
-                        switching={networkSwitching}
-                        networkError={networkSwitchError}
-                        onSwitch={switchNetwork}
-                    />
-                ) : null}
 
                 <IcoPhaseProgress
                     phases={phases}
@@ -839,226 +1031,123 @@ export default function Isu({
                 <div id="ico-buy" className="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-2">
                     <PanelCard title="Buy RACE">
                         <div className="space-y-4">
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                    <p className="text-xs uppercase text-slate-400">Wallet</p>
-                                    <p className="font-mono text-sm text-slate-100">
-                                        {walletAddress ? shortenAddress(walletAddress) : 'Not connected'}
-                                    </p>
-                                </div>
-                                <PrimaryButton type="button" onClick={connectWallet} disabled={connecting || networkSwitching}>
-                                    {connecting || networkSwitching ? 'Connecting…' : walletAddress ? 'Refresh wallet' : 'Connect wallet'}
-                                </PrimaryButton>
-                            </div>
-
-                            <InfoRow
-                                label="Current phase"
-                                value={
-                                    currentPhaseId
-                                        ? `${PHASE_LABELS[currentPhaseId]?.label || currentPhaseId}`
-                                        : icoCompleted
-                                          ? 'Completed'
-                                          : 'None active'
-                                }
-                            />
-                            <InfoRow
-                                label="Current price"
-                                value={
-                                    activePhase
-                                        ? `$${formatUsdPriceFromWei(activePhase.priceUsdt)} / RACE`
-                                        : '—'
-                                }
-                            />
-                            <InfoRow
-                                label="Phase remaining"
-                                value={
-                                    activePhase
-                                        ? `${formatTokenWei(activePhase.remaining, 18, 2)} RACE`
-                                        : '—'
-                                }
-                            />
-                            <InfoRow label="Your USDT" value={`${formatTokenWei(usdtBalance, 18, 4)} USDT`} />
-                            <InfoRow
-                                label="Wallet RACE (claims only — not ICO principal)"
-                                value={`${formatTokenWei(raceBalance, 18, 4)} RACE`}
-                            />
-
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-medium uppercase text-slate-400">
-                                    Lock duration
-                                </span>
-                                <p className="mb-3 text-xs text-slate-500">
-                                    ICO uses fixed locks only. After ICO, Flexible is{' '}
-                                    <strong className="text-slate-200">{FLEXIBLE_DAILY_ROI_PERCENT}% daily</strong>.
+                            <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+                                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                    Your wallet
                                 </p>
-                                <div className="mb-3 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3 py-2 text-sm">
-                                    <p className="font-semibold text-emerald-200">Flexible · {FLEXIBLE_DAILY_ROI_PERCENT}% daily</p>
-                                    <p className="text-xs text-emerald-100/80">
-                                        Available after ICO completes — no fixed lock, withdraw anytime.
-                                    </p>
-                                </div>
-                                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                                    {stakePlans.map((plan) => {
-                                        const id = plan.id ?? String(plan.days);
-                                        const active = String(planId) === String(id);
-                                        const roi = plan.daily_roi_percent || plan.dailyRoiPercent;
-                                        const lock = plan.lock_label || plan.lockLabel;
-                                        const dayLabel = plan.days ? `${plan.days}D` : plan.label;
-                                        return (
-                                            <button
-                                                key={id}
-                                                type="button"
-                                                onClick={() => setPlanId(String(id))}
-                                                className={`rounded-xl border p-3 text-left text-sm transition ${
-                                                    active
-                                                        ? 'border-sky-400 bg-sky-950/40 ring-1 ring-sky-400/40'
-                                                        : 'border-slate-700 bg-slate-900/40 hover:border-slate-500'
-                                                }`}
-                                            >
-                                                <p className="font-semibold text-white">{dayLabel}</p>
-                                                <p className="text-emerald-300">{roi}% daily</p>
-                                                <p className="mt-1 text-xs text-slate-400">{lock || plan.label}</p>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </label>
-
-                            <InfoRow
-                                label="Selected lock"
-                                value={
-                                    selectedPlan
-                                        ? `${selectedPlan.days ?? selectedPlan.id} days — ${
-                                              selectedPlan.lock_label ||
-                                              selectedPlan.lockLabel ||
-                                              selectedPlan.label
-                                          }`
-                                        : 'Select a lock duration'
-                                }
-                            />
-
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-medium uppercase text-slate-400">
-                                    USDT amount
-                                </span>
-                                <input
-                                    className={fieldClass}
-                                    value={amountUsd}
-                                    onChange={(e) => setAmountUsd(e.target.value)}
-                                    inputMode="decimal"
-                                    placeholder="100"
-                                    disabled={!contractsReady || busy !== ''}
-                                />
-                            </label>
-
-                            <InfoRow
-                                label="Estimated RACE"
-                                value={
-                                    quotedRace > 0n
-                                        ? `${formatTokenWei(quotedRace, 18, 4)} RACE`
-                                        : quoteError || '—'
-                                }
-                            />
-
-                            <p className="text-xs text-slate-500">
-                                Price from RaceICO. Principal RACE goes into your staking position — no ICO claim.
-                            </p>
-
-                            {error && (
-                                <div className="rounded-lg border border-rose-500/40 bg-rose-950/40 p-3 text-sm text-rose-100">
-                                    {error}
-                                </div>
-                            )}
-
-                            {success && (
-                                <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-sm text-emerald-100">
-                                    <p className="text-base font-semibold text-emerald-300">Stake Created</p>
-                                    <div className="mt-3 space-y-1">
-                                        <p>USDT Paid: {success.usdtPaid} USDT</p>
-                                        <p>RACE Staked: {success.raceStaked} RACE</p>
-                                        <p>Price: {success.price} / RACE</p>
-                                        <p>Plan: {success.plan}</p>
-                                        <p>Daily ROI: {success.dailyRoi}%</p>
-                                        <p>{success.lockLabel}</p>
+                                <p className="mt-1 font-mono text-sm text-white">
+                                    {walletAddress ? shortenAddress(walletAddress) : 'Not connected'}
+                                </p>
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <p className="text-xs uppercase text-slate-400">USDT balance</p>
+                                        <p className="text-xl font-bold text-white">
+                                            {formatTokenWei(usdtBalance, 18, 4)}{' '}
+                                            <span className="text-sm font-medium text-slate-400">USDT</span>
+                                        </p>
                                     </div>
-                                    <p className="mt-3 text-emerald-200/90">
-                                        Principal is locked in staking — not sent as spendable wallet RACE.
-                                    </p>
-                                    <p className="mt-2 break-all font-mono text-xs">Tx: {success.txHash}</p>
-                                    <a
-                                        href={`${blockExplorer}/tx/${success.txHash}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mt-2 inline-block text-sky-300 underline"
-                                    >
-                                        View on explorer
-                                    </a>
+                                    <div>
+                                        <p className="text-xs uppercase text-slate-400">Wallet RACE</p>
+                                        <p className="text-xl font-bold text-white">
+                                            {formatTokenWei(raceBalance, 18, 4)}{' '}
+                                            <span className="text-sm font-medium text-slate-400">RACE</span>
+                                        </p>
+                                        <p className="text-[11px] text-slate-500">
+                                            Claims only — ICO principal stays held until stake
+                                        </p>
+                                    </div>
                                 </div>
-                            )}
-
-                            <div className="flex flex-wrap gap-3">
-                                {!icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
-                                    <PrimaryButton type="button" disabled>
-                                        You Active Stake After Complete ICO
-                                    </PrimaryButton>
-                                ) : null}
-                                {icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
-                                    <PrimaryButton
-                                        type="button"
-                                        onClick={() => onCreateStake(null)}
-                                        disabled={!walletAddress || !contractsReady || busy !== ''}
-                                    >
-                                        {busy === 'create-all' || busy === 'register'
-                                            ? 'Creating stake…'
-                                            : 'Create Your Stake'}
-                                    </PrimaryButton>
-                                ) : null}
-                                {!icoCompleted && needsApprove ? (
-                                    <PrimaryButton
-                                        type="button"
-                                        onClick={onApprove}
-                                        disabled={!walletAddress || !contractsReady || busy !== '' || amountWei <= 0n}
-                                    >
-                                        {busy === 'approve' ? 'Approving…' : 'Approve USDT'}
-                                    </PrimaryButton>
-                                ) : null}
-                                {!icoCompleted && !needsApprove ? (
-                                    <PrimaryButton
-                                        type="button"
-                                        onClick={onBuy}
-                                        disabled={!canBuy}
-                                    >
-                                        {busy === 'buy'
-                                            ? 'Buying…'
-                                            : !hasSelectedLock
-                                              ? 'Select lock duration first'
-                                              : 'Buy RACE'}
-                                    </PrimaryButton>
-                                ) : null}
-                                <button
-                                    type="button"
-                                    className="rounded-xl border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
-                                    onClick={refreshChainState}
-                                    disabled={loadingChain || busy !== ''}
-                                >
-                                    Refresh
-                                </button>
                             </div>
-                            {icoCompleted && (pendingStakes > 0 || heldRace > 0n) ? (
-                                <p className="mt-3 text-xs text-emerald-200/90">
-                                    Held: {formatTokenWei(heldRace, 18, 4)} RACE
-                                    {icoEndPrice > 0n
-                                        ? ` · Stake at $${formatUsdPriceFromWei(icoEndPrice)} (ICO end price)`
-                                        : ''}
-                                    . Claim income from the next day after stake.
+
+                            {showPostBuyHold ? (
+                                <>
+                                    {success?.kind === 'purchase' ? (
+                                        <div className="rounded-xl border border-emerald-500/40 bg-emerald-950/40 p-4 text-sm text-emerald-100">
+                                            <p className="text-base font-semibold text-emerald-300">
+                                                RACE purchased
+                                            </p>
+                                            <div className="mt-3 space-y-1">
+                                                <p>USDT paid: {success.usdtPaid} USDT</p>
+                                                <p>RACE held: {success.raceHeld} RACE</p>
+                                                <p>Price: {success.price} / RACE</p>
+                                                <p>Plan: {success.plan}</p>
+                                                <p>Daily ROI: {success.dailyRoi}%</p>
+                                                <p>{success.lockLabel}</p>
+                                            </div>
+                                            <p className="mt-3 text-emerald-200/90">
+                                                Held in the ICO contract — not wallet RACE, not an active stake yet.
+                                            </p>
+                                            <p className="mt-2 break-all font-mono text-xs">Tx: {success.txHash}</p>
+                                            <a
+                                                href={`${blockExplorer}/tx/${success.txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="mt-2 inline-block text-sky-300 underline"
+                                            >
+                                                View on explorer
+                                            </a>
+                                        </div>
+                                    ) : null}
+
+                                    <div className="rounded-xl border border-amber-400/30 bg-amber-950/20 p-3">
+                                        <p className="text-xs font-bold uppercase tracking-wide text-amber-200">
+                                            Activate stake after ICO
+                                        </p>
+                                        <p className="mt-2 text-lg font-bold text-white">
+                                            Held: {formatTokenWei(displayHeldRace, 18, 4)} RACE
+                                        </p>
+                                        <p className="mt-1 text-sm text-slate-300">
+                                            {icoCompleted
+                                                ? `ICO is complete. Create Your Stake uses the live PancakeSwap price${
+                                                      liveStakePrice > 0n
+                                                          ? ` (now $${formatUsdPriceFromWei(liveStakePrice)})`
+                                                          : ''
+                                                  }. Held RACE moves into your Engine stake. ROI and level income lock at that price. Level income pays on this step if ≥$50.`
+                                                : 'Activate stake after ICO completes. Until then this stays held — not in your wallet.'}
+                                        </p>
+                                        {icoCompleted ? (
+                                            <PrimaryButton
+                                                type="button"
+                                                className="mt-3"
+                                                onClick={() => onCreateStake(null)}
+                                                disabled={!walletAddress || !contractsReady || busy !== ''}
+                                            >
+                                                {busy === 'create-all' || busy === 'register'
+                                                    ? 'Creating stake…'
+                                                    : 'Create Your Stake'}
+                                            </PrimaryButton>
+                                        ) : (
+                                            <PrimaryButton type="button" className="mt-3" disabled>
+                                                Activate stake after ICO completes
+                                            </PrimaryButton>
+                                        )}
+                                    </div>
+
+                                    {!icoCompleted && !buyMoreOpen ? (
+                                        <button
+                                            type="button"
+                                            className="w-full rounded-xl border border-sky-500/40 bg-sky-950/30 px-4 py-3 text-sm font-semibold text-sky-100 hover:bg-sky-950/50"
+                                            onClick={() => setBuyMoreOpen(true)}
+                                        >
+                                            Buy more RACE
+                                        </button>
+                                    ) : null}
+
+                                    {!icoCompleted && buyMoreOpen
+                                        ? renderBuyForm({
+                                              boxed: true,
+                                              title: 'Buy more RACE',
+                                              onHide: () => setBuyMoreOpen(false),
+                                          })
+                                        : null}
+                                </>
+                            ) : !icoCompleted ? (
+                                renderBuyForm()
+                            ) : (
+                                <p className="text-sm text-slate-300">
+                                    ICO is complete. No held RACE on this wallet to activate.
                                 </p>
-                            ) : null}
-                            {!icoCompleted ? (
-                                <p className="mt-3 text-xs text-slate-400">
-                                    Bought RACE stays held in the ICO contract (not your wallet). You Active
-                                    Stake After Complete ICO. Level income pays when you create the stake.
-                                </p>
-                            ) : null}
+                            )}
                         </div>
                     </PanelCard>
 
@@ -1081,15 +1170,22 @@ export default function Isu({
                                 {stakes.map((stake) => {
                                     const nowSec = Math.floor(Date.now() / 1000);
                                     const isFlexible = Number(stake.lockPeriod) === 0;
-                                    const matured =
+                                    const lockEnded =
                                         isFlexible ||
                                         (Number(stake.unlockAt) > 0 && nowSec >= Number(stake.unlockAt));
                                     const withdrawn = Boolean(stake.withdrawn);
-                                    const statusLabel = withdrawn
+                                    const emi = stake.maturityEmi || {};
+                                    const emiMatured = Boolean(emi.matured);
+                                    const emiClosed = Boolean(emi.closed);
+                                    const statusLabel = withdrawn || emiClosed
                                         ? 'CLOSED'
-                                        : matured
-                                          ? 'WITHDRAWABLE'
-                                          : 'LOCKED';
+                                        : emiMatured
+                                          ? 'EMI ACTIVE'
+                                          : lockEnded
+                                            ? isFlexible
+                                                ? 'WITHDRAWABLE'
+                                                : 'MATURE READY'
+                                            : 'LOCKED';
                                     const lockDisplay = isFlexible
                                         ? 'Withdraw Anytime'
                                         : Number(stake.unlockAt)
@@ -1187,7 +1283,12 @@ export default function Isu({
                                                 <button
                                                     type="button"
                                                     className="rounded-xl border border-sky-500/40 px-3 py-2 text-sm text-sky-200 hover:bg-sky-950/40 disabled:opacity-50"
-                                                    disabled={withdrawn || stakeBusy || busy !== ''}
+                                                    disabled={
+                                                        withdrawn ||
+                                                        emiMatured ||
+                                                        stakeBusy ||
+                                                        busy !== ''
+                                                    }
                                                     onClick={async () => {
                                                         setBusy(`stake-${stake.index}`);
                                                         setError('');
@@ -1216,44 +1317,163 @@ export default function Isu({
                                                 >
                                                     Compound
                                                 </button>
-                                                <button
-                                                    type="button"
-                                                    className="rounded-xl border border-emerald-500/40 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-950/40 disabled:opacity-50"
-                                                    disabled={
-                                                        withdrawn ||
-                                                        !matured ||
-                                                        stakeBusy ||
-                                                        busy !== ''
-                                                    }
-                                                    onClick={async () => {
-                                                        setBusy(`stake-${stake.index}`);
-                                                        setError('');
-                                                        try {
-                                                            const txHash = await withdrawOnChainStake({
-                                                                walletAddress,
-                                                                engineContract,
-                                                                stakeIndex: stake.index,
-                                                            });
-                                                            try {
-                                                                await syncBlockchainTx({ txHash });
-                                                            } catch (syncErr) {
-                                                                console.warn(
-                                                                    'withdraw sync-tx:',
-                                                                    syncErr?.message || syncErr,
-                                                                );
-                                                            }
-                                                            await refreshChainState();
-                                                        } catch (err) {
-                                                            setError(friendlyEngineError(err));
-                                                            notifyError(friendlyEngineError(err), 'Stake');
-                                                        } finally {
-                                                            setBusy('');
+                                                {isFlexible ? (
+                                                    <button
+                                                        type="button"
+                                                        className="rounded-xl border border-emerald-500/40 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-950/40 disabled:opacity-50"
+                                                        disabled={
+                                                            withdrawn ||
+                                                            !lockEnded ||
+                                                            stakeBusy ||
+                                                            busy !== ''
                                                         }
-                                                    }}
-                                                >
-                                                    {isFlexible ? 'Withdraw / Exit' : 'Withdraw principal'}
-                                                </button>
+                                                        onClick={async () => {
+                                                            setBusy(`stake-${stake.index}`);
+                                                            setError('');
+                                                            try {
+                                                                const txHash = await withdrawOnChainStake({
+                                                                    walletAddress,
+                                                                    engineContract,
+                                                                    stakeIndex: stake.index,
+                                                                });
+                                                                try {
+                                                                    await syncBlockchainTx({ txHash });
+                                                                } catch (syncErr) {
+                                                                    console.warn(
+                                                                        'withdraw sync-tx:',
+                                                                        syncErr?.message || syncErr,
+                                                                    );
+                                                                }
+                                                                await refreshChainState();
+                                                            } catch (err) {
+                                                                setError(friendlyEngineError(err));
+                                                                notifyError(friendlyEngineError(err), 'Stake');
+                                                            } finally {
+                                                                setBusy('');
+                                                            }
+                                                        }}
+                                                    >
+                                                        Withdraw / Exit
+                                                    </button>
+                                                ) : !emiMatured ? (
+                                                    <button
+                                                        type="button"
+                                                        className="rounded-xl border border-amber-500/40 px-3 py-2 text-sm text-amber-200 hover:bg-amber-950/40 disabled:opacity-50"
+                                                        disabled={
+                                                            withdrawn ||
+                                                            !lockEnded ||
+                                                            stakeBusy ||
+                                                            busy !== ''
+                                                        }
+                                                        onClick={async () => {
+                                                            setBusy(`stake-${stake.index}`);
+                                                            setError('');
+                                                            try {
+                                                                const txHash = await matureOnChainStake({
+                                                                    walletAddress,
+                                                                    engineContract,
+                                                                    stakeIndex: stake.index,
+                                                                });
+                                                                try {
+                                                                    await syncBlockchainTx({ txHash });
+                                                                } catch (syncErr) {
+                                                                    console.warn(
+                                                                        'mature sync-tx:',
+                                                                        syncErr?.message || syncErr,
+                                                                    );
+                                                                }
+                                                                await refreshChainState();
+                                                            } catch (err) {
+                                                                setError(friendlyEngineError(err));
+                                                                notifyError(friendlyEngineError(err), 'Stake');
+                                                            } finally {
+                                                                setBusy('');
+                                                            }
+                                                        }}
+                                                    >
+                                                        Mature + start EMI
+                                                    </button>
+                                                ) : null}
                                             </div>
+                                            {isFlexible && !withdrawn ? (
+                                                <p className="mt-2 text-[11px] text-slate-500">
+                                                    Exit: 90% to you, 10% to Treasury (Multisig). No EMI.
+                                                </p>
+                                            ) : null}
+                                            {!isFlexible && !emiMatured && !withdrawn ? (
+                                                <p className="mt-2 text-[11px] text-slate-500">
+                                                    After lock: Mature sends 10% to Treasury, then EMI 1/2/3 at +30/+60/+90 days.
+                                                </p>
+                                            ) : null}
+                                            {emiMatured && !emiClosed
+                                                ? [1, 2, 3].map((emiNumber) => {
+                                                      const claimed =
+                                                          emiNumber === 1
+                                                              ? emi.claimed1
+                                                              : emiNumber === 2
+                                                                ? emi.claimed2
+                                                                : emi.claimed3;
+                                                      const dueAt =
+                                                          emiNumber === 1
+                                                              ? emi.due1
+                                                              : emiNumber === 2
+                                                                ? emi.due2
+                                                                : emi.due3;
+                                                      const amount =
+                                                          emiNumber === 1
+                                                              ? emi.emi1Race
+                                                              : emiNumber === 2
+                                                                ? emi.emi2Race
+                                                                : emi.emi3Race;
+                                                      const due = Number(dueAt || 0) > 0 && nowSec >= Number(dueAt);
+                                                      return (
+                                                          <button
+                                                              key={`emi-${stake.index}-${emiNumber}`}
+                                                              type="button"
+                                                              className="mt-2 mr-2 rounded-xl border border-violet-500/40 px-3 py-2 text-sm text-violet-200 hover:bg-violet-950/40 disabled:opacity-50"
+                                                              disabled={
+                                                                  claimed ||
+                                                                  !due ||
+                                                                  withdrawn ||
+                                                                  stakeBusy ||
+                                                                  busy !== ''
+                                                              }
+                                                              onClick={async () => {
+                                                                  setBusy(`stake-${stake.index}`);
+                                                                  setError('');
+                                                                  try {
+                                                                      const txHash = await claimOnChainMaturityEmi({
+                                                                          walletAddress,
+                                                                          engineContract,
+                                                                          stakeIndex: stake.index,
+                                                                          emiNumber,
+                                                                      });
+                                                                      try {
+                                                                          await syncBlockchainTx({ txHash });
+                                                                      } catch (syncErr) {
+                                                                          console.warn(
+                                                                              'emi sync-tx:',
+                                                                              syncErr?.message || syncErr,
+                                                                          );
+                                                                      }
+                                                                      await refreshChainState();
+                                                                  } catch (err) {
+                                                                      setError(friendlyEngineError(err));
+                                                                      notifyError(friendlyEngineError(err), 'EMI');
+                                                                  } finally {
+                                                                      setBusy('');
+                                                                  }
+                                                              }}
+                                                          >
+                                                              {claimed
+                                                                  ? `EMI ${emiNumber} claimed`
+                                                                  : due
+                                                                    ? `Claim EMI ${emiNumber} · ${formatTokenWei(amount || 0n, 18, 4)} RACE`
+                                                                    : `EMI ${emiNumber} · due ${dueAt ? formatPurchaseDate(dueAt) : '—'}`}
+                                                          </button>
+                                                      );
+                                                  })
+                                                : null}
                                         </div>
                                     );
                                 })}
@@ -1306,7 +1526,7 @@ export default function Isu({
                                         />
                                         {!isStaked && !icoCompleted ? (
                                             <p className="mt-2 text-xs font-semibold text-amber-200/90">
-                                                You Active Stake After Complete ICO
+                                                Activate stake after ICO completes
                                             </p>
                                         ) : null}
                                         {!isStaked && icoCompleted ? (

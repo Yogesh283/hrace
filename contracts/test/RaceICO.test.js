@@ -111,7 +111,7 @@ describe('RaceICO → hold → createStake', function () {
         await expect(ico.connect(buyer).createStake(0)).to.be.revertedWith('RaceICO: ico active');
     });
 
-    it('after ICO complete createStake opens engine stake at end price', async function () {
+    it('after ICO complete createStake opens engine stake at live Pancake price', async function () {
         const { owner, buyer, ico, race, engine } = await deployFixture();
         await startPhase(ico, owner, 1);
         await ico.connect(buyer).purchase(ethers.parseEther('100'), LOCK_180); // 400 RACE @ $0.25
@@ -121,8 +121,8 @@ describe('RaceICO → hold → createStake', function () {
         expect(await ico.icoEndPriceUsdt()).to.equal(ethers.parseEther('0.45'));
 
         const principal = await ico.quoteStakePrincipal(ethers.parseEther('400'));
-        // 400 * 0.45 = 180 USDT notional
-        expect(principal).to.equal(ethers.parseEther('180'));
+        // Mock live price $0.10 → 400 * 0.10 = 40 USDT notional
+        expect(principal).to.equal(ethers.parseEther('40'));
 
         await expect(ico.connect(buyer).createStake(0))
             .to.emit(ico, 'ICOHoldStakeCreated')
@@ -134,7 +134,7 @@ describe('RaceICO → hold → createStake', function () {
         expect(await engine.lastBuyer()).to.equal(buyer.address);
         expect(await engine.lastLock()).to.equal(LOCK_180);
         expect(await engine.lastRace()).to.equal(ethers.parseEther('400'));
-        expect(await engine.lastUsdt()).to.equal(ethers.parseEther('180'));
+        expect(await engine.lastUsdt()).to.equal(ethers.parseEther('40'));
         expect(await engine.holdProcessed()).to.equal(true);
         expect(await engine.lastHoldUsdt()).to.equal(ethers.parseEther('100'));
 

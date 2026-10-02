@@ -46,7 +46,7 @@ class IncomePayCommunityLeadershipCommand extends Command
         $payouts = $svc->calculateAllDailyPayouts($context);
         $paid = 0;
 
-        // Snapshot rank holds for Rank 11 monthly bonus (full-month 1 crore check).
+        // Snapshot rank holds for Rank 11 monthly bonus (full-month $10,000,000 check).
         foreach ($context['qual_rank'] as $userId => $rank) {
             if ($rank === null) {
                 continue;

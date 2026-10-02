@@ -67,11 +67,27 @@ describe('Race Coin ecosystem', function () {
         return { race, treasury, autoLiq, staking, rewardPool, governor, multiSig, owner, alice, bob, s1, s2, s3, s4 };
     }
 
-    it('starts with 10 lakh supply and 15 CR max', async function () {
+    it('starts with 1,000,000 supply and 150,000,000 max', async function () {
         const { race } = await deployFixture();
         expect(await race.totalSupply()).to.equal(ethers.parseEther('1000000'));
         expect(await race.MAX_SUPPLY()).to.equal(ethers.parseEther('150000000'));
         expect(await race.INITIAL_MINT()).to.equal(ethers.parseEther('1000000'));
+        expect(await race.EXPENSE_ALLOCATION()).to.equal(ethers.parseEther('30000000'));
+    });
+
+    it('multisig can expenseMint needed amount from 30M bucket', async function () {
+        const { race, multiSig, owner, s1, s2, alice } = await deployFixture();
+        await race.transferOwnership(await multiSig.getAddress());
+
+        const amount = ethers.parseEther('250000');
+        const data = race.interface.encodeFunctionData('expenseMint', [alice.address, amount]);
+        await multiSig.connect(owner).submitTransaction(await race.getAddress(), 0, data);
+        await multiSig.connect(owner).confirmTransaction(0);
+        await multiSig.connect(s1).confirmTransaction(0);
+        await multiSig.connect(s2).confirmTransaction(0);
+
+        expect(await race.balanceOf(alice.address)).to.equal(ethers.parseEther('100000') + amount);
+        expect(await race.expenseMinted()).to.equal(amount);
     });
 
     it('authorized minter can mint within max supply', async function () {

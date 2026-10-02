@@ -58,6 +58,14 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'referral.register' => \App\Http\Middleware\RequireReferralForRegister::class,
         ]);
+
+        // TokenPocket / in-app WebView often omit CSRF cookies on fetch.
+        // Wallet login is still protected by signed nonce + throttle.
+        $middleware->validateCsrfTokens(except: [
+            'wallet-auth/nonce',
+            'wallet-auth/login',
+            'wallet-auth/register',
+        ]);
     })
     ->withSchedule(function (Schedule $schedule): void {
         if (config('blockchain.rewards_engine') !== 'blockchain_only') {
@@ -69,7 +77,8 @@ return Application::configure(basePath: dirname(__DIR__))
         }
 
         if (config('blockchain.indexer.enabled')) {
-            $schedule->command('blockchain:index-events')->everyMinute();
+            $schedule->command('blockchain:index-events')->everyMinute()->withoutOverlapping(4);
+            $schedule->command('blockchain:backfill-ico-purchases --blocks=4000')->everyMinute()->withoutOverlapping(3);
         }
     })
     ->withExceptions(function (Exceptions $exceptions): void {
