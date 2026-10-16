@@ -24,12 +24,19 @@
 </div>
 
 <div class="bg-white rounded shadow-sm p-4 mb-3">
-    <h5 class="mb-2">{{ __('Start ICO (Phase 1) — TokenPocket') }}</h5>
+    <h5 class="mb-2">{{ __('Start ICO phase — TokenPocket') }}</h5>
+    @php $nextPhase = (int) ($next_start_phase ?? 0); @endphp
+    @if ($nextPhase > 0)
+        <p class="small mb-2 text-success">
+            <strong>{{ __('Next step') }}:</strong>
+            {{ __('Start Phase :n with 3-of-5 Multisig. Do not submit Phase 1 again.', ['n' => $nextPhase]) }}
+        </p>
+    @endif
     <ol class="small mb-3">
         <li>{{ __('Open BNB Smart Chain in TokenPocket. Do not use the admin wallet — use any 3 of the 5 Multisig signer accounts listed below.') }}</li>
-        <li>{{ __('From the first account, tap “1. Submit Phase 1” and confirm. The contract must be Multisig, not RaceICO.') }}</li>
-        <li>{{ __('Switch to the second Multisig account in TokenPocket, then tap “2. Confirm Phase 1”.') }}</li>
-        <li>{{ __('Switch to the third Multisig account, then tap “2. Confirm Phase 1” again. After the 3rd confirmation, Phase 1 starts.') }}</li>
+        <li>{{ __('From the first account, tap “1. Submit” for the next phase. The contract must be Multisig, not RaceICO.') }}</li>
+        <li>{{ __('Switch to the second Multisig account, then tap “2. Confirm” for the SAME phase.') }}</li>
+        <li>{{ __('Switch to the third Multisig account and tap “2. Confirm” again. After the 3rd confirmation the phase starts.') }}</li>
     </ol>
     <p class="small mb-2"><strong>{{ __('Multisig contract') }}:</strong> <code class="user-select-all">{{ $multisig_contract }}</code></p>
     <p class="small mb-2"><strong>{{ __('Use these 5 wallets only') }}:</strong></p>
@@ -39,14 +46,25 @@
         @endforeach
     </ul>
     <p class="small mb-2" id="ico-start-status"></p>
-    <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-success" id="ico-start-btn">
-            {{ __('1. Submit Phase 1') }}
-        </button>
-        <button type="button" class="btn btn-outline-success" id="ico-confirm-btn">
-            {{ __('2. Confirm Phase 1') }}
-        </button>
-    </div>
+    @foreach ([1 => '$0.25', 2 => '$0.35', 3 => '$0.45'] as $phaseId => $price)
+        <div class="border rounded p-3 mb-2 {{ $nextPhase === $phaseId ? 'border-success bg-light' : '' }}">
+            <p class="mb-2 small">
+                <strong>{{ __('Phase :n', ['n' => $phaseId]) }}</strong>
+                · {{ $price }} · 200,000 RACE
+                @if ($nextPhase === $phaseId)
+                    <span class="badge bg-success">{{ __('Start this now') }}</span>
+                @endif
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-success ico-submit-phase" data-phase="{{ $phaseId }}">
+                    {{ __('1. Submit Phase :n', ['n' => $phaseId]) }}
+                </button>
+                <button type="button" class="btn btn-outline-success ico-confirm-phase" data-phase="{{ $phaseId }}">
+                    {{ __('2. Confirm Phase :n', ['n' => $phaseId]) }}
+                </button>
+            </div>
+        </div>
+    @endforeach
 </div>
 
 <div class="bg-white rounded shadow-sm p-4 mb-3">
@@ -71,7 +89,6 @@
 (function () {
     const btn = document.getElementById('ico-deposit-btn');
     const status = document.getElementById('ico-deposit-status');
-    if (!btn) return;
 
     const icoContract = @json($ico_contract);
     const raceIco = @json($race_ico_contract);
@@ -89,13 +106,13 @@
         return BigInt(dec).toString(16).padStart(64, '0');
     }
     function setStatus(msg) {
-        status.textContent = msg;
+        if (status) status.textContent = msg;
     }
     function toHexChain(id) {
         return '0x' + Number(id).toString(16);
     }
 
-    btn.addEventListener('click', async function () {
+    if (btn) btn.addEventListener('click', async function () {
         try {
             if (!window.ethereum) {
                 setStatus(@json(__('MetaMask not found. Open this page in a browser with the admin wallet.')));
@@ -151,11 +168,8 @@
         if (withdrawStatus) withdrawStatus.textContent = msg;
     }
 
-    const startBtn = document.getElementById('ico-start-btn');
-    const confirmBtn = document.getElementById('ico-confirm-btn');
     const startStatus = document.getElementById('ico-start-status');
     const startSel = '0x1c9ed381';
-    const startPhaseData = startSel + padUint(1);
     const submitSel = 'c6427474';
     const confirmSel = 'c01a8c84';
     const txCountSel = '0xb77bf600';
@@ -167,6 +181,14 @@
 
     function setStartStatus(msg) {
         if (startStatus) startStatus.textContent = msg;
+    }
+
+    function startPhaseData(phaseId) {
+        return startSel + padUint(phaseId);
+    }
+
+    function phaseStorageKey(phaseId) {
+        return 'race.multisig.phase' + phaseId + '.txId';
     }
 
     function encodeSubmit(to, innerData) {
@@ -199,7 +221,8 @@
         throw new Error('Transaction not mined yet. Wait and tap Confirm. Hash: ' + hash);
     }
 
-    async function findPendingStartPhase() {
+    async function findPendingStartPhase(phaseId) {
+        const want = startPhaseData(phaseId).toLowerCase();
         const count = BigInt(await ethCall(multiSig, txCountSel) || '0x0');
         let best = null;
         for (let i = 0; i < count; i++) {
@@ -214,7 +237,7 @@
             const data = '0x' + hex.slice(dataOffset + 64, dataOffset + 64 + dataLen);
             if (executed) continue;
             if (to !== String(raceIco).toLowerCase()) continue;
-            if (data.toLowerCase() !== startPhaseData.toLowerCase()) continue;
+            if (data.toLowerCase() !== want) continue;
             if (!best || confirmations > best.confirmations) {
                 best = { id: String(i), confirmations: confirmations };
             }
@@ -251,47 +274,49 @@
         return from;
     }
 
-    if (startBtn) {
-        startBtn.addEventListener('click', async function () {
+    document.querySelectorAll('.ico-submit-phase').forEach((el) => {
+        el.addEventListener('click', async function () {
+            const phaseId = Number(el.getAttribute('data-phase') || '0');
             try {
                 const from = await connectSigner();
-                const pending = await findPendingStartPhase();
+                const pending = await findPendingStartPhase(phaseId);
                 if (pending) {
-                    window.localStorage.setItem('race.multisig.phase1.txId', pending.id);
+                    window.localStorage.setItem(phaseStorageKey(phaseId), pending.id);
                     setStartStatus(
-                        @json(__('Phase 1 is already submitted. Do NOT submit again. Switch to another signer and tap Confirm Phase 1. Multisig id:')) +
-                            ' ' + pending.id + ' · confirms ' + pending.confirmations + '/3',
+                        @json(__('This phase is already submitted. Do NOT submit again. Switch to another signer and tap Confirm. Multisig id:')) +
+                            ' ' + pending.id + ' · confirms ' + pending.confirmations + '/3 · phase ' + phaseId,
                     );
                     return;
                 }
-                setStartStatus(@json(__('Submitting Phase 1 to Multisig… Confirm in TokenPocket. To address must be the Multisig.')));
+                setStartStatus(@json(__('Submitting phase to Multisig… Confirm in TokenPocket. To address must be the Multisig.')) + ' Phase ' + phaseId);
                 const hash = await window.ethereum.request({
                     method: 'eth_sendTransaction',
                     params: [{
                         from: from,
                         to: multiSig,
-                        data: encodeSubmit(raceIco, startPhaseData),
+                        data: encodeSubmit(raceIco, startPhaseData(phaseId)),
                     }],
                 });
                 setStartStatus(@json(__('Waiting for submit to mine…')) + ' ' + hash);
                 await waitReceipt(hash);
-                const created = await findPendingStartPhase();
+                const created = await findPendingStartPhase(phaseId);
                 const txId = created ? created.id : '0';
-                window.localStorage.setItem('race.multisig.phase1.txId', txId);
-                setStartStatus(@json(__('Submit OK. Switch TokenPocket to a SECOND signer and tap Confirm Phase 1. id:')) + ' ' + txId);
+                window.localStorage.setItem(phaseStorageKey(phaseId), txId);
+                setStartStatus(@json(__('Submit OK. Switch TokenPocket to a SECOND signer and tap Confirm for the SAME phase. id:')) + ' ' + txId + ' · phase ' + phaseId);
             } catch (err) {
                 setStartStatus(err && err.message ? err.message : String(err));
             }
         });
-    }
+    });
 
-    if (confirmBtn) {
-        confirmBtn.addEventListener('click', async function () {
+    document.querySelectorAll('.ico-confirm-phase').forEach((el) => {
+        el.addEventListener('click', async function () {
+            const phaseId = Number(el.getAttribute('data-phase') || '0');
             try {
                 const from = await connectSigner();
-                const pending = await findPendingStartPhase();
+                const pending = await findPendingStartPhase(phaseId);
                 if (!pending) {
-                    throw new Error(@json(__('No pending Phase 1 Multisig tx. Tap Submit Phase 1 first from one signer.')));
+                    throw new Error(@json(__('No pending Multisig tx for this phase. Tap Submit first from one signer.')) + ' Phase ' + phaseId);
                 }
                 const alreadyHex = await ethCall(
                     multiSig,
@@ -300,12 +325,12 @@
                 if (BigInt(alreadyHex || '0x0') === 1n) {
                     setStartStatus(
                         @json(__('This wallet already confirmed. Switch TokenPocket to another signer and tap Confirm again. id:')) +
-                            ' ' + pending.id + ' · ' + pending.confirmations + '/3',
+                            ' ' + pending.id + ' · ' + pending.confirmations + '/3 · phase ' + phaseId,
                     );
                     return;
                 }
-                window.localStorage.setItem('race.multisig.phase1.txId', pending.id);
-                setStartStatus(@json(__('Confirming the SAME Phase 1 Multisig tx…')) + ' id ' + pending.id + ' · ' + pending.confirmations + '/3');
+                window.localStorage.setItem(phaseStorageKey(phaseId), pending.id);
+                setStartStatus(@json(__('Confirming the SAME Multisig tx…')) + ' id ' + pending.id + ' · ' + pending.confirmations + '/3 · phase ' + phaseId);
                 const hash = await window.ethereum.request({
                     method: 'eth_sendTransaction',
                     params: [{
@@ -316,20 +341,20 @@
                 });
                 setStartStatus(@json(__('Waiting for confirm to mine…')) + ' ' + hash);
                 await waitReceipt(hash);
-                const after = await findPendingStartPhase();
+                const after = await findPendingStartPhase(phaseId);
                 if (!after) {
-                    setStartStatus(@json(__('Phase 1 should now be started. Refresh this page and check RaceICO phase = 1.')));
+                    setStartStatus(@json(__('This phase should now be started. Refresh this page and check RaceICO phase.')) + ' Phase ' + phaseId);
                     return;
                 }
                 setStartStatus(
                     @json(__('Confirm saved. Switch to the NEXT signer and tap Confirm again. Still need 3 wallets on the SAME id:')) +
-                        ' ' + after.id + ' · ' + after.confirmations + '/3',
+                        ' ' + after.id + ' · ' + after.confirmations + '/3 · phase ' + phaseId,
                 );
             } catch (err) {
                 setStartStatus(err && err.message ? err.message : String(err));
             }
         });
-    }
+    });
 
     if (withdrawBtn) {
         withdrawBtn.addEventListener('click', async function () {

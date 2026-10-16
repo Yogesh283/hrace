@@ -58,6 +58,9 @@ class IcoContractSettingsScreen extends Screen
             'rpc_ok' => $status['rpc_ok'],
             'current_phase' => $status['current_phase'],
             'ico_completed' => $status['ico_completed'],
+            'next_start_phase' => $status['next_start_phase'],
+            'phase_1_completed' => $status['phase_1_completed'],
+            'phase_2_started' => $status['phase_2_started'],
             'deposit_amount_wei' => '600000000000000000000000',
         ];
     }
@@ -136,7 +139,17 @@ class IcoContractSettingsScreen extends Screen
     }
 
     /**
-     * @return array{admin_race: string, contract_race: string, on_chain_admin: string, rpc_ok: bool, current_phase: string, ico_completed: string}
+     * @return array{
+     *     admin_race: string,
+     *     contract_race: string,
+     *     on_chain_admin: string,
+     *     rpc_ok: bool,
+     *     current_phase: string,
+     *     ico_completed: string,
+     *     next_start_phase: int,
+     *     phase_1_completed: bool,
+     *     phase_2_started: bool
+     * }
      */
     private function onChainStatus(string $raceToken, string $icoContract, string $adminWallet, string $raceIco = ''): array
     {
@@ -147,6 +160,9 @@ class IcoContractSettingsScreen extends Screen
             'rpc_ok' => false,
             'current_phase' => '—',
             'ico_completed' => '—',
+            'next_start_phase' => 0,
+            'phase_1_completed' => false,
+            'phase_2_started' => false,
         ];
 
         if ($raceToken === '') {
@@ -167,11 +183,28 @@ class IcoContractSettingsScreen extends Screen
 
             $phase = '—';
             $completed = '—';
+            $nextStart = 0;
+            $phase1Completed = false;
+            $phase2Started = false;
             if ($raceIco !== '') {
                 $phaseRaw = $this->ethCallUint($rpc, $raceIco, '0xa3a40ea5');
-                $phase = $phaseRaw === '0' ? '0 (not started)' : $phaseRaw;
                 $doneHex = $rpc->call('eth_call', [['to' => $raceIco, 'data' => '0x204e8b17'], 'latest']);
-                $completed = $this->hexToDec(is_string($doneHex) ? $doneHex : '0x0') === '0' ? 'no' : 'yes';
+                $icoDone = $this->hexToDec(is_string($doneHex) ? $doneHex : '0x0') !== '0';
+                $completed = $icoDone ? 'yes' : 'no';
+                $p1 = $this->readPhaseFlags($rpc, $raceIco, 1);
+                $p2 = $this->readPhaseFlags($rpc, $raceIco, 2);
+                $p3 = $this->readPhaseFlags($rpc, $raceIco, 3);
+                $phase1Completed = $p1['completed'];
+                $phase2Started = $p2['started'];
+                $nextStart = $this->nextStartPhase((int) $phaseRaw, $icoDone, $p1, $p2, $p3);
+                $phase = match (true) {
+                    $icoDone => $phaseRaw.' (ICO completed)',
+                    $phaseRaw !== '0' => $phaseRaw,
+                    $p1['completed'] && ! $p2['started'] => '0 (Phase 1 complete — start Phase 2)',
+                    $p2['completed'] && ! $p3['started'] => '0 (Phase 2 complete — start Phase 3)',
+                    ! $p1['started'] => '0 (not started)',
+                    default => '0',
+                };
             }
 
             return [
@@ -181,10 +214,56 @@ class IcoContractSettingsScreen extends Screen
                 'rpc_ok' => true,
                 'current_phase' => $phase,
                 'ico_completed' => $completed,
+                'next_start_phase' => $nextStart,
+                'phase_1_completed' => $phase1Completed,
+                'phase_2_started' => $phase2Started,
             ];
         } catch (\Throwable) {
             return $empty;
         }
+    }
+
+    /**
+     * @return array{started: bool, completed: bool}
+     */
+    private function readPhaseFlags(BscJsonRpcClient $rpc, string $raceIco, int $phaseId): array
+    {
+        $data = '0xf12479ac'.str_pad(dechex($phaseId), 64, '0', STR_PAD_LEFT);
+        $hex = $rpc->call('eth_call', [['to' => $raceIco, 'data' => $data], 'latest']);
+        if (! is_string($hex) || $hex === '' || $hex === '0x') {
+            return ['started' => false, 'completed' => false];
+        }
+
+        $raw = strtolower(preg_replace('/^0x/', '', $hex) ?? '');
+        $raw = str_pad($raw, 576, '0', STR_PAD_RIGHT);
+
+        return [
+            'started' => $this->hexToDec(substr($raw, 320, 64)) !== '0',
+            'completed' => $this->hexToDec(substr($raw, 384, 64)) !== '0',
+        ];
+    }
+
+    /**
+     * @param  array{started: bool, completed: bool}  $p1
+     * @param  array{started: bool, completed: bool}  $p2
+     * @param  array{started: bool, completed: bool}  $p3
+     */
+    private function nextStartPhase(int $currentPhase, bool $icoDone, array $p1, array $p2, array $p3): int
+    {
+        if ($icoDone || $currentPhase !== 0) {
+            return 0;
+        }
+        if (! $p1['started']) {
+            return 1;
+        }
+        if ($p1['completed'] && ! $p2['started']) {
+            return 2;
+        }
+        if ($p2['completed'] && ! $p3['started']) {
+            return 3;
+        }
+
+        return 0;
     }
 
     private function balanceOfData(string $account): string
