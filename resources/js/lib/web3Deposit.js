@@ -77,21 +77,45 @@ export function chainIdToHex(chainId) {
     return `0x${Number(chainId).toString(16)}`;
 }
 
+/**
+ * TokenPocket / MetaMask iOS often return 56, "56", or 0x38.
+ * Treat bare decimals as decimal — "56" is BSC, not hex chain 86.
+ */
+export function parseChainIdDecimal(value) {
+    if (value === null || value === undefined || value === '') {
+        return 0;
+    }
+    if (typeof value === 'bigint') {
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value > 0 ? Math.trunc(value) : 0;
+    }
+    const raw = String(value).trim();
+    if (!raw) {
+        return 0;
+    }
+    if (/^0x[0-9a-fA-F]+$/i.test(raw)) {
+        const n = Number.parseInt(raw, 16);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+    if (/^[0-9]+$/.test(raw)) {
+        const n = Number.parseInt(raw, 10);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+    return 0;
+}
+
 export function normalizeChainHex(chainHex) {
-    if (!chainHex || typeof chainHex !== 'string') {
-        return '';
-    }
-    const raw = chainHex.startsWith('0x') ? chainHex.slice(2) : chainHex;
-    if (!/^[0-9a-fA-F]+$/.test(raw)) {
-        return '';
-    }
-    return `0x${raw.toLowerCase()}`;
+    const dec = parseChainIdDecimal(chainHex);
+    return dec > 0 ? chainIdToHex(dec) : '';
 }
 
 export function isChainIdMatch(chainHex, targetChainId = activeChainId) {
-    const normalized = normalizeChainHex(chainHex);
-    const expected = chainIdToHex(targetChainId).toLowerCase();
-    return normalized === expected;
+    const got = parseChainIdDecimal(chainHex);
+    const expected = Number(targetChainId);
+    return got > 0 && Number.isFinite(expected) && got === expected;
 }
 
 export function getWrongNetworkMessage(targetChainId = activeChainId) {
@@ -198,8 +222,21 @@ function networkParamsForChainId(chainId) {
 
 export async function readWalletChainIdHex() {
     requireEthereum();
-    const chainId = await walletRequest({ method: 'eth_chainId' });
-    return normalizeChainHex(chainId);
+    try {
+        const chainId = await walletRequest({ method: 'eth_chainId' });
+        const hex = normalizeChainHex(chainId);
+        if (hex) {
+            return hex;
+        }
+    } catch {
+        // iOS TokenPocket sometimes only answers net_version (decimal string).
+    }
+    try {
+        const net = await walletRequest({ method: 'net_version' });
+        return normalizeChainHex(net);
+    } catch {
+        return '';
+    }
 }
 
 let autoNetworkSwitchTried = false;
@@ -300,7 +337,17 @@ export async function ensureBscNetwork(chainIdOverride) {
         return { chainIdHex: currentHex };
     }
 
-    await switchOrAddNetwork(targetChainId);
+    try {
+        await switchOrAddNetwork(targetChainId);
+    } catch (switchError) {
+        // iOS TokenPocket often errors on wallet_switchEthereumChain even when already on BSC.
+        currentHex = await readWalletChainIdHex().catch(() => '');
+        if (isChainIdMatch(currentHex, targetChainId)) {
+            debugLog({ phase: 'ensure-switch-error-but-already-correct', targetChainId: targetHex });
+            return { chainIdHex: currentHex };
+        }
+        throw new Error(getWrongNetworkMessage(targetChainId));
+    }
 
     currentHex = await readWalletChainIdHex();
     debugLog({ phase: 'ensure-post-switch', currentChainId: currentHex, targetChainId: targetHex });

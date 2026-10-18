@@ -527,10 +527,15 @@ export async function readChainIdHex() {
 }
 
 export function chainIdMatches(chainIdHex, expectedDecimal) {
-    if (!chainIdHex) return false;
-    const got = Number.parseInt(String(chainIdHex), 16);
+    if (chainIdHex === null || chainIdHex === undefined || chainIdHex === '') {
+        return false;
+    }
+    const raw = String(chainIdHex).trim();
+    const got = /^0x[0-9a-fA-F]+$/i.test(raw)
+        ? Number.parseInt(raw, 16)
+        : Number.parseInt(raw, 10);
     const expected = Number(expectedDecimal || 56);
-    return Number.isFinite(got) && got === expected;
+    return Number.isFinite(got) && got > 0 && got === expected;
 }
 
 export async function readIsRegistered({ walletAddress, engineContract, rpcUrl }) {
