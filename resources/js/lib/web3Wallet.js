@@ -429,6 +429,42 @@ export async function walletRequest(args) {
     return requireWalletProvider().request(args);
 }
 
+/** Ask the connected wallet to list RACE with the official square logo. */
+export async function watchRaceToken({
+    address,
+    symbol = 'RACE',
+    decimals = 18,
+    image,
+} = {}) {
+    const token = String(address || '').trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(token)) {
+        throw new Error('RACE token address is not configured.');
+    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const logo =
+        image ||
+        (origin ? `${origin}/images/token/race-256.png` : '/images/token/race-256.png');
+
+    const added = await walletRequest({
+        method: 'wallet_watchAsset',
+        params: {
+            type: 'ERC20',
+            options: {
+                address: token,
+                symbol,
+                decimals,
+                image: logo,
+            },
+        },
+    });
+
+    if (added === false) {
+        throw new Error('Wallet did not add RACE. Confirm the prompt in your wallet.');
+    }
+
+    return true;
+}
+
 export async function resolveSessionWallet({ boundAddress = '', allowPicker = true } = {}) {
     if (selectedProvider) {
         return {
