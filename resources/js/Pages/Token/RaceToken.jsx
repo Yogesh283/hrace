@@ -5,7 +5,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import Web3NetworkBanner from '@/Components/Web3NetworkBanner';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
-import { RACE_BANNER_TOKEN, RACE_LOGO_SRC, RACE_TOKEN_LOGO_SRC } from '@/lib/brandAssets';
+import { RACE_BANNER_TOKEN, RACE_TOKEN_LOGO_SRC } from '@/lib/brandAssets';
 import { linkWalletToAccount } from '@/lib/walletAccountLink';
 import { watchRaceToken } from '@/lib/web3Wallet';
 import { formatTokenWei, readErc20Balance } from '@/lib/web3PancakeSwap';
@@ -127,14 +127,14 @@ export default function RaceToken({ raceTokenConfig = {} }) {
                 <MemberPageHero
                     title="RACE Coin"
                     subtitle="Official BEP20 token on BNB Smart Chain. Swap, ICO, and staking use their own pages."
-                    logoSrc={RACE_LOGO_SRC}
+                    logoSrc={RACE_TOKEN_LOGO_SRC}
                     bannerSrc={RACE_BANNER_TOKEN}
                 />
 
                 <PanelCard className="mt-6">
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
                         <div className="flex items-center gap-4">
-                            <img src={RACE_LOGO_SRC} alt="RACE" className="h-16 w-16 rounded-2xl object-contain" />
+                            <img src={RACE_TOKEN_LOGO_SRC} alt="RACE" className="h-16 w-16 rounded-full object-cover" />
                             <div>
                                 <h2 className="text-xl font-bold text-white">RACE</h2>
                                 <p className="text-sm text-slate-400">{config.network_name ?? 'BNB Smart Chain'}</p>
