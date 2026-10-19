@@ -13,8 +13,10 @@ import {IRaceTeamRewardFromHold} from "./interfaces/IRaceTeamRewardFromHold.sol"
 /**
  * @title RaceIncomeHold
  * @notice Per-user on-chain income wallet. Claim/level/leadership RACE is held here, not in the user wallet.
- * @dev Withdraw anytime. USDT admin fee: $1 if value is $1–$99; 1% if value is $100+.
- *      Plus 10% of withdrawn RACE → Community Team Rewards L1–L10 (unpaid share → admin RACE).
+ * @dev Withdraw order (same tx):
+ *      1) Admin USDT fee FIRST — $1 if value is $1–$99; 1% if value is $100+.
+ *      2) Then 10% of withdrawn RACE → Community Team Rewards L1–L10 (unpaid share → admin RACE).
+ *      3) Then 90% RACE to the user wallet.
  *      Creditors (vault/engine) can be permanently locked after wiring.
  *      totalHold tracks credited liabilities vs on-contract balance.
  */
@@ -154,7 +156,7 @@ contract RaceIncomeHold is Ownable, ReentrancyGuard, IRaceIncomeHold {
         }
     }
 
-    /// @notice Pull 90% held income to caller after USDT admin fee; 10% RACE → Team Rewards L1–L10.
+    /// @notice Withdraw held income. Admin USDT fee is taken first, then 10% team RACE, then 90% to caller.
     function withdraw() external nonReentrant {
         (uint256 raceAmount, uint256 valueUsdt, uint256 feeUsdt, uint256 teamRace, uint256 netRace) =
             quoteWithdraw(msg.sender);
@@ -163,9 +165,11 @@ contract RaceIncomeHold is Ownable, ReentrancyGuard, IRaceIncomeHold {
         require(feeUsdt > 0, "IncomeHold: fee");
         require(raceToken.balanceOf(address(this)) >= raceAmount, "IncomeHold: bal");
 
+        // 1) Admin fee first — if USDT transfer fails, hold is unchanged.
+        usdt.safeTransferFrom(msg.sender, adminWallet, feeUsdt);
+
         holdOf[msg.sender] = 0;
         totalHold -= raceAmount;
-        usdt.safeTransferFrom(msg.sender, adminWallet, feeUsdt);
 
         if (teamRace > 0) {
             uint256 paid;

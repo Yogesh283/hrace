@@ -1,6 +1,13 @@
 /** Public path to the official RACE brand logo. */
 export const RACE_LOGO_SRC = '/images/Race%20%20Logo.png';
 
+/** Square BEP-20 icon for wallets / BscScan (256×256). */
+export const RACE_TOKEN_LOGO_SRC = '/images/token/race-256.png';
+export const RACE_TOKEN_LOGO_64_SRC = '/images/token/race-64.png';
+export const RACE_TOKEN_LOGO_32_SRC = '/images/token/race-32.png';
+export const RACE_TOKEN_SYMBOL = 'RACE';
+export const RACE_TOKEN_DECIMALS = 18;
+
 /** Splash screen video (exclusive) */
 export const RACE_SPLASH_VIDEO_SRC = '/images/Untitled%20video%20(6).mp4';
 

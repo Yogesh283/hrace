@@ -1,9 +1,5 @@
+import { csrfHeaders, getCsrfToken } from '@/lib/csrf';
 import { walletRequest } from '@/lib/web3Wallet';
-
-function getCsrfToken() {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
-}
 
 export { hasWeb3Wallet } from '@/lib/web3Wallet';
 
@@ -21,21 +17,35 @@ export async function requestWalletAccount() {
 }
 
 async function fetchAuthNonce({ address, action, joinCode = null }) {
-    const response = await fetch(route('wallet-auth.nonce'), {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': getCsrfToken(),
-        },
-        body: JSON.stringify({
-            address,
-            action,
-            join_code: joinCode,
-        }),
-    });
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 15000);
+
+    let response;
+    try {
+        response = await fetch(route('wallet-auth.nonce'), {
+            method: 'POST',
+            credentials: 'same-origin',
+            signal: controller.signal,
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                ...csrfHeaders(),
+            },
+            body: JSON.stringify({
+                address,
+                action,
+                join_code: joinCode,
+                _token: getCsrfToken(),
+            }),
+        });
+    } catch (error) {
+        if (error?.name === 'AbortError') {
+            throw new Error('Wallet sign-in is taking too long. Check your connection and try again.');
+        }
+        throw error;
+    } finally {
+        window.clearTimeout(timer);
+    }
 
     const payload = await response.json().catch(() => ({}));
 
@@ -68,10 +78,12 @@ export async function signWalletMessage(address, message) {
     return signature;
 }
 
-export async function walletAuthPayload({ action, joinCode = null }) {
-    const address = await requestWalletAccount();
-    const message = await fetchAuthNonce({ address, action, joinCode });
-    const signature = await signWalletMessage(address, message);
+export async function walletAuthPayload({ action, joinCode = null, address = null }) {
+    // Reuse the account from connectWalletForAuth — a second eth_requestAccounts
+    // hangs for a long time inside TokenPocket / Trust WebViews.
+    const resolved = address || (await requestWalletAccount());
+    const message = await fetchAuthNonce({ address: resolved, action, joinCode });
+    const signature = await signWalletMessage(resolved, message);
 
-    return { address, signature };
+    return { address: resolved, signature };
 }

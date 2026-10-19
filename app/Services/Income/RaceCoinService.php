@@ -12,7 +12,10 @@ class RaceCoinService
 {
     public function priceUsd(): float
     {
-        return (float) config('race_coin.price_usd', 0.10);
+        $phase = (int) config('ico.current_phase_id', 1);
+        $price = (float) config("ico.phases.{$phase}.price_usd", 0.25);
+
+        return $price > 0 ? $price : 0.25;
     }
 
     public function coinsForUsdt(float $usdtAmount): string

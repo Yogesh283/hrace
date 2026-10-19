@@ -1,15 +1,7 @@
 import { router } from '@inertiajs/react';
 import { hideWalletPending, showWalletPending } from '@/lib/appNotify';
+import { csrfHeaders } from '@/lib/csrf';
 import { NO_WALLET_MESSAGE, walletRequest } from '@/lib/web3Wallet';
-
-function readCsrfToken() {
-    if (typeof document === 'undefined') {
-        return '';
-    }
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-
-    return match ? decodeURIComponent(match[1]) : '';
-}
 
 /**
  * Link a connected wallet address to the logged-in member (signed challenge).
@@ -29,7 +21,7 @@ export async function linkWalletToAccount(walletAddress) {
         headers: {
             Accept: 'application/json',
             'Content-Type': 'application/json',
-            'X-XSRF-TOKEN': readCsrfToken(),
+            ...csrfHeaders(),
         },
         body: JSON.stringify({ address }),
     });

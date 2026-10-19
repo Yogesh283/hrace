@@ -527,10 +527,15 @@ export async function readChainIdHex() {
 }
 
 export function chainIdMatches(chainIdHex, expectedDecimal) {
-    if (!chainIdHex) return false;
-    const got = Number.parseInt(String(chainIdHex), 16);
+    if (chainIdHex === null || chainIdHex === undefined || chainIdHex === '') {
+        return false;
+    }
+    const raw = String(chainIdHex).trim();
+    const got = /^0x[0-9a-fA-F]+$/i.test(raw)
+        ? Number.parseInt(raw, 16)
+        : Number.parseInt(raw, 10);
     const expected = Number(expectedDecimal || 56);
-    return Number.isFinite(got) && got === expected;
+    return Number.isFinite(got) && got > 0 && got === expected;
 }
 
 export async function readIsRegistered({ walletAddress, engineContract, rpcUrl }) {
@@ -596,7 +601,7 @@ export async function readMemberRank({ walletAddress, engineContract, rpcUrl }) 
 function decodeStakeAt(hex) {
     const raw = (hex || '0x').replace(/^0x/, '');
     const words = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
         const slice = raw.slice(i * 64, (i + 1) * 64);
         words.push(BigInt(`0x${slice || '0'}`));
     }
@@ -609,6 +614,7 @@ function decodeStakeAt(hex) {
         lastRewardAt: Number(words[5]),
         dailyRateBps: Number(words[6]),
         withdrawn: words[7] === 1n,
+        rewardPriceUsdt: words[8] || 0n,
     };
 }
 
@@ -750,6 +756,21 @@ export function friendlyEngineError(error) {
         }
         if (/claim cooldown/i.test(message)) {
             return '24-hour claim cooldown active. Try again later.';
+        }
+        if (/use matureStake/i.test(message)) {
+            return 'Fixed plan: use Mature first. Flexible withdraw is not allowed.';
+        }
+        if (/flexible no emi/i.test(message)) {
+            return 'Flexible has no EMI. Use Withdraw / Exit.';
+        }
+        if (/emi early/i.test(message)) {
+            return 'This EMI is not due yet.';
+        }
+        if (/emi claimed/i.test(message)) {
+            return 'This EMI is already claimed.';
+        }
+        if (/no treasury/i.test(message)) {
+            return 'Treasury is not set on this engine yet.';
         }
         return 'Contract call reverted. Check amount, lock tier, or activation rules.';
     }

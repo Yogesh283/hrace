@@ -186,6 +186,16 @@ class User extends OrchidUser
         return $code;
     }
 
+    public static function idByWallet(?string $wallet): ?int
+    {
+        $wallet = strtolower(trim((string) $wallet));
+        if (! preg_match('/^0x[a-f0-9]{40}$/', $wallet)) {
+            return null;
+        }
+
+        return static::query()->where('wallet_address', $wallet)->value('id');
+    }
+
     public function canRequestWithdrawal(): bool
     {
         return ! (bool) $this->withdrawals_disabled;

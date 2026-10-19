@@ -19,26 +19,23 @@ class BlockchainWalletIndexerSyncService
             return;
         }
 
+        // Addresses are stored lowercase — equality uses the wallet index (LOWER() cannot).
         IcoPurchase::query()
-            ->whereRaw('LOWER(wallet_address) = ?', [$wallet])
-            ->where(function ($q) use ($user) {
-                $q->whereNull('user_id')->orWhere('user_id', '!=', $user->id);
-            })
+            ->where('wallet_address', $wallet)
+            ->whereNull('user_id')
             ->update(['user_id' => $user->id]);
 
         BlockchainEvent::query()
-            ->whereRaw('LOWER(wallet_address) = ?', [$wallet])
-            ->where(function ($q) use ($user) {
-                $q->whereNull('user_id')->orWhere('user_id', '!=', $user->id);
-            })
+            ->where('wallet_address', $wallet)
+            ->whereNull('user_id')
             ->update(['user_id' => $user->id]);
 
-        if (\Illuminate\Support\Facades\Schema::hasTable('blockchain_engine_stakes')) {
+        static $hasEngineStakes = null;
+        $hasEngineStakes ??= \Illuminate\Support\Facades\Schema::hasTable('blockchain_engine_stakes');
+        if ($hasEngineStakes) {
             BlockchainEngineStake::query()
-                ->whereRaw('LOWER(wallet_address) = ?', [$wallet])
-                ->where(function ($q) use ($user) {
-                    $q->whereNull('user_id')->orWhere('user_id', '!=', $user->id);
-                })
+                ->where('wallet_address', $wallet)
+                ->whereNull('user_id')
                 ->update(['user_id' => $user->id]);
         }
     }
@@ -50,9 +47,7 @@ class BlockchainWalletIndexerSyncService
             return null;
         }
 
-        return User::query()
-            ->whereRaw('LOWER(wallet_address) = ?', [$wallet])
-            ->value('id');
+        return User::idByWallet($wallet);
     }
 
     private function normalizeWallet(?string $wallet): string

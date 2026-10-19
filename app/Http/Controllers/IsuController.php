@@ -40,7 +40,7 @@ class IsuController extends Controller
 
             $stakesByPurchase = [];
             if (Schema::hasTable('blockchain_engine_stakes')) {
-                $indexedEngineStakes = $stakeRead->stakesForUser($user);
+                $indexedEngineStakes = $stakeRead->stakesForUser($user, enrichLiveState: false);
                 foreach ($indexedEngineStakes as $stake) {
                     if ($stake['ico_purchase_id'] !== null) {
                         $stakesByPurchase[(int) $stake['ico_purchase_id']] = $stake;
@@ -51,7 +51,7 @@ class IsuController extends Controller
             $indexed = IcoPurchase::query()
                 ->where(function ($inner) use ($user, $wallet) {
                     $inner->where('user_id', $user->id)
-                        ->orWhereRaw('LOWER(wallet_address) = ?', [$wallet]);
+                        ->orWhere('wallet_address', $wallet);
                 })
                 ->orderByDesc('id')
                 ->limit(50)

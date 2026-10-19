@@ -484,7 +484,7 @@ class CommunityLeadershipService
                 .'Rank 2–11 same-rank leg: $0 until you upgrade. '
                 .'Solo Rank 11: keep daily 110%. '
                 .'Royalty Achievement: you Rank 11 + one DIRECT Rank 11 → daily Rank 11 stops; '
-                .'both maintain $10M (1 crore) full month → up to $'
+                .'both maintain $10,000,000 full month → up to $'
                 .number_format(RewardPlan::communityLeadershipRank11MonthlyRewardUsd(), 0)
                 .'/month.',
         ];
@@ -589,7 +589,7 @@ class CommunityLeadershipService
     }
 
     /**
-     * True when user held Rank 11 with >= 1 crore team volume on every day of the calendar month.
+     * True when user held Rank 11 with >= $10,000,000 team volume on every day of the calendar month.
      */
     public function heldRank11FullMonth(int $userId, string $periodYm): bool
     {

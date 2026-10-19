@@ -83,7 +83,7 @@ class IncomePayCommunityLeadershipRank11MonthlyCommand extends Command
                                 'require_direct_rank_11' => RewardPlan::communityLeadershipRank11RequiresDirectTeamMember(),
                                 'team_volume_usd' => $team,
                                 'self_hold_usd' => $self,
-                                'note' => 'Royalty Achievement: you + direct Rank 11 both maintained $10M (1 crore) full month',
+                                'note' => 'Royalty Achievement: you + direct Rank 11 both maintained $10,000,000 full month',
                             ],
                         );
                         $paid++;

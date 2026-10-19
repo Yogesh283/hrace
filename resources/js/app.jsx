@@ -4,7 +4,8 @@ import './bootstrap';
 import NavigationLoader from '@/Components/NavigationLoader';
 import WalletPendingOverlay from '@/Components/WalletPendingOverlay';
 import WalletPickerHost from '@/Components/WalletPickerHost';
-import { configureWeb3Network, resolvePageChainId } from '@/lib/web3Deposit';
+import { configureWeb3Network, resetAutoNetworkSwitch, resolvePageChainId } from '@/lib/web3Deposit';
+import { clearWalletSession, rememberBoundAddress, restorePersistedProvider } from '@/lib/web3Wallet';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
@@ -46,8 +47,33 @@ router.on('invalid', (event) => {
     }
 });
 
+let hadAuthenticatedUser = false;
+
+function onAuthenticatedSessionEnded() {
+    clearWalletSession();
+    resetAutoNetworkSwitch();
+    hadAuthenticatedUser = false;
+}
+
+router.on('before', (event) => {
+    const visit = event.detail?.visit;
+    const url = String(visit?.url || '');
+    if (visit?.method === 'post' && /\/logout(?:\?|$)/.test(url)) {
+        onAuthenticatedSessionEnded();
+    }
+});
+
 router.on('success', (event) => {
     syncWeb3NetworkFromPage(event.detail.page);
+    const user = event.detail.page?.props?.auth?.user;
+    if (hadAuthenticatedUser && !user) {
+        onAuthenticatedSessionEnded();
+    }
+    hadAuthenticatedUser = Boolean(user);
+    if (user?.wallet_address) {
+        rememberBoundAddress(user.wallet_address);
+        restorePersistedProvider();
+    }
 });
 
 // Mobile browsers restore inactive tabs from cache; reload to rehydrate Inertia.
@@ -66,6 +92,10 @@ createInertiaApp({
         ),
     setup({ el, App, props }) {
         syncWeb3NetworkFromPage(props.initialPage);
+        hadAuthenticatedUser = Boolean(props.initialPage?.props?.auth?.user);
+        if (hadAuthenticatedUser) {
+            restorePersistedProvider();
+        }
         const root = createRoot(el);
 
         root.render(

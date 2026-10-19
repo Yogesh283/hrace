@@ -7,9 +7,9 @@ const {
 } = require('./lib/loadContractsEnv');
 loadContractsEnv();
 
-// Vesting schedule caps (tokens minted later via minters / governance — deploy starts with 10L LP + 6L ICO).
+// Vesting schedule caps (tokens minted later via minters / governance — deploy starts with 400k LP + 600k ICO bag).
 const ALLOC = {
-    liquidity: hre.ethers.parseEther('400000'), // 4 lakh of the 10L admin bag — Pancake LP only
+    liquidity: hre.ethers.parseEther('400000'), // 400,000 of the 1,000,000 admin bag — Pancake LP only
     strategicReserve: hre.ethers.parseEther('2500000'),
     developmentFund: hre.ethers.parseEther('2500000'),
     ecosystemGrowth: hre.ethers.parseEther('7500000'),
@@ -116,7 +116,7 @@ async function main() {
             );
         }
         if (!process.env.ICO_ADMIN_WALLET || !String(process.env.ICO_ADMIN_WALLET).trim()) {
-            throw new Error('STOP: ICO_ADMIN_WALLET required on mainnet (USDT proceeds + 10L admin bag).');
+            throw new Error('STOP: ICO_ADMIN_WALLET required on mainnet (USDT proceeds + 1,000,000 admin bag).');
         }
     }
 
@@ -481,17 +481,17 @@ async function main() {
         await (await raceCoin.setFeeExempt(account, true)).wait();
     }
 
-    // Total start = 10 lakh INITIAL_MINT only. No extra ICO mint.
-    // Admin wallet gets all 10L: 6L → ICO Contract deposit, 4L stays for LP.
+    // Total start = 1,000,000 INITIAL_MINT only. No extra ICO mint.
+    // Admin wallet gets all 1,000,000: 600,000 → ICO Contract deposit, 400,000 stays for LP.
     const initialMint = await raceCoin.INITIAL_MINT();
     if (icoAdminWallet.toLowerCase() !== deployer.address.toLowerCase()) {
         await (await raceCoin.transfer(icoAdminWallet, initialMint)).wait();
-        console.log('10 lakh INITIAL_MINT sent to admin wallet:', icoAdminWallet);
+        console.log('1,000,000 INITIAL_MINT sent to admin wallet:', icoAdminWallet);
     } else {
-        console.log('10 lakh INITIAL_MINT already on admin wallet (deployer = ICO_ADMIN_WALLET)');
+        console.log('1,000,000 INITIAL_MINT already on admin wallet (deployer = ICO_ADMIN_WALLET)');
     }
     await (await raceCoin.setMinter(rewardVaultAddress, true)).wait();
-    console.log('Admin split: 6 lakh ICO deposit + 4 lakh LP. Minter enabled: RaceRewardVault only');
+    console.log('Admin split: 600,000 ICO deposit + 400,000 LP. Minter enabled: RaceRewardVault only');
 
     let liquidityLockerAddress = null;
     if (process.env.LP_TOKEN) {
@@ -755,8 +755,8 @@ async function main() {
     }
 
     console.log('\nNext steps:');
-    console.log('1. Total 10 lakh on admin wallet: deposit 6 lakh into ICO Contract; keep 4 lakh for LP.');
-    console.log('2. After ICO: add 4 lakh RACE + USDT on Pancake (from admin wallet).');
+    console.log('1. Total 1,000,000 on admin wallet: deposit 600,000 into ICO Contract; keep 400,000 for LP.');
+    console.log('2. After ICO: add 400,000 RACE + USDT on Pancake (from admin wallet).');
     console.log('3. raceICO.startPhase(1) when ready to launch ICO (NOT auto-started).');
     console.log('4. Set RACE_ICO_CONTRACT + ICO_CONTRACT + ICO_ADMIN_WALLET + RACE_INCOME_HOLD_CONTRACT in Laravel .env.');
     console.log('5. raceCoin.setFeeExempt(pairAddress, true)');
