@@ -65,6 +65,20 @@
             </div>
         </div>
     @endforeach
+    <div class="border rounded p-3 mb-2 border-warning">
+        <p class="mb-2 small">
+            <strong>{{ __('Complete Phase 2') }}</strong>
+            · {{ __('Sends completeCurrentPhase() through the 3-of-5 Multisig. Three different signer wallets must confirm. This only marks the current phase complete. It does not start Phase 3. After it executes, use “2. Confirm Phase 3” on the existing startPhase(3) transaction.') }}
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-warning" id="ico-submit-complete-phase">
+                {{ __('1. Submit Complete Phase 2') }}
+            </button>
+            <button type="button" class="btn btn-outline-warning" id="ico-confirm-complete-phase">
+                {{ __('2. Confirm Complete Phase 2') }}
+            </button>
+        </div>
+    </div>
 </div>
 
 <div class="bg-white rounded shadow-sm p-4 mb-3">
@@ -170,6 +184,7 @@
 
     const startStatus = document.getElementById('ico-start-status');
     const startSel = '0x1c9ed381';
+    const completeSel = '0xfd7cd04b';
     const submitSel = 'c6427474';
     const confirmSel = 'c01a8c84';
     const txCountSel = '0xb77bf600';
@@ -221,8 +236,19 @@
         throw new Error('Transaction not mined yet. Wait and tap Confirm. Hash: ' + hash);
     }
 
+    function completePhaseData() {
+        return completeSel;
+    }
+
     async function findPendingStartPhase(phaseId) {
-        const want = startPhaseData(phaseId).toLowerCase();
+        return findPendingInner(startPhaseData(phaseId).toLowerCase());
+    }
+
+    async function findPendingCompletePhase() {
+        return findPendingInner(completePhaseData().toLowerCase());
+    }
+
+    async function findPendingInner(want) {
         const count = BigInt(await ethCall(multiSig, txCountSel) || '0x0');
         let best = null;
         for (let i = 0; i < count; i++) {
@@ -355,6 +381,92 @@
             }
         });
     });
+
+    const submitCompleteBtn = document.getElementById('ico-submit-complete-phase');
+    const confirmCompleteBtn = document.getElementById('ico-confirm-complete-phase');
+    const completeStorageKey = 'race.multisig.completePhase.txId';
+
+    if (submitCompleteBtn) {
+        submitCompleteBtn.addEventListener('click', async function () {
+            try {
+                const from = await connectSigner();
+                const pending = await findPendingCompletePhase();
+                if (pending) {
+                    window.localStorage.setItem(completeStorageKey, pending.id);
+                    setStartStatus(
+                        @json(__('Complete Phase 2 is already submitted. Do NOT submit again. Switch to another signer and tap Confirm Complete Phase 2. Multisig id:')) +
+                            ' ' + pending.id + ' · confirms ' + pending.confirmations + '/3',
+                    );
+                    return;
+                }
+                setStartStatus(@json(__('Submitting completeCurrentPhase() to Multisig… Confirm in TokenPocket. To address must be the Multisig.')));
+                const hash = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: from,
+                        to: multiSig,
+                        data: encodeSubmit(raceIco, completePhaseData()),
+                    }],
+                });
+                setStartStatus(@json(__('Waiting for submit to mine…')) + ' ' + hash);
+                await waitReceipt(hash);
+                const created = await findPendingCompletePhase();
+                const txId = created ? created.id : '';
+                if (txId !== '') {
+                    window.localStorage.setItem(completeStorageKey, txId);
+                }
+                setStartStatus(@json(__('Submit OK. Switch TokenPocket to a SECOND signer and tap Confirm Complete Phase 2. id:')) + ' ' + txId);
+            } catch (err) {
+                setStartStatus(err && err.message ? err.message : String(err));
+            }
+        });
+    }
+
+    if (confirmCompleteBtn) {
+        confirmCompleteBtn.addEventListener('click', async function () {
+            try {
+                const from = await connectSigner();
+                const pending = await findPendingCompletePhase();
+                if (!pending) {
+                    throw new Error(@json(__('No pending Complete Phase 2 Multisig tx. Tap Submit Complete Phase 2 first from one signer.')));
+                }
+                const alreadyHex = await ethCall(
+                    multiSig,
+                    isConfirmedSel + padUint(pending.id) + padAddr(from),
+                );
+                if (BigInt(alreadyHex || '0x0') === 1n) {
+                    setStartStatus(
+                        @json(__('This wallet already confirmed Complete Phase 2. Switch TokenPocket to another signer and tap Confirm again. id:')) +
+                            ' ' + pending.id + ' · ' + pending.confirmations + '/3',
+                    );
+                    return;
+                }
+                window.localStorage.setItem(completeStorageKey, pending.id);
+                setStartStatus(@json(__('Confirming Complete Phase 2…')) + ' id ' + pending.id + ' · ' + pending.confirmations + '/3');
+                const hash = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: from,
+                        to: multiSig,
+                        data: '0x' + confirmSel + padUint(pending.id),
+                    }],
+                });
+                setStartStatus(@json(__('Waiting for confirm to mine…')) + ' ' + hash);
+                await waitReceipt(hash);
+                const after = await findPendingCompletePhase();
+                if (!after) {
+                    setStartStatus(@json(__('Phase 2 should now be complete. Refresh this page, then tap 2. Confirm Phase 3. Do not submit Phase 3 again.')));
+                    return;
+                }
+                setStartStatus(
+                    @json(__('Confirm saved. Switch to the NEXT signer and tap Confirm Complete Phase 2 again. Still need 3 wallets on the SAME id:')) +
+                        ' ' + after.id + ' · ' + after.confirmations + '/3',
+                );
+            } catch (err) {
+                setStartStatus(err && err.message ? err.message : String(err));
+            }
+        });
+    }
 
     if (withdrawBtn) {
         withdrawBtn.addEventListener('click', async function () {
