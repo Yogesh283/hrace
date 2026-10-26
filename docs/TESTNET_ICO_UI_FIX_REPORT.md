@@ -22,7 +22,7 @@
 
 Two separate issues caused the screenshot symptoms:
 
-### Problem 1 — “contract ready nahi” vs “Ready to buy”
+### Problem 1 — “contract not ready” vs “Ready to buy”
 
 The browser was serving a **stale production bundle** (`public/build/assets/Isu-CW3z8ANJ.js`), not the updated React source.
 
@@ -83,7 +83,7 @@ Command: `php artisan blockchain:verify-testnet`
 
 Production bundle check (new `Isu-BNDV4A-f.js`):
 
-- Removed: `ready nahi`, `Staking / ICO contract ready nahi`, `Pehle duration select`
+- Removed: `not ready`, `Staking / ICO contract not ready`, `Select duration first`
 - Present: `Lock duration`, `Selected lock`, `180D`…`1095D` cards, `Buy & Stake RACE`
 
 DEV console (browser):
@@ -97,7 +97,7 @@ console.log('[web3:sync]', { ... })
 
 ## Expected UI at http://localhost:8000/ico
 
-1. No “contract ready nahi” warning when Testnet config is valid  
+1. No “contract not ready” warning when Testnet config is valid  
 2. Green config banner: CommunityEngine + ICO + TEST-USDT on chain 97  
 3. Lock cards: **[180D] [365D] [730D] [1095D]**  
 4. **Selected lock:** updates when a card is clicked (default 180D)  

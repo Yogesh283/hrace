@@ -1,0 +1,156 @@
+/**
+ * Finish 2026-09-26 mainnet deploy after vesting (RPC timeout).
+ */
+const fs = require('fs');
+const path = require('path');
+const hre = require('hardhat');
+const { loadContractsEnv } = require('./lib/loadContractsEnv');
+loadContractsEnv();
+
+const A = {
+    deployer: '0x2a797d98E05444D84238748E23Dec4dbAc0A5C5c',
+    raceMultiSig: '0x81BffBF2C2a258E662e9df0a0f6e34150b33F3df',
+    raceCoin: '0xa29683442d9221Df0Eb7AFF3932c1E165FFa93EB',
+    raceTreasury: '0xDFff662C7009a4FbFe12ee97b77b4f06a79Ae155',
+    raceDevelopmentTreasury: '0xB255d395b872Af9727812c71176114f229878671',
+    raceMarketingTreasury: '0xF75e6989Cf7C2Ab6c85D19F1471d3dAFE733E6A1',
+    raceOperationsTreasury: '0x2BBCC874a556540da04e9604b4A33B9FFFD1fda9',
+    raceAutoLiquidity: '0x37975d8C0D590ae95EFB3Fc4446962Ea3e133Aa9',
+    raceStaking: '0x1B313cB83aDA893CC37B83bAD1a9D0188056EEb9',
+    raceRewardVault: '0xa59543817202fE2967be2B6e9EE081b765aE8958',
+    raceCommunityEngine: '0x93E75234026aA3942624Dd61Dc4EF2aCf958E1DE',
+    raceParticipation: '0x0cbBb4d3871343AB25EAe2A707956DC4E5779821',
+    raceICO: '0x631C12254A98cC69516859fD43c4Da494F5073CA',
+    icoContract: '0xc618bc4f36877F5d81539f7275958f4B21677d27',
+    raceRewardPriceOracle: '0x9504f0c9A81370443F0F1B97Bc92B4DE176C8bbF',
+    raceIncomeHold: '0x5D1576349C994656Cc15C28106C73bc6535bcb33',
+    raceRewardPool: '0xab9252Bb22599901DB6A2987905b8aF12a855cf6',
+    raceGovernor: '0x998b76156535Caba89D1a25099334fBDC3EE4F13',
+    raceEcosystemVault: '0x0F77254fE1a5f7E33Ec63a5FD00DdE9FfE7d0647',
+    strategicReserveVesting: '0x3214342A17C9D66573C3088a280AEAA677f55089',
+    developmentFundVesting: '0xD3A1c5E124d20181a23080a714d397A7BC40C03A',
+    partnershipsVesting: '0x08AaBF50DbB9654Ac6496Bdb2414FA7B23302289',
+    icoAdminWallet: '0x568B11c83A104c81c70cde58cCdbF4aa9c97b225',
+    pancakeRouter: '0x10ED43C718714eb63d5aA57B78B54704E256024E',
+    usdt: '0x55d398326f99059ff775485246999027b3197955',
+};
+
+async function send(label, fn) {
+    try {
+        const tx = await fn();
+        if (tx && tx.wait) await tx.wait();
+        console.log('OK', label);
+    } catch (e) {
+        console.warn('SKIP/FAIL', label, e.shortMessage || e.message);
+    }
+}
+
+async function main() {
+    const [deployer] = await hre.ethers.getSigners();
+    if (Number((await hre.ethers.provider.getNetwork()).chainId) !== 56) throw new Error('mainnet only');
+    console.log('Finish', deployer.address, hre.ethers.formatEther(await hre.ethers.provider.getBalance(deployer.address)));
+
+    const raceCoin = await hre.ethers.getContractAt('RaceCoin', A.raceCoin);
+    const staking = await hre.ethers.getContractAt('RaceStaking', A.raceStaking);
+    const rewardPool = await hre.ethers.getContractAt('RaceRewardPool', A.raceRewardPool);
+    const rewardPriceOracle = await hre.ethers.getContractAt('RaceRewardPriceOracle', A.raceRewardPriceOracle);
+    const communityEngine = await hre.ethers.getContractAt('RaceCommunityEngine', A.raceCommunityEngine);
+    const treasury = await hre.ethers.getContractAt('RaceTreasury', A.raceTreasury);
+    const raceIco = await hre.ethers.getContractAt('RaceICO', A.raceICO);
+    const icoReserve = await hre.ethers.getContractAt('ICOContract', A.icoContract);
+    const rewardVault = await hre.ethers.getContractAt('RaceRewardVault', A.raceRewardVault);
+    const incomeHold = await hre.ethers.getContractAt('RaceIncomeHold', A.raceIncomeHold);
+
+    await send('staking.setRewardPool', () => staking.setRewardPool(A.raceRewardPool));
+    await send('setFeeRecipients', () =>
+        raceCoin.setFeeRecipients(A.raceAutoLiquidity, A.raceTreasury, A.raceRewardPool, A.developmentFundVesting),
+    );
+    await send('race.setGovernance', () => raceCoin.setGovernance(A.raceGovernor));
+    await send('pool.setGovernance', () => rewardPool.setGovernance(A.raceGovernor));
+    await send('staking.setGovernance', () => staking.setGovernance(A.raceGovernor));
+
+    const feeExempt = [
+        A.raceStaking,
+        A.raceParticipation,
+        A.raceCommunityEngine,
+        A.raceRewardVault,
+        A.raceIncomeHold,
+        A.raceICO,
+        A.icoContract,
+        A.raceTreasury,
+        A.raceDevelopmentTreasury,
+        A.raceMarketingTreasury,
+        A.raceOperationsTreasury,
+        A.raceEcosystemVault,
+        A.strategicReserveVesting,
+        A.developmentFundVesting,
+        A.partnershipsVesting,
+        A.pancakeRouter,
+        A.icoAdminWallet,
+    ];
+    for (const account of feeExempt) {
+        await send('feeExempt ' + account.slice(0, 8), () => raceCoin.setFeeExempt(account, true));
+    }
+
+    const initialMint = await raceCoin.INITIAL_MINT();
+    const adminBal = await raceCoin.balanceOf(A.icoAdminWallet);
+    if (adminBal < initialMint) {
+        await send('transfer INITIAL_MINT', () => raceCoin.transfer(A.icoAdminWallet, initialMint - adminBal));
+    } else {
+        console.log('Admin already has INITIAL_MINT');
+    }
+    if (!(await raceCoin.isMinter(A.raceRewardVault))) {
+        await send('setMinter vault', () => raceCoin.setMinter(A.raceRewardVault, true));
+    }
+
+    const oracleUpdater = (process.env.ORACLE_UPDATER || A.icoAdminWallet).trim();
+    await send('oracle updater on', () => rewardPriceOracle.setUpdater(oracleUpdater, true));
+    if (oracleUpdater.toLowerCase() !== deployer.address.toLowerCase()) {
+        await send('oracle updater deployer off', () => rewardPriceOracle.setUpdater(deployer.address, false));
+    }
+
+    async function xfer(label, c) {
+        const owner = await c.owner();
+        if (owner.toLowerCase() === A.raceMultiSig.toLowerCase()) {
+            console.log('already MS', label);
+            return;
+        }
+        if (owner.toLowerCase() !== deployer.address.toLowerCase()) {
+            console.warn('not deployer', label, owner);
+            return;
+        }
+        await send('own ' + label, () => c.transferOwnership(A.raceMultiSig));
+    }
+    await xfer('oracle', rewardPriceOracle);
+    await xfer('engine', communityEngine);
+    await xfer('treasury', treasury);
+    await xfer('race', raceCoin);
+    await xfer('ico', raceIco);
+    await xfer('reserve', icoReserve);
+    await xfer('vault', rewardVault);
+    await xfer('hold', incomeHold);
+
+    const summary = {
+        network: '56',
+        completedAt: new Date().toISOString(),
+        ...A,
+        maxSupply: '150000000',
+        initialMint: '1000000',
+    };
+    const outDir = path.join(__dirname, '..', 'deployments', 'mainnet');
+    fs.mkdirSync(outDir, { recursive: true });
+    const outFile = path.join(outDir, 'core-deployment-20260926.json');
+    fs.writeFileSync(outFile, JSON.stringify(summary, null, 2));
+    console.log('Wrote', outFile);
+
+    console.log('engine.owner', await communityEngine.owner());
+    console.log('race.owner', await raceCoin.owner());
+    console.log('ico.owner', await raceIco.owner());
+    console.log('vault.minter', await raceCoin.isMinter(A.raceRewardVault));
+    console.log('admin RACE', hre.ethers.formatEther(await raceCoin.balanceOf(A.icoAdminWallet)));
+}
+
+main().catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+});

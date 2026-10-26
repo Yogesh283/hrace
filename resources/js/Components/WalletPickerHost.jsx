@@ -26,7 +26,7 @@ export default function WalletPickerHost() {
 
     const handlePick = (wallet) => {
         if (wallet?.provider) {
-            selectWalletProvider(wallet.provider);
+            selectWalletProvider(wallet.provider, wallet);
             finish(wallet);
             return;
         }

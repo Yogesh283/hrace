@@ -9,9 +9,7 @@ use App\Models\User;
 use App\Services\Income\RaceCoinService;
 use App\Services\Income\ReferralTree;
 use App\Services\Income\WalletBalanceService;
-use App\Services\Member\MemberActivationService;
 use App\Support\IncomeCatalog;
-use App\Support\RewardPlan;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -36,29 +34,38 @@ class DashboardController extends Controller
         return $sign.number_format($pct, 2, '.', '').'%';
     }
 
-    public function index(Request $request, ReferralTree $referralTree, WalletBalanceService $wallets, RaceCoinService $raceCoin, MemberActivationService $activation): Response
+    public function index(Request $request, ReferralTree $referralTree, WalletBalanceService $wallets, RaceCoinService $raceCoin): Response
     {
         $user = $request->user()->loadMissing('userWallet');
         $uid = $user->id;
         $walletBalanceUsd = $wallets->currentBalanceFloat($user);
         $raceCoinBalance = $raceCoin->currentBalance($user);
 
-        $directReferrals = User::query()->where('referred_by', $uid)->count();
-        $teamSize = $referralTree->referralDescendantCount($uid);
         $descendantIds = $referralTree->referralDescendantIds($uid);
+        $teamSize = count($descendantIds);
+        $directReferrals = User::query()->where('referred_by', $uid)->count();
 
-        $lifetimeCredits = (string) (LedgerEntry::query()
+        $creditGroups = LedgerEntry::query()
             ->production()
             ->where('user_id', $uid)
             ->where('amount_usd', '>', 0)
-            ->sum('amount_usd') ?? '0');
+            ->selectRaw('entry_type, SUM(amount_usd) as total, COUNT(*) as cnt')
+            ->groupBy('entry_type')
+            ->get();
 
-        $totalIncomeUsd = (string) (LedgerEntry::query()
-            ->production()
-            ->where('user_id', $uid)
-            ->where('amount_usd', '>', 0)
-            ->where('entry_type', '!=', LedgerEntry::TYPE_WALLET_DEPOSIT)
-            ->sum('amount_usd') ?? '0');
+        $lifetimeCredits = 0.0;
+        $totalIncomeUsd = 0.0;
+        $incomePayoutCount = 0;
+        $incomeByType = [];
+        foreach ($creditGroups as $row) {
+            $amount = (float) $row->total;
+            $lifetimeCredits += $amount;
+            if ($row->entry_type !== LedgerEntry::TYPE_WALLET_DEPOSIT) {
+                $totalIncomeUsd += $amount;
+                $incomePayoutCount += (int) $row->cnt;
+                $incomeByType[$row->entry_type] = number_format($amount, 2, '.', '');
+            }
+        }
 
         $planIncome = IncomeCatalog::summarizeForUser($uid);
 
@@ -68,6 +75,7 @@ class DashboardController extends Controller
             ->where('amount_usd', '>', 0)
             ->where('entry_type', '!=', LedgerEntry::TYPE_WALLET_DEPOSIT)
             ->latest('id')
+            ->limit(40)
             ->get([
                 'id',
                 'entry_type',
@@ -89,59 +97,39 @@ class DashboardController extends Controller
             ])
             ->values();
 
-        $principalInvested = (string) (Investment::query()
+        $investmentAgg = Investment::query()
             ->where('user_id', $uid)
-            ->sum('amount_usd') ?? '0');
+            ->selectRaw(
+                'COALESCE(SUM(amount_usd), 0) as principal,
+                 COALESCE(SUM(CASE WHEN status = ? THEN amount_usd ELSE 0 END), 0) as active_principal,
+                 COALESCE(SUM(total_roi_paid_usd), 0) as roi_paid,
+                 COALESCE(SUM(CASE WHEN status = ? THEN 1 ELSE 0 END), 0) as active_count',
+                [Investment::STATUS_ACTIVE, Investment::STATUS_ACTIVE]
+            )
+            ->first();
 
-        $activePrincipalInvested = (string) (Investment::query()
-            ->where('user_id', $uid)
-            ->where('status', Investment::STATUS_ACTIVE)
-            ->sum('amount_usd') ?? '0');
-
-        $roiPaidOnBook = (string) (Investment::query()
-            ->where('user_id', $uid)
-            ->sum('total_roi_paid_usd') ?? '0');
-
-        $activeInvestments = Investment::query()
-            ->where('user_id', $uid)
-            ->where('status', Investment::STATUS_ACTIVE)
-            ->count();
-
-        $incomeByType = LedgerEntry::query()
-            ->production()
-            ->where('user_id', $uid)
-            ->where('amount_usd', '>', 0)
-            ->where('entry_type', '!=', LedgerEntry::TYPE_WALLET_DEPOSIT)
-            ->selectRaw('entry_type, SUM(amount_usd) as total')
-            ->groupBy('entry_type')
-            ->get()
-            ->mapWithKeys(fn ($row) => [
-                $row->entry_type => number_format((float) $row->total, 2, '.', ''),
-            ])
-            ->all();
+        $principalInvested = (string) ($investmentAgg->principal ?? '0');
+        $activePrincipalInvested = (string) ($investmentAgg->active_principal ?? '0');
+        $roiPaidOnBook = (string) ($investmentAgg->roi_paid ?? '0');
+        $activeInvestments = (int) ($investmentAgg->active_count ?? 0);
 
         $today = Carbon::now()->startOfDay();
         $todayEnd = Carbon::now()->endOfDay();
 
-        $todayIncomeUsd = (float) (LedgerEntry::query()
+        $todayAgg = LedgerEntry::query()
             ->production()
             ->where('user_id', $uid)
             ->where('amount_usd', '>', 0)
             ->where('entry_type', '!=', LedgerEntry::TYPE_WALLET_DEPOSIT)
             ->whereBetween('created_at', [$today, $todayEnd])
-            ->sum('amount_usd') ?? 0);
+            ->selectRaw('COALESCE(SUM(amount_usd), 0) as total, COUNT(*) as cnt')
+            ->first();
 
-        $todayIncomeCount = (int) LedgerEntry::query()
-            ->production()
-            ->where('user_id', $uid)
-            ->where('amount_usd', '>', 0)
-            ->where('entry_type', '!=', LedgerEntry::TYPE_WALLET_DEPOSIT)
-            ->whereBetween('created_at', [$today, $todayEnd])
-            ->count();
+        $todayIncomeUsd = (float) ($todayAgg->total ?? 0);
+        $todayIncomeCount = (int) ($todayAgg->cnt ?? 0);
 
         $currentStart = $today->copy()->subDays(29);
         $previousStart = $today->copy()->subDays(59);
-        $previousEnd = $today->copy()->subDays(30)->endOfDay();
 
         $bucket = [
             'total_current' => 0.0,
@@ -221,15 +209,7 @@ class DashboardController extends Controller
             ];
         }
 
-        $monthRows = LedgerEntry::query()
-            ->production()
-            ->where('user_id', $uid)
-            ->where('amount_usd', '>', 0)
-            ->where('entry_type', '!=', LedgerEntry::TYPE_WALLET_DEPOSIT)
-            ->where('created_at', '>=', $currentStart)
-            ->get(['amount_usd', 'created_at']);
-
-        foreach ($monthRows as $row) {
+        foreach ($windowRows as $row) {
             $key = $row->created_at?->toDateString();
             if ($key && isset($monthlyMap[$key])) {
                 $monthlyMap[$key]['total_usd'] += (float) $row->amount_usd;
@@ -280,8 +260,6 @@ class DashboardController extends Controller
             }
         }
 
-        $directTeamCount = User::query()->where('referred_by', $uid)->count();
-
         $communityMatchingUsd = (float) ($incomeByType[LedgerEntry::TYPE_COMMUNITY_TEAM_REWARD] ?? 0)
             + (float) ($incomeByType[LedgerEntry::TYPE_COMMUNITY_LEADERSHIP] ?? 0)
             + (float) ($incomeByType[LedgerEntry::TYPE_COMMUNITY_LEADERSHIP_SKIP] ?? 0)
@@ -289,7 +267,6 @@ class DashboardController extends Controller
             + (float) ($incomeByType[LedgerEntry::TYPE_COMMUNITY_REFERRAL] ?? 0);
 
         return Inertia::render('Dashboard', [
-            'memberActivation' => $activation->statusFor($user),
             'summary' => [
                 'balance_usd' => number_format($walletBalanceUsd, 2, '.', ''),
                 'race_coin_balance' => $raceCoinBalance,
@@ -301,7 +278,7 @@ class DashboardController extends Controller
                 'today_label' => $today->format('M j, Y'),
                 'plan_income' => $planIncome,
                 'income_entries' => $incomeEntries,
-                'income_payout_count' => $incomeEntries->count(),
+                'income_payout_count' => $incomePayoutCount,
                 'principal_invested_usd' => number_format((float) $principalInvested, 2, '.', ''),
                 'active_principal_usd' => number_format((float) $activePrincipalInvested, 2, '.', ''),
                 'roi_paid_usd' => number_format((float) $roiPaidOnBook, 2, '.', ''),
@@ -338,7 +315,7 @@ class DashboardController extends Controller
                         'name' => $u->name,
                         'member_code' => MemberCode::format($u->member_number),
                     ])->values()->all(),
-                    'direct_team' => $directTeamCount,
+                    'direct_team' => $directReferrals,
                     'total_team' => $teamSize,
                 ],
             ],
