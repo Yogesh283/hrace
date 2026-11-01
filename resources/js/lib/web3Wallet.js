@@ -84,6 +84,56 @@ function isLikelyMobile() {
     return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
+export function discoverTrustProvider() {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+    const trustRoot = window.trustwallet;
+    if (trustRoot?.ethereum?.request) {
+        return trustRoot.ethereum;
+    }
+    if (trustRoot?.request) {
+        return trustRoot;
+    }
+    const eth = window.ethereum;
+    if (eth?.isTrust || eth?.isTrustWallet) {
+        return eth;
+    }
+    const bundled = Array.isArray(eth?.providers) ? eth.providers : [];
+    const flagged = bundled.find((provider) => provider?.isTrust || provider?.isTrustWallet);
+    if (flagged) {
+        return flagged;
+    }
+    if (eth?.request && /TrustWallet|Trust\/|trustwallet/i.test(navigator.userAgent || '')) {
+        return eth;
+    }
+    return null;
+}
+
+export function isTrustWalletEnvironment() {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+    if (discoverTrustProvider()) {
+        return true;
+    }
+    return /TrustWallet|Trust\/|trustwallet/i.test(navigator.userAgent || '');
+}
+
+export function describeWalletProvider(provider = null) {
+    const current = provider || selectedProvider || discoverTrustProvider() || (typeof window !== 'undefined' ? window.ethereum : null);
+    if (!current) {
+        return { name: 'None', hasEthereum: typeof window !== 'undefined' && Boolean(window.ethereum), hasTrustWallet: typeof window !== 'undefined' && Boolean(window.trustwallet) };
+    }
+    return {
+        name: guessWalletName(current),
+        hasEthereum: typeof window !== 'undefined' && Boolean(window.ethereum),
+        hasTrustWallet: typeof window !== 'undefined' && Boolean(window.trustwallet),
+        isTrust: Boolean(current.isTrust || current.isTrustWallet),
+        isMetaMask: Boolean(current.isMetaMask),
+    };
+}
+
 function guessWalletName(provider, index = 0) {
     if (!provider) {
         return `Wallet ${index + 1}`;
@@ -155,22 +205,44 @@ export function listInjectedWallets() {
     listenForInjectedWallets();
     window.dispatchEvent(new Event('eip6963:requestProvider'));
 
-    const fromAnnounce = Array.from(announced.values());
-    if (fromAnnounce.length > 0) {
-        return fromAnnounce;
+    const seen = new Set();
+    const rows = [];
+    const add = (wallet) => {
+        const provider = wallet?.provider;
+        if (!provider?.request || seen.has(provider)) {
+            return;
+        }
+        seen.add(provider);
+        rows.push(wallet);
+    };
+
+    Array.from(announced.values()).forEach(add);
+
+    const trust = discoverTrustProvider();
+    if (trust) {
+        add({
+            id: 'trust-injected',
+            name: 'Trust Wallet',
+            icon: '',
+            rdns: 'com.trustwallet.app',
+            provider: trust,
+        });
     }
 
     const eth = window.ethereum;
-    if (!eth) {
-        return [];
+    if (eth) {
+        const providers = Array.isArray(eth.providers) && eth.providers.length > 0 ? eth.providers : [eth];
+        providers.forEach((provider, index) => {
+            add({
+                id: `legacy-${index}`,
+                name: guessWalletName(provider, index),
+                icon: '',
+                provider,
+            });
+        });
     }
-    const providers = Array.isArray(eth.providers) && eth.providers.length > 0 ? eth.providers : [eth];
-    return providers.map((provider, index) => ({
-        id: `legacy-${index}`,
-        name: guessWalletName(provider, index),
-        icon: '',
-        provider,
-    }));
+
+    return rows;
 }
 
 export function matchRecommendedWallet(recommended, detected) {
@@ -347,9 +419,17 @@ function matchPersistedWallet() {
 }
 
 export function restorePersistedProvider() {
-    if (selectedProvider) {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            selectedProvider = trust;
+            return selectedProvider;
+        }
+    }
+    if (selectedProvider?.request) {
         return selectedProvider;
     }
+    selectedProvider = null;
     const match = matchPersistedWallet();
     if (match?.provider) {
         selectedProvider = match.provider;
@@ -396,17 +476,34 @@ export function getWalletProvider() {
     if (typeof window === 'undefined') {
         return null;
     }
-    if (selectedProvider) {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            if (selectedProvider !== trust) {
+                selectWalletProvider(trust, {
+                    id: 'trust-injected',
+                    name: 'Trust Wallet',
+                    rdns: 'com.trustwallet.app',
+                });
+            }
+            return trust;
+        }
+    }
+    if (selectedProvider?.request) {
         return selectedProvider;
     }
+    selectedProvider = null;
     const restored = restorePersistedProvider();
-    if (restored) {
+    if (restored?.request) {
         return restored;
     }
     const wallets = listInjectedWallets();
-    if (wallets.length === 1) {
-        selectWalletProvider(wallets[0].provider, wallets[0]);
-        return wallets[0].provider;
+    const preferred =
+        wallets.find((wallet) => wallet.provider?.isTrust || wallet.provider?.isTrustWallet || wallet.name === 'Trust Wallet')
+        || (wallets.length === 1 ? wallets[0] : null);
+    if (preferred?.provider) {
+        selectWalletProvider(preferred.provider, preferred);
+        return preferred.provider;
     }
     if (wallets.length === 0) {
         return window.ethereum || null;
@@ -467,7 +564,26 @@ export async function watchRaceToken({
 }
 
 export async function resolveSessionWallet({ boundAddress = '', allowPicker = true } = {}) {
-    if (selectedProvider) {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            selectWalletProvider(trust, {
+                id: 'trust-injected',
+                name: 'Trust Wallet',
+                rdns: 'com.trustwallet.app',
+            });
+            return {
+                id: 'trust-injected',
+                name: 'Trust Wallet',
+                icon: '',
+                rdns: 'com.trustwallet.app',
+                provider: trust,
+                ready: true,
+            };
+        }
+    }
+
+    if (selectedProvider?.request) {
         return {
             id: 'selected',
             name: 'Connected wallet',

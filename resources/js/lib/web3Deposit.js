@@ -2,14 +2,18 @@
 import { hideWalletPending, showWalletPending } from '@/lib/appNotify';
 import { csrfHeaders } from '@/lib/csrf';
 import {
+    describeWalletProvider,
+    discoverTrustProvider,
     getWalletProvider,
     hasWalletSession,
+    isTrustWalletEnvironment,
     NO_WALLET_MESSAGE,
     OPENED_WALLET_APP_MESSAGE,
     pickInjectedWallet,
     readWalletSession,
     rememberWalletChoice,
     requireWalletProvider,
+    selectWalletProvider,
     WALLET_PICK_CANCELLED,
     walletRequest,
 } from '@/lib/web3Wallet';
@@ -209,11 +213,25 @@ export function isLikelyWrongNetworkError(message) {
     return false;
 }
 
+function isWalletDebugEnabled() {
+    if (typeof window === 'undefined') {
+        return import.meta.env.DEV;
+    }
+    try {
+        if (new URLSearchParams(window.location.search).get('wallet_debug') === '1') {
+            return true;
+        }
+    } catch {
+        // ignore
+    }
+    return import.meta.env.DEV || isTrustWalletEnvironment();
+}
+
 function debugLog(payload) {
-    if (!import.meta.env.DEV) {
+    if (!isWalletDebugEnabled()) {
         return;
     }
-    console.debug('[web3:network]', payload);
+    console.info('[web3:network]', payload);
 }
 
 function requireEthereum() {
@@ -241,14 +259,12 @@ function isUserRejectedNetwork(error) {
 }
 
 export function isTrustWalletBrowser() {
-    if (typeof navigator === 'undefined') {
-        return false;
-    }
-    const provider = getWalletProvider();
-    if (provider?.isTrust || provider?.isTrustWallet) {
-        return true;
-    }
-    return /TrustWallet|Trust\/|trustwallet/i.test(navigator.userAgent || '');
+    return isTrustWalletEnvironment();
+}
+
+export function currentWalletDebug() {
+    const info = describeWalletProvider();
+    return info;
 }
 
 export function isInAppWalletBrowser() {
@@ -314,6 +330,30 @@ export async function readWalletChainIdHex() {
     } catch {
         return '';
     }
+}
+
+export async function waitUntilChainConfirmed(expectedChainId, { timeoutMs = 12000, intervalMs = 400 } = {}) {
+    const expected = Number(expectedChainId);
+    let chainHex = '';
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        if (isTrustWalletEnvironment()) {
+            const trust = discoverTrustProvider();
+            if (trust) {
+                selectWalletProvider(trust, {
+                    id: 'trust-injected',
+                    name: 'Trust Wallet',
+                    rdns: 'com.trustwallet.app',
+                });
+            }
+        }
+        chainHex = await readWalletChainIdHex().catch(() => '');
+        if (isChainIdMatch(chainHex, expected)) {
+            return { confirmed: true, chainHex };
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+    }
+    return { confirmed: false, chainHex };
 }
 
 let autoNetworkSwitchTried = false;
@@ -495,23 +535,26 @@ export async function ensureBscNetwork(chainIdOverride) {
         await switchOrAddNetwork(targetChainId);
     } catch (switchError) {
         // iOS TokenPocket often errors on wallet_switchEthereumChain even when already on BSC.
-        currentHex = await readWalletChainIdHex().catch(() => '');
-        if (isChainIdMatch(currentHex, targetChainId)) {
+        const recovered = await waitUntilChainConfirmed(targetChainId, { timeoutMs: 2500 });
+        if (recovered.confirmed) {
             debugLog({ phase: 'ensure-switch-error-but-already-correct', targetChainId: targetHex });
-            return { chainIdHex: currentHex };
+            return { chainIdHex: recovered.chainHex };
+        }
+        if (isUserRejectedNetwork(switchError) || /cancel|reject|denied/i.test(String(switchError?.message || ''))) {
+            throw new Error('Network switch cancelled.');
         }
         throw new Error(getWrongNetworkMessage(targetChainId));
     }
 
-    currentHex = await readWalletChainIdHex();
-    debugLog({ phase: 'ensure-post-switch', currentChainId: currentHex, targetChainId: targetHex });
+    const waited = await waitUntilChainConfirmed(targetChainId);
+    debugLog({ phase: 'ensure-post-switch', currentChainId: waited.chainHex, targetChainId: targetHex });
 
-    if (!isChainIdMatch(currentHex, targetChainId)) {
+    if (!waited.confirmed) {
         throw new Error(getWrongNetworkMessage(targetChainId));
     }
 
-    debugLog({ phase: 'ensure-success', currentChainId: currentHex, targetChainId: targetHex });
-    return { chainIdHex: currentHex };
+    debugLog({ phase: 'ensure-success', currentChainId: waited.chainHex, targetChainId: targetHex });
+    return { chainIdHex: waited.chainHex };
 }
 
 /**
@@ -692,12 +735,24 @@ export async function switchToConfiguredNetwork(chainIdOverride) {
 }
 
 /**
- * Login / register only: connect wallet accounts — do NOT force network switch popup.
- * Tx pages still use connectWalletWithNetwork / ensureBscNetwork.
+ * Login / register: bind the real injected provider, confirm BSC, then return the account.
+ * personal_sign happens only after chain ID 56/97 is confirmed.
  */
 export async function connectWalletForAuth() {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            selectWalletProvider(trust, {
+                id: 'trust-injected',
+                name: 'Trust Wallet',
+                rdns: 'com.trustwallet.app',
+            });
+        }
+    }
+
+    const inTrust = isTrustWalletEnvironment();
     const picked = await pickInjectedWallet({
-        allowPicker: !hasWalletSession(),
+        allowPicker: !inTrust && !hasWalletSession(),
         boundAddress: readWalletSession()?.address || '',
     });
     if (picked?.openedApp) {
@@ -717,15 +772,29 @@ export async function connectWalletForAuth() {
     }
     rememberWalletChoice(picked, address);
 
-    let chainIdHex = '';
-    try {
-        chainIdHex = await readWalletChainIdHex();
-    } catch {
-        chainIdHex = '';
+    const target = getActiveChainId();
+    let chainIdHex = await readWalletChainIdHex().catch(() => '');
+    debugLog({
+        phase: 'auth-connect-before-switch',
+        wallet: describeWalletProvider(picked.provider),
+        walletAddress: address,
+        currentChainId: chainIdHex,
+        targetChainId: target,
+    });
+
+    if (!isChainIdMatch(chainIdHex, target)) {
+        await ensureBscNetwork(target);
+        const waited = await waitUntilChainConfirmed(target);
+        chainIdHex = waited.chainHex;
+        if (!waited.confirmed) {
+            throw new Error(
+                'BNB Smart Chain is not connected. In Trust Wallet open the network list, choose BNB Smart Chain, then tap Retry.',
+            );
+        }
     }
 
     debugLog({
-        phase: 'auth-connect',
+        phase: 'auth-connect-ready',
         walletAddress: address,
         currentChainId: chainIdHex,
     });
@@ -737,8 +806,18 @@ export async function connectWalletForAuth() {
  * Connect wallet accounts, then enforce configured network (accounts → chainId → switch → verify).
  */
 export async function connectWalletWithNetwork(chainIdOverride, options = {}) {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            selectWalletProvider(trust, {
+                id: 'trust-injected',
+                name: 'Trust Wallet',
+                rdns: 'com.trustwallet.app',
+            });
+        }
+    }
     const boundAddress = options.boundAddress || readWalletSession()?.address || '';
-    const allowPicker = Boolean(options.allowPicker) && !boundAddress && !hasWalletSession();
+    const allowPicker = Boolean(options.allowPicker) && !boundAddress && !hasWalletSession() && !isTrustWalletEnvironment();
     const picked = await pickInjectedWallet({ boundAddress, allowPicker });
     if (picked?.openedApp) {
         throw new Error(OPENED_WALLET_APP_MESSAGE);
@@ -771,8 +850,15 @@ export async function connectWalletWithNetwork(chainIdOverride, options = {}) {
         chainIdHex = '';
     }
 
-    if (options.enforceNetwork && !isChainIdMatch(chainIdHex, targetChainId)) {
+    if (options.enforceNetwork !== false && !isChainIdMatch(chainIdHex, targetChainId)) {
         ({ chainIdHex } = await ensureBscNetwork(targetChainId));
+        const waited = await waitUntilChainConfirmed(targetChainId);
+        chainIdHex = waited.chainHex;
+        if (!waited.confirmed) {
+            throw new Error(
+                'BNB Smart Chain is not connected. In Trust Wallet choose BNB Smart Chain, then tap Retry.',
+            );
+        }
     }
 
     debugLog({

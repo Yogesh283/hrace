@@ -1,4 +1,5 @@
 import { csrfHeaders, getCsrfToken } from '@/lib/csrf';
+import { getActiveChainId, waitUntilChainConfirmed } from '@/lib/web3Deposit';
 import { walletRequest } from '@/lib/web3Wallet';
 
 export { hasWeb3Wallet } from '@/lib/web3Wallet';
@@ -82,6 +83,12 @@ export async function walletAuthPayload({ action, joinCode = null, address = nul
     // Reuse the account from connectWalletForAuth — a second eth_requestAccounts
     // hangs for a long time inside TokenPocket / Trust WebViews.
     const resolved = address || (await requestWalletAccount());
+    const waited = await waitUntilChainConfirmed(getActiveChainId(), { timeoutMs: 8000 });
+    if (!waited.confirmed) {
+        throw new Error(
+            'BNB Smart Chain is not connected. Switch Trust Wallet to BNB Smart Chain, then tap Retry.',
+        );
+    }
     const message = await fetchAuthNonce({ address: resolved, action, joinCode });
     const signature = await signWalletMessage(resolved, message);
 

@@ -1,6 +1,5 @@
 import {
     BSC_MAINNET_CHAIN_ID,
-    BSC_TESTNET_CHAIN_ID,
     bindWalletProviderListeners,
     getActiveChainId,
     isChainIdMatch,
@@ -10,8 +9,13 @@ import {
     readWalletChainIdHex,
     subscribeWalletEvents,
     switchToConfiguredNetwork,
+    waitUntilChainConfirmed,
 } from '@/lib/web3Deposit';
-import { getWalletProvider, restorePersistedProvider } from '@/lib/web3Wallet';
+import {
+    describeWalletProvider,
+    getWalletProvider,
+    restorePersistedProvider,
+} from '@/lib/web3Wallet';
 
 export const NETWORK_GATE_STATUS = {
     idle: 'idle',
@@ -34,39 +38,76 @@ let providerUnsubscribe = () => {};
 
 let snapshot = {
     status: NETWORK_GATE_STATUS.idle,
-    message: 'Checking wallet network...',
+    message: 'Detecting Trust Wallet...',
     chainHex: '',
     chainId: 0,
     address: '',
     hasProvider: false,
     ready: false,
     readyWithoutWallet: false,
+    providerName: '',
+    hasEthereum: false,
+    hasTrustWallet: false,
+    waitingConfirm: false,
+    manualHint: '',
 };
 
 function targetChainId() {
     return getActiveChainId() || BSC_MAINNET_CHAIN_ID;
 }
 
-function networkTitle() {
-    return targetChainId() === BSC_TESTNET_CHAIN_ID ? 'BSC Testnet' : 'BSC Mainnet';
+function chainDisplayName(chainId) {
+    if (chainId === 56) {
+        return 'BNB Smart Chain';
+    }
+    if (chainId === 1) {
+        return 'Ethereum';
+    }
+    if (chainId === 97) {
+        return 'BSC Testnet';
+    }
+    return chainId ? `Chain ${chainId}` : 'Unknown';
 }
 
-function messageFor(status) {
+function messageFor(status, extra = snapshot) {
     switch (status) {
         case NETWORK_GATE_STATUS.checking:
-            return 'Checking wallet network...';
+            return isTrustWalletBrowser() ? 'Detecting Trust Wallet...' : 'Checking wallet network...';
         case NETWORK_GATE_STATUS.prompt:
-            return `Please switch to ${networkTitle()}.`;
+            return extra.chainId ? `Current network: ${chainDisplayName(extra.chainId)}` : 'Current network: Unknown';
         case NETWORK_GATE_STATUS.waiting:
-            return 'Waiting for wallet approval...';
+            return extra.waitingConfirm
+                ? 'Waiting for wallet confirmation...'
+                : 'Switching to BNB Smart Chain...';
         case NETWORK_GATE_STATUS.ready:
-            return `${networkTitle()} connected successfully.`;
+            return extra.hasProvider ? 'BNB Smart Chain connected.' : extra.message || 'BNB Smart Chain connected.';
         case NETWORK_GATE_STATUS.rejected:
-            return 'Network switch rejected. Please retry.';
+            return 'Wallet connection failed. Retry.';
         case NETWORK_GATE_STATUS.unsupported:
-            return 'Unsupported network.';
+            return extra.manualHint || 'Wallet connection failed. Retry.';
         default:
-            return 'Checking wallet network...';
+            return isTrustWalletBrowser() ? 'Detecting Trust Wallet...' : 'Checking wallet network...';
+    }
+}
+
+function providerDebug() {
+    const info = describeWalletProvider();
+    return {
+        providerName: info.name || 'None',
+        hasEthereum: Boolean(info.hasEthereum),
+        hasTrustWallet: Boolean(info.hasTrustWallet),
+    };
+}
+
+function preserveAppUrl() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+    try {
+        window.sessionStorage.setItem('race.app.url', window.location.href);
+        window.history.replaceState(window.history.state, document.title, window.location.href);
+    } catch {
+        // private mode / restricted WebView
     }
 }
 
@@ -83,12 +124,26 @@ function emit() {
 
 function setSnapshot(patch) {
     const next = { ...snapshot, ...patch };
-    if (patch.status && patch.message === undefined) {
-        next.message = messageFor(patch.status);
+    if (patch.message === undefined && (patch.status || patch.chainId !== undefined || patch.waitingConfirm !== undefined)) {
+        next.message = messageFor(next.status, next);
     }
     next.ready = next.status === NETWORK_GATE_STATUS.ready;
     snapshot = next;
     emit();
+}
+
+function fromLive(live, extra = {}) {
+    return {
+        hasProvider: live.hasProvider,
+        chainHex: live.chainHex || '',
+        chainId: live.chainId || 0,
+        providerName: live.providerName || '',
+        hasEthereum: Boolean(live.hasEthereum),
+        hasTrustWallet: Boolean(live.hasTrustWallet),
+        readyWithoutWallet: false,
+        manualHint: '',
+        ...extra,
+    };
 }
 
 function readRejectedFlag() {
@@ -121,7 +176,7 @@ function writeRejectedFlag(value) {
     writeSessionFlag(REJECTED_KEY, value);
 }
 
-async function waitForProvider(maxMs = 2000) {
+async function waitForProvider(maxMs = 2500) {
     const started = Date.now();
     restorePersistedProvider();
     while (Date.now() - started < maxMs) {
@@ -136,9 +191,10 @@ async function waitForProvider(maxMs = 2000) {
 
 async function readLiveNetwork() {
     restorePersistedProvider();
+    const debug = providerDebug();
     const hasProvider = Boolean(getWalletProvider());
     if (!hasProvider) {
-        return { hasProvider: false, chainHex: '', chainId: 0, match: false };
+        return { hasProvider: false, chainHex: '', chainId: 0, match: false, ...debug };
     }
     bindWalletProviderListeners();
     const chainHex = await readWalletChainIdHex().catch(() => '');
@@ -148,6 +204,7 @@ async function readLiveNetwork() {
         chainHex,
         chainId,
         match: isChainIdMatch(chainHex, targetChainId()),
+        ...debug,
     };
 }
 
@@ -166,6 +223,7 @@ export function isNetworkGateReady() {
 }
 
 export async function inspectWalletNetwork() {
+    preserveAppUrl();
     setSnapshot({ status: NETWORK_GATE_STATUS.checking, readyWithoutWallet: false });
     const found = await waitForProvider();
     const live = await readLiveNetwork();
@@ -177,6 +235,7 @@ export async function inspectWalletNetwork() {
             chainHex: '',
             chainId: 0,
             readyWithoutWallet: true,
+            ...providerDebug(),
         });
         return getNetworkGateSnapshot();
     }
@@ -186,10 +245,7 @@ export async function inspectWalletNetwork() {
         writeSessionFlag(AUTO_SWITCH_KEY, false);
         setSnapshot({
             status: NETWORK_GATE_STATUS.ready,
-            hasProvider: true,
-            chainHex: live.chainHex,
-            chainId: live.chainId,
-            readyWithoutWallet: false,
+            ...fromLive(live),
         });
         return getNetworkGateSnapshot();
     }
@@ -197,20 +253,14 @@ export async function inspectWalletNetwork() {
     if (readRejectedFlag()) {
         setSnapshot({
             status: NETWORK_GATE_STATUS.rejected,
-            hasProvider: true,
-            chainHex: live.chainHex,
-            chainId: live.chainId,
-            readyWithoutWallet: false,
+            ...fromLive(live),
         });
         return getNetworkGateSnapshot();
     }
 
     setSnapshot({
-        status: live.chainId ? NETWORK_GATE_STATUS.unsupported : NETWORK_GATE_STATUS.prompt,
-        hasProvider: true,
-        chainHex: live.chainHex,
-        chainId: live.chainId,
-        readyWithoutWallet: false,
+        status: NETWORK_GATE_STATUS.prompt,
+        ...fromLive(live),
     });
     return getNetworkGateSnapshot();
 }
@@ -221,40 +271,51 @@ export async function requestBscNetworkSwitch() {
     }
     switchInFlight = true;
     writeRejectedFlag(false);
-    setSnapshot({ status: NETWORK_GATE_STATUS.waiting });
+    preserveAppUrl();
+    setSnapshot({
+        status: NETWORK_GATE_STATUS.waiting,
+        waitingConfirm: false,
+        message: 'Switching to BNB Smart Chain...',
+    });
+
+    const manualHint =
+        'Trust Wallet did not switch automatically. Open the browser menu, choose BNB Smart Chain, then reopen racenetwork.live and tap Retry.';
 
     try {
         const before = await readLiveNetwork();
         if (before.match) {
             setSnapshot({
                 status: NETWORK_GATE_STATUS.ready,
-                hasProvider: true,
-                chainHex: before.chainHex,
-                chainId: before.chainId,
-                readyWithoutWallet: false,
+                waitingConfirm: false,
+                ...fromLive(before),
             });
             return getNetworkGateSnapshot();
         }
 
         await switchToConfiguredNetwork(targetChainId());
-        const after = await readLiveNetwork();
-        if (!after.match) {
+        setSnapshot({
+            status: NETWORK_GATE_STATUS.waiting,
+            waitingConfirm: true,
+            message: 'Waiting for wallet confirmation...',
+            ...fromLive(before),
+        });
+        const waited = await waitUntilChainConfirmed(targetChainId());
+        const afterId = parseChainIdDecimal(waited.chainHex);
+        const after = { ...before, chainHex: waited.chainHex, chainId: afterId, match: waited.confirmed };
+        if (!waited.confirmed) {
             setSnapshot({
                 status: NETWORK_GATE_STATUS.unsupported,
-                hasProvider: after.hasProvider,
-                chainHex: after.chainHex,
-                chainId: after.chainId,
-                readyWithoutWallet: false,
+                waitingConfirm: false,
+                manualHint,
+                ...fromLive(after),
             });
             return getNetworkGateSnapshot();
         }
 
         setSnapshot({
             status: NETWORK_GATE_STATUS.ready,
-            hasProvider: true,
-            chainHex: after.chainHex,
-            chainId: after.chainId,
-            readyWithoutWallet: false,
+            waitingConfirm: false,
+            ...fromLive(after),
         });
         return getNetworkGateSnapshot();
     } catch (error) {
@@ -263,15 +324,14 @@ export async function requestBscNetworkSwitch() {
             chainHex: '',
             chainId: 0,
             match: false,
+            ...providerDebug(),
         }));
         if (after.match) {
             writeRejectedFlag(false);
             setSnapshot({
                 status: NETWORK_GATE_STATUS.ready,
-                hasProvider: true,
-                chainHex: after.chainHex,
-                chainId: after.chainId,
-                readyWithoutWallet: false,
+                waitingConfirm: false,
+                ...fromLive(after),
             });
             return getNetworkGateSnapshot();
         }
@@ -280,10 +340,9 @@ export async function requestBscNetworkSwitch() {
         writeRejectedFlag(rejected);
         setSnapshot({
             status: rejected ? NETWORK_GATE_STATUS.rejected : NETWORK_GATE_STATUS.unsupported,
-            hasProvider: after.hasProvider,
-            chainHex: after.chainHex,
-            chainId: after.chainId,
-            readyWithoutWallet: false,
+            waitingConfirm: false,
+            manualHint: rejected ? '' : manualHint,
+            ...fromLive(after),
         });
         return getNetworkGateSnapshot();
     } finally {
@@ -295,6 +354,8 @@ async function onProviderSignal() {
     if (switchInFlight) {
         return;
     }
+    restorePersistedProvider();
+    bindWalletProviderListeners();
     const live = await readLiveNetwork();
     if (!live.hasProvider) {
         setSnapshot({
@@ -303,6 +364,7 @@ async function onProviderSignal() {
             chainHex: '',
             chainId: 0,
             readyWithoutWallet: true,
+            ...providerDebug(),
         });
         return;
     }
@@ -310,29 +372,20 @@ async function onProviderSignal() {
         writeRejectedFlag(false);
         setSnapshot({
             status: NETWORK_GATE_STATUS.ready,
-            hasProvider: true,
-            chainHex: live.chainHex,
-            chainId: live.chainId,
-            readyWithoutWallet: false,
+            ...fromLive(live),
         });
         return;
     }
     if (snapshot.status === NETWORK_GATE_STATUS.rejected || readRejectedFlag()) {
         setSnapshot({
             status: NETWORK_GATE_STATUS.rejected,
-            hasProvider: true,
-            chainHex: live.chainHex,
-            chainId: live.chainId,
-            readyWithoutWallet: false,
+            ...fromLive(live),
         });
         return;
     }
     setSnapshot({
-        status: live.chainId ? NETWORK_GATE_STATUS.unsupported : NETWORK_GATE_STATUS.prompt,
-        hasProvider: true,
-        chainHex: live.chainHex,
-        chainId: live.chainId,
-        readyWithoutWallet: false,
+        status: NETWORK_GATE_STATUS.prompt,
+        ...fromLive(live),
     });
 }
 

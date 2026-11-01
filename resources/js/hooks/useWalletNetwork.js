@@ -125,7 +125,11 @@ export function useWalletNetwork({ expectedChainId } = {}) {
             await refreshChain();
             return address;
         } catch (error) {
-            const message = error?.message || 'Wallet connection was cancelled or failed.';
+            const raw = String(error?.message || '');
+            const cancelled = /cancel|reject|denied|4001/i.test(raw);
+            const message = cancelled
+                ? 'Wallet connection was cancelled. Approve the request in the wallet, then tap Retry.'
+                : (raw || 'Wallet connection failed. Retry.');
             setNetworkError(message);
             throw error;
         } finally {

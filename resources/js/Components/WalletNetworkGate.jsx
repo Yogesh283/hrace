@@ -68,8 +68,18 @@ export default function WalletNetworkGate({ children }) {
                     {waiting ? <div className="mt-5"><Spinner /></div> : null}
                     <p className="mt-5 text-base font-semibold text-white">{snap.message}</p>
                     <p className="mt-2 text-xs text-slate-400">
-                        RACE runs on BSC Mainnet (Chain ID 56). Blockchain features stay paused until this network is confirmed.
+                        RACE runs on BNB Smart Chain (Chain ID 56). The site does not sign in until the wallet itself reports chain 56.
                     </p>
+                    <p className="mt-3 rounded-lg border border-slate-700/80 bg-slate-900/80 px-3 py-2 text-[11px] leading-5 text-slate-300">
+                        Provider: {snap.providerName || 'None'}
+                        <br />
+                        eth_chainId: {snap.chainHex || '—'} ({snap.chainId || 'unknown'})
+                        <br />
+                        window.ethereum: {snap.hasEthereum ? 'yes' : 'no'} · window.trustwallet: {snap.hasTrustWallet ? 'yes' : 'no'}
+                    </p>
+                    {snap.manualHint ? (
+                        <p className="mt-3 text-xs text-amber-200">{snap.manualHint}</p>
+                    ) : null}
                     {showRetry ? (
                         <button
                             type="button"

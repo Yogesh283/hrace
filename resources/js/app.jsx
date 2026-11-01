@@ -87,6 +87,7 @@ router.on('success', (event) => {
 // Trust Wallet / in-app browsers restore the page when the user changes network.
 // Reloading there kicks the dApp out and cancels the BNB switch.
 window.addEventListener('pageshow', (event) => {
+    restorePersistedProvider();
     if (!event.persisted) {
         return;
     }
