@@ -4,7 +4,14 @@ import './bootstrap';
 import NavigationLoader from '@/Components/NavigationLoader';
 import WalletPendingOverlay from '@/Components/WalletPendingOverlay';
 import WalletPickerHost from '@/Components/WalletPickerHost';
-import { configureWeb3Network, resetAutoNetworkSwitch, resolvePageChainId } from '@/lib/web3Deposit';
+import {
+    autoSelectBnbNetwork,
+    configureWeb3Network,
+    isInAppWalletBrowser,
+    isTrustWalletBrowser,
+    resetAutoNetworkSwitch,
+    resolvePageChainId,
+} from '@/lib/web3Deposit';
 import { clearWalletSession, rememberBoundAddress, restorePersistedProvider } from '@/lib/web3Wallet';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -77,10 +84,16 @@ router.on('success', (event) => {
 });
 
 // Mobile browsers restore inactive tabs from cache; reload to rehydrate Inertia.
+// Trust Wallet / in-app browsers restore the page when the user changes network.
+// Reloading there kicks the dApp out and cancels the BNB switch.
 window.addEventListener('pageshow', (event) => {
-    if (event.persisted) {
-        window.location.reload();
+    if (!event.persisted) {
+        return;
     }
+    if (isTrustWalletBrowser() || isInAppWalletBrowser()) {
+        return;
+    }
+    window.location.reload();
 });
 
 createInertiaApp({
@@ -96,6 +109,9 @@ createInertiaApp({
         if (hadAuthenticatedUser) {
             restorePersistedProvider();
         }
+        window.setTimeout(() => {
+            autoSelectBnbNetwork(resolvePageChainId(props.initialPage?.props?.blockchain || {})).catch(() => {});
+        }, 300);
         const root = createRoot(el);
 
         root.render(

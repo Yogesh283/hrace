@@ -240,15 +240,27 @@ function isUserRejectedNetwork(error) {
         || message.includes('canceled');
 }
 
-function isInAppWalletBrowser() {
+export function isTrustWalletBrowser() {
     if (typeof navigator === 'undefined') {
         return false;
     }
     const provider = getWalletProvider();
+    if (provider?.isTrust || provider?.isTrustWallet) {
+        return true;
+    }
+    return /TrustWallet|Trust\/|trustwallet/i.test(navigator.userAgent || '');
+}
+
+export function isInAppWalletBrowser() {
+    if (typeof navigator === 'undefined') {
+        return false;
+    }
+    if (isTrustWalletBrowser()) {
+        return true;
+    }
+    const provider = getWalletProvider();
     if (
         provider?.isTokenPocket
-        || provider?.isTrust
-        || provider?.isTrustWallet
         || provider?.isSafePal
         || provider?.isBitKeep
         || provider?.isBitgetWallet
@@ -258,9 +270,14 @@ function isInAppWalletBrowser() {
     ) {
         return true;
     }
-    return /TokenPocket|TrustWallet|Trust\/|SafePal|BitKeep|Bitget|OKApp|CoinbaseWallet|MetaMaskMobile|imToken/i.test(
+    return /TokenPocket|SafePal|BitKeep|Bitget|OKApp|CoinbaseWallet|MetaMaskMobile|imToken/i.test(
         navigator.userAgent || '',
     );
+}
+
+function prefersAddNetwork() {
+    // Trust Wallet closes the dApp browser on wallet_addEthereumChain.
+    return isInAppWalletBrowser() && !isTrustWalletBrowser();
 }
 
 function networkParamsForChainId(chainId) {
@@ -309,6 +326,57 @@ export async function ensureBscNetworkQuietOnce(chainIdOverride) {
     }
     autoNetworkSwitchTried = true;
     return ensureBscNetwork(chainIdOverride);
+}
+
+/**
+ * When the site opens inside a wallet browser, move to BNB once.
+ * Trust Wallet: switch only. Never add-chain — that kicks the user out of the dApp.
+ */
+export async function autoSelectBnbNetwork(chainIdOverride) {
+    if (typeof window === 'undefined') {
+        return { skipped: true };
+    }
+    for (let i = 0; i < 8 && !getWalletProvider(); i += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+    }
+    if (!getWalletProvider()) {
+        return { skipped: true };
+    }
+    if (autoNetworkSwitchTried) {
+        const hex = await readWalletChainIdHex().catch(() => '');
+        return { chainIdHex: hex, skipped: true };
+    }
+
+    autoNetworkSwitchTried = true;
+    const target = resolveSafeBscChainId(chainIdOverride);
+    const current = await readWalletChainIdHex().catch(() => '');
+    if (isChainIdMatch(current, target)) {
+        return { chainIdHex: current };
+    }
+
+    try {
+        if (isTrustWalletBrowser()) {
+            await walletRequest({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: chainIdToHex(target) }],
+            });
+        } else {
+            await ensureBscNetwork(target);
+        }
+    } catch (error) {
+        const after = await readWalletChainIdHex().catch(() => '');
+        if (isChainIdMatch(after, target)) {
+            return { chainIdHex: after };
+        }
+        debugLog({
+            phase: 'auto-bnb-failed',
+            trust: isTrustWalletBrowser(),
+            message: error?.message,
+        });
+        return { chainIdHex: after, failed: true };
+    }
+
+    return { chainIdHex: await readWalletChainIdHex().catch(() => '') };
 }
 
 async function readPreferredAccount(preferredAddress = '') {
@@ -365,9 +433,8 @@ async function switchOrAddNetwork(targetChainId) {
         debugLog({ phase: 'switch-success', targetChainId: chainHex });
     };
 
-    // TokenPocket / Trust / other in-app browsers treat wallet_switchEthereumChain
-    // as Ethereum and lock the picker. Adding BSC (0x38) switches them to BNB.
-    const preferAdd = isInAppWalletBrowser();
+    // TokenPocket prefers add. Trust Wallet must only switch — add closes the dApp.
+    const preferAdd = prefersAddNetwork();
     const first = preferAdd ? tryAdd : trySwitch;
     const second = preferAdd ? trySwitch : tryAdd;
 
@@ -386,6 +453,10 @@ async function switchOrAddNetwork(targetChainId) {
         });
         if (isUserRejectedNetwork(error)) {
             throw new Error('Network switch cancelled.');
+        }
+        const canAddFallback = !isTrustWalletBrowser() || walletErrorCode(error) === 4902;
+        if (!canAddFallback) {
+            throw error;
         }
         try {
             await second();
