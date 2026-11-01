@@ -7,7 +7,14 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import { RACE_BANNER_STAKING, RACE_LOGO_SRC } from '@/lib/brandAssets';
 import { notifyError, notifySuccess } from '@/lib/appNotify';
-import { configureWeb3Network, parseTokenAmount, syncBlockchainTx, TESTNET_MOCK_USDT } from '@/lib/web3Deposit';
+import {
+    configureWeb3Network,
+    isChainIdMatch,
+    parseTokenAmount,
+    readWalletChainIdHex,
+    syncBlockchainTx,
+    TESTNET_MOCK_USDT,
+} from '@/lib/web3Deposit';
 import { ensureEngineReferralBeforeStake, ensureSponsorActiveForLevelIncome } from '@/lib/web3Engine';
 import {
     approveUsdtForIco,
@@ -225,7 +232,7 @@ export default function Isu({
         });
     }, [expectedChainId, usdtContract, rpcUrl]);
 
-    const { chainOk, switchNetwork } = useWalletNetwork({ expectedChainId });
+    const { switchNetwork } = useWalletNetwork({ expectedChainId });
 
     useEffect(() => {
         if (!import.meta.env.DEV) {
@@ -575,12 +582,18 @@ export default function Isu({
     }, [boundWallet]);
 
     const ensureNetworkForTx = async () => {
-        if (chainOk) {
-            return true;
-        }
         try {
+            const liveHex = await readWalletChainIdHex().catch(() => '');
+            if (isChainIdMatch(liveHex, expectedChainId)) {
+                return true;
+            }
             await switchNetwork();
-            return true;
+            const afterHex = await readWalletChainIdHex().catch(() => '');
+            if (isChainIdMatch(afterHex, expectedChainId)) {
+                return true;
+            }
+            showIcoError('Switch your wallet to BNB Smart Chain, then tap Buy RACE again.');
+            return false;
         } catch (err) {
             showIcoError(err);
             return false;
@@ -636,7 +649,24 @@ export default function Isu({
             showIcoError(quoteError || 'Enter a valid USDT amount.');
             return;
         }
-        if (activePhase && raceOut > activePhase.remaining) {
+        let remaining = activePhase?.remaining ?? 0n;
+        try {
+            const [livePhaseId, livePhases] = await Promise.all([
+                readIcoCurrentPhase({ icoContract, rpcUrl }),
+                readAllIcoPhases({ icoContract, rpcUrl }),
+            ]);
+            if (livePhaseId) {
+                setCurrentPhaseId(livePhaseId);
+                setPhases(livePhases);
+                const live = livePhases.find((phase) => phase.id === livePhaseId);
+                if (live) {
+                    remaining = live.remaining;
+                }
+            }
+        } catch {
+            // Keep the last snapshot if the live read fails.
+        }
+        if (remaining > 0n && raceOut > remaining) {
             showIcoError('Not enough RACE remaining in this phase.');
             return;
         }
@@ -676,7 +706,7 @@ export default function Isu({
                 amountUsd,
                 lockPeriodSeconds,
                 chainId: expectedChainId,
-                waitConfirmations: 2,
+                waitConfirmations: 1,
                 rpcUrl,
             });
 

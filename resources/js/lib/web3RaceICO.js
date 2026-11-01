@@ -468,7 +468,9 @@ export async function purchaseIcoRace({
 
     const preflightRpc =
         rpcUrl ||
-        (Number(chainId) === 97 ? 'https://bsc-testnet-rpc.publicnode.com' : '');
+        (Number(chainId) === 97
+            ? 'https://bsc-testnet-rpc.publicnode.com'
+            : 'https://bsc-dataseed.binance.org/');
 
     // Preflight with enough gas. MetaMask eth_call without gas often returns empty "0x" revert (OOG noise).
     await assertIcoPurchaseWouldSucceed({
@@ -490,7 +492,17 @@ export async function purchaseIcoRace({
     });
 
     if (waitConfirmations > 0) {
-        await waitForConfirmations(txHash, { minConfirmations: waitConfirmations });
+        try {
+            await waitForConfirmations(txHash, {
+                minConfirmations: waitConfirmations,
+                rpcUrl: preflightRpc,
+            });
+        } catch (err) {
+            const msg = String(err?.message || '').toLowerCase();
+            if (!msg.includes('timed out') && !msg.includes('waiting for')) {
+                throw err;
+            }
+        }
     }
 
     return txHash;
@@ -515,7 +527,9 @@ export async function createIcoStake({
     const data = SELECTORS.createStake + padUint256(id);
     const preflightRpc =
         rpcUrl ||
-        (Number(chainId) === 97 ? 'https://bsc-testnet-rpc.publicnode.com' : '');
+        (Number(chainId) === 97
+            ? 'https://bsc-testnet-rpc.publicnode.com'
+            : 'https://bsc-dataseed.binance.org/');
     await assertIcoPurchaseWouldSucceed({
         from: walletAddress,
         icoContract,
@@ -550,7 +564,9 @@ export async function createAllIcoStakes({
     const data = SELECTORS.createAllStakes;
     const preflightRpc =
         rpcUrl ||
-        (Number(chainId) === 97 ? 'https://bsc-testnet-rpc.publicnode.com' : '');
+        (Number(chainId) === 97
+            ? 'https://bsc-testnet-rpc.publicnode.com'
+            : 'https://bsc-dataseed.binance.org/');
     await assertIcoPurchaseWouldSucceed({
         from: walletAddress,
         icoContract,

@@ -233,11 +233,12 @@ export function openWalletDeepLink(wallet) {
     const href = window.location.href;
     const encoded = encodeURIComponent(href);
     const hostPath = `${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const chainId = 56;
     const deepLinks = {
-        metamask: `https://metamask.app.link/dapp/${hostPath}`,
+        metamask: `https://metamask.app.link/dapp/${hostPath}?chainId=${chainId}`,
         trust: `https://link.trustwallet.com/open_url?coin_id=20000714&url=${encoded}`,
-        tokenpocket: `tpdapp://open?params=${encodeURIComponent(JSON.stringify({ url: href, chain: 'BSC' }))}`,
-        okx: `okx://wallet/dapp/details?dappUrl=${encoded}`,
+        tokenpocket: `tpdapp://open?params=${encodeURIComponent(JSON.stringify({ url: href, chain: 'BSC', chainId }))}`,
+        okx: `okx://wallet/dapp/details?dappUrl=${encoded}&chainId=${chainId}`,
         coinbase: `https://go.cb-w.com/dapp?cb_url=${encoded}`,
         bitget: `https://bkcode.vip?action=dapp&url=${encoded}`,
         binance: `bnc://app.binance.com/cedefi/dapp?url=${encoded}`,

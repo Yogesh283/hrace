@@ -49,9 +49,17 @@ let activeChainId = BSC_MAINNET_CHAIN_ID;
 let configuredUsdtContract = OFFICIAL_USDT_BEP20;
 let configuredRpcUrl = '';
 
+function resolveSafeBscChainId(chainId) {
+    const value = Number(chainId ?? activeChainId);
+    if (value === BSC_TESTNET_CHAIN_ID) {
+        return BSC_TESTNET_CHAIN_ID;
+    }
+    return BSC_MAINNET_CHAIN_ID;
+}
+
 export function configureWeb3Network({ chainId, usdtContract, rpcUrl } = {}) {
     if (chainId !== undefined && chainId !== null && chainId !== '') {
-        activeChainId = Number(chainId);
+        activeChainId = resolveSafeBscChainId(chainId);
     }
     if (usdtContract) {
         configuredUsdtContract = String(usdtContract).trim();
@@ -73,8 +81,16 @@ export function isTestnetMode() {
     return activeChainId === BSC_TESTNET_CHAIN_ID;
 }
 
+function decimalToHex(chainId) {
+    const value = Number(chainId);
+    if (!Number.isFinite(value) || value <= 0) {
+        return '';
+    }
+    return `0x${Math.trunc(value).toString(16)}`;
+}
+
 export function chainIdToHex(chainId) {
-    return `0x${Number(chainId).toString(16)}`;
+    return decimalToHex(resolveSafeBscChainId(chainId));
 }
 
 /**
@@ -109,7 +125,7 @@ export function parseChainIdDecimal(value) {
 
 export function normalizeChainHex(chainHex) {
     const dec = parseChainIdDecimal(chainHex);
-    return dec > 0 ? chainIdToHex(dec) : '';
+    return dec > 0 ? decimalToHex(dec) : '';
 }
 
 export function isChainIdMatch(chainHex, targetChainId = activeChainId) {
@@ -205,8 +221,46 @@ function requireEthereum() {
 }
 
 function resolveChainId(chainId) {
-    const value = chainId ?? activeChainId;
-    return Number(value);
+    return resolveSafeBscChainId(chainId);
+}
+
+function walletErrorCode(error) {
+    return Number(error?.code ?? error?.data?.originalError?.code ?? error?.error?.code);
+}
+
+function isUserRejectedNetwork(error) {
+    const code = walletErrorCode(error);
+    if (code === 4001 || code === 5001) {
+        return true;
+    }
+    const message = String(error?.message || '').toLowerCase();
+    return message.includes('user rejected')
+        || message.includes('user denied')
+        || message.includes('cancelled')
+        || message.includes('canceled');
+}
+
+function isInAppWalletBrowser() {
+    if (typeof navigator === 'undefined') {
+        return false;
+    }
+    const provider = getWalletProvider();
+    if (
+        provider?.isTokenPocket
+        || provider?.isTrust
+        || provider?.isTrustWallet
+        || provider?.isSafePal
+        || provider?.isBitKeep
+        || provider?.isBitgetWallet
+        || provider?.isOkxWallet
+        || provider?.isOKExWallet
+        || provider?.isCoinbaseWallet
+    ) {
+        return true;
+    }
+    return /TokenPocket|TrustWallet|Trust\/|SafePal|BitKeep|Bitget|OKApp|CoinbaseWallet|MetaMaskMobile|imToken/i.test(
+        navigator.userAgent || '',
+    );
 }
 
 function networkParamsForChainId(chainId) {
@@ -280,44 +334,71 @@ async function readPreferredAccount(preferredAddress = '') {
 
 async function switchOrAddNetwork(targetChainId) {
     requireEthereum();
-    const chainHex = chainIdToHex(targetChainId);
-    const network = networkParamsForChainId(targetChainId);
+    const safeChainId = resolveSafeBscChainId(targetChainId);
+    const chainHex = chainIdToHex(safeChainId);
+    const network = networkParamsForChainId(safeChainId);
 
-    debugLog({
-        phase: 'switch-attempt',
-        currentChainId: await readWalletChainIdHex().catch(() => null),
-        targetChainId: chainHex,
-    });
+    let currentHex = await readWalletChainIdHex().catch(() => '');
+    if (isChainIdMatch(currentHex, safeChainId)) {
+        return;
+    }
 
-    try {
+    const tryAdd = async () => {
+        debugLog({ phase: 'add-network-attempt', targetChainId: chainHex });
+        await walletRequest({
+            method: 'wallet_addEthereumChain',
+            params: [network],
+        });
+        debugLog({ phase: 'add-network-success', targetChainId: chainHex });
+    };
+
+    const trySwitch = async () => {
+        debugLog({
+            phase: 'switch-attempt',
+            currentChainId: currentHex,
+            targetChainId: chainHex,
+        });
         await walletRequest({
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: chainHex }],
         });
         debugLog({ phase: 'switch-success', targetChainId: chainHex });
-    } catch (switchError) {
-        debugLog({
-            phase: 'switch-failure',
-            code: switchError?.code,
-            message: switchError?.message,
-            targetChainId: chainHex,
-        });
+    };
 
-        if (switchError?.code === 4902) {
-            debugLog({ phase: 'add-network-attempt', targetChainId: chainHex });
-            await walletRequest({
-                method: 'wallet_addEthereumChain',
-                params: [network],
-            });
-            debugLog({ phase: 'add-network-success', targetChainId: chainHex });
+    // TokenPocket / Trust / other in-app browsers treat wallet_switchEthereumChain
+    // as Ethereum and lock the picker. Adding BSC (0x38) switches them to BNB.
+    const preferAdd = isInAppWalletBrowser();
+    const first = preferAdd ? tryAdd : trySwitch;
+    const second = preferAdd ? trySwitch : tryAdd;
+
+    try {
+        await first();
+    } catch (error) {
+        currentHex = await readWalletChainIdHex().catch(() => '');
+        if (isChainIdMatch(currentHex, safeChainId)) {
             return;
         }
-
-        if (switchError?.code === 4001) {
+        debugLog({
+            phase: preferAdd ? 'add-network-failure' : 'switch-failure',
+            code: walletErrorCode(error),
+            message: error?.message,
+            targetChainId: chainHex,
+        });
+        if (isUserRejectedNetwork(error)) {
             throw new Error('Network switch cancelled.');
         }
-
-        throw switchError;
+        try {
+            await second();
+        } catch (secondError) {
+            currentHex = await readWalletChainIdHex().catch(() => '');
+            if (isChainIdMatch(currentHex, safeChainId)) {
+                return;
+            }
+            if (isUserRejectedNetwork(secondError)) {
+                throw new Error('Network switch cancelled.');
+            }
+            throw secondError;
+        }
     }
 }
 
@@ -738,19 +819,68 @@ export async function sendUsdtTransfer({ from, to, usdtContract, amountUsd }) {
     }
 }
 
+function defaultPublicRpc() {
+    if (configuredRpcUrl) {
+        return configuredRpcUrl;
+    }
+    return activeChainId === BSC_TESTNET_CHAIN_ID
+        ? 'https://bsc-testnet-rpc.publicnode.com'
+        : 'https://bsc-dataseed.binance.org/';
+}
+
+async function publicRpcCall(method, params, rpcUrl) {
+    const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    });
+    const payload = await response.json();
+    if (payload?.error) {
+        throw new Error(payload.error.message || 'RPC error');
+    }
+    return payload.result;
+}
+
+async function readTxReceipt(txHash, rpcUrl) {
+    try {
+        const receipt = await walletRequest({
+            method: 'eth_getTransactionReceipt',
+            params: [txHash],
+        });
+        if (receipt) {
+            return receipt;
+        }
+    } catch {
+        // TokenPocket / iOS often fail receipt reads after a successful send.
+    }
+    if (rpcUrl) {
+        return await publicRpcCall('eth_getTransactionReceipt', [txHash], rpcUrl);
+    }
+    return null;
+}
+
+async function readBlockNumberHex(rpcUrl) {
+    try {
+        return await walletRequest({ method: 'eth_blockNumber', params: [] });
+    } catch {
+        if (rpcUrl) {
+            return await publicRpcCall('eth_blockNumber', [], rpcUrl);
+        }
+        throw new Error('Could not read block number.');
+    }
+}
+
 export async function waitForConfirmations(
     txHash,
-    { minConfirmations = 12, maxAttempts = 80, intervalMs = 3000 } = {},
+    { minConfirmations = 12, maxAttempts = 80, intervalMs = 3000, rpcUrl = '' } = {},
 ) {
+    const confirmRpc = rpcUrl || defaultPublicRpc();
     showWalletPending('Waiting for blockchain confirmation…');
     try {
         let receipt = null;
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            receipt = await walletRequest({
-                method: 'eth_getTransactionReceipt',
-                params: [txHash],
-            });
+            receipt = await readTxReceipt(txHash, confirmRpc);
 
             if (receipt) {
                 if (receipt.status !== '0x1') {
@@ -804,10 +934,7 @@ export async function waitForConfirmations(
         }
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const currentBlockHex = await walletRequest({
-                method: 'eth_blockNumber',
-                params: [],
-            });
+            const currentBlockHex = await readBlockNumberHex(confirmRpc);
             const currentBlock = parseInt(currentBlockHex, 16);
             const confirmations = currentBlock - txBlock + 1;
 
