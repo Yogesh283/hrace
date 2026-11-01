@@ -4,8 +4,8 @@ import './bootstrap';
 import NavigationLoader from '@/Components/NavigationLoader';
 import WalletPendingOverlay from '@/Components/WalletPendingOverlay';
 import WalletPickerHost from '@/Components/WalletPickerHost';
+import WalletNetworkGate from '@/Components/WalletNetworkGate';
 import {
-    autoSelectBnbNetwork,
     configureWeb3Network,
     isInAppWalletBrowser,
     isTrustWalletBrowser,
@@ -109,9 +109,6 @@ createInertiaApp({
         if (hadAuthenticatedUser) {
             restorePersistedProvider();
         }
-        window.setTimeout(() => {
-            autoSelectBnbNetwork(resolvePageChainId(props.initialPage?.props?.blockchain || {})).catch(() => {});
-        }, 300);
         const root = createRoot(el);
 
         root.render(
@@ -119,7 +116,9 @@ createInertiaApp({
                 <NavigationLoader />
                 <WalletPendingOverlay />
                 <WalletPickerHost />
-                <App {...props} />
+                <WalletNetworkGate>
+                    <App {...props} />
+                </WalletNetworkGate>
             </Fragment>,
         );
     },

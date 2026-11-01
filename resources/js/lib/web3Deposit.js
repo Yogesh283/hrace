@@ -275,9 +275,15 @@ export function isInAppWalletBrowser() {
     );
 }
 
-function prefersAddNetwork() {
-    // Trust Wallet closes the dApp browser on wallet_addEthereumChain.
-    return isInAppWalletBrowser() && !isTrustWalletBrowser();
+function isUnrecognizedChain(error) {
+    const code = walletErrorCode(error);
+    if (code === 4902) {
+        return true;
+    }
+    const message = String(error?.message || '').toLowerCase();
+    return message.includes('unrecognized chain')
+        || message.includes('4902')
+        || message.includes('not added');
 }
 
 function networkParamsForChainId(chainId) {
@@ -433,20 +439,15 @@ async function switchOrAddNetwork(targetChainId) {
         debugLog({ phase: 'switch-success', targetChainId: chainHex });
     };
 
-    // TokenPocket prefers add. Trust Wallet must only switch — add closes the dApp.
-    const preferAdd = prefersAddNetwork();
-    const first = preferAdd ? tryAdd : trySwitch;
-    const second = preferAdd ? trySwitch : tryAdd;
-
     try {
-        await first();
+        await trySwitch();
     } catch (error) {
         currentHex = await readWalletChainIdHex().catch(() => '');
         if (isChainIdMatch(currentHex, safeChainId)) {
             return;
         }
         debugLog({
-            phase: preferAdd ? 'add-network-failure' : 'switch-failure',
+            phase: 'switch-failure',
             code: walletErrorCode(error),
             message: error?.message,
             targetChainId: chainHex,
@@ -454,21 +455,22 @@ async function switchOrAddNetwork(targetChainId) {
         if (isUserRejectedNetwork(error)) {
             throw new Error('Network switch cancelled.');
         }
-        const canAddFallback = !isTrustWalletBrowser() || walletErrorCode(error) === 4902;
-        if (!canAddFallback) {
+        if (!isUnrecognizedChain(error)) {
             throw error;
         }
+        // 4902: chain not in wallet. Trust Wallet can close the dApp on add —
+        // only add when the wallet itself says the chain is missing.
         try {
-            await second();
-        } catch (secondError) {
+            await tryAdd();
+        } catch (addError) {
             currentHex = await readWalletChainIdHex().catch(() => '');
             if (isChainIdMatch(currentHex, safeChainId)) {
                 return;
             }
-            if (isUserRejectedNetwork(secondError)) {
+            if (isUserRejectedNetwork(addError)) {
                 throw new Error('Network switch cancelled.');
             }
-            throw secondError;
+            throw addError;
         }
     }
 }
@@ -783,30 +785,117 @@ export async function connectWalletWithNetwork(chainIdOverride, options = {}) {
     return { address, chainIdHex };
 }
 
-/**
- * Subscribe to wallet chain/account changes. Returns cleanup function.
- */
-export function subscribeWalletEvents({ onChainChanged, onAccountsChanged } = {}) {
+const walletEventSubscribers = {
+    chain: new Set(),
+    accounts: new Set(),
+    connect: new Set(),
+    disconnect: new Set(),
+};
+let boundWalletProvider = null;
+let boundWalletHandlers = null;
+
+function notifyWalletEvent(kind, payload) {
+    walletEventSubscribers[kind].forEach((fn) => {
+        try {
+            fn(payload);
+        } catch {
+            // Subscriber errors must not break other listeners.
+        }
+    });
+}
+
+function detachWalletProviderListeners() {
+    if (!boundWalletProvider || !boundWalletHandlers) {
+        return;
+    }
+    boundWalletProvider.removeListener?.(boundWalletHandlers.chainEvent, boundWalletHandlers.chain);
+    boundWalletProvider.removeListener?.(boundWalletHandlers.accountsEvent, boundWalletHandlers.accounts);
+    boundWalletProvider.removeListener?.('connect', boundWalletHandlers.connect);
+    boundWalletProvider.removeListener?.('disconnect', boundWalletHandlers.disconnect);
+    boundWalletProvider = null;
+    boundWalletHandlers = null;
+}
+
+export function bindWalletProviderListeners() {
     const provider = getWalletProvider();
     if (!provider) {
-        return () => {};
+        return false;
     }
+    if (provider === boundWalletProvider) {
+        return true;
+    }
+    detachWalletProviderListeners();
 
-    const handleChain = () => {
-        debugLog({ phase: 'chainChanged' });
-        onChainChanged?.();
+    const handleChain = (hex) => {
+        debugLog({ phase: 'chainChanged', chainId: hex });
+        notifyWalletEvent('chain', hex);
     };
-    const handleAccounts = () => {
+    const handleAccounts = (accounts) => {
         debugLog({ phase: 'accountsChanged' });
-        onAccountsChanged?.();
+        notifyWalletEvent('accounts', accounts);
+    };
+    const handleConnect = (info) => {
+        debugLog({ phase: 'connect', info });
+        notifyWalletEvent('connect', info);
+    };
+    const handleDisconnect = (error) => {
+        debugLog({ phase: 'disconnect', error });
+        notifyWalletEvent('disconnect', error);
     };
 
     provider.on?.('chainChanged', handleChain);
     provider.on?.('accountsChanged', handleAccounts);
+    provider.on?.('connect', handleConnect);
+    provider.on?.('disconnect', handleDisconnect);
+
+    boundWalletProvider = provider;
+    boundWalletHandlers = {
+        chain: handleChain,
+        accounts: handleAccounts,
+        connect: handleConnect,
+        disconnect: handleDisconnect,
+        chainEvent: 'chainChanged',
+        accountsEvent: 'accountsChanged',
+    };
+    return true;
+}
+
+/**
+ * Subscribe to wallet events. Listeners attach once per provider.
+ */
+export function subscribeWalletEvents({
+    onChainChanged,
+    onAccountsChanged,
+    onConnect,
+    onDisconnect,
+} = {}) {
+    bindWalletProviderListeners();
+    if (onChainChanged) {
+        walletEventSubscribers.chain.add(onChainChanged);
+    }
+    if (onAccountsChanged) {
+        walletEventSubscribers.accounts.add(onAccountsChanged);
+    }
+    if (onConnect) {
+        walletEventSubscribers.connect.add(onConnect);
+    }
+    if (onDisconnect) {
+        walletEventSubscribers.disconnect.add(onDisconnect);
+    }
 
     return () => {
-        provider.removeListener?.('chainChanged', handleChain);
-        provider.removeListener?.('accountsChanged', handleAccounts);
+        if (onChainChanged) {
+            walletEventSubscribers.chain.delete(onChainChanged);
+        }
+        if (onAccountsChanged) {
+            walletEventSubscribers.accounts.delete(onAccountsChanged);
+        }
+        if (onConnect) {
+            walletEventSubscribers.connect.delete(onConnect);
+        }
+        if (onDisconnect) {
+            walletEventSubscribers.disconnect.delete(onDisconnect);
+        }
     };
 }
 

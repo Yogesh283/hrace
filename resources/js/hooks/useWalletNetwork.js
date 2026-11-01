@@ -75,6 +75,8 @@ export function useWalletNetwork({ expectedChainId } = {}) {
             unsubscribe = subscribeWalletEvents({
                 onChainChanged: refreshChain,
                 onAccountsChanged: refreshChain,
+                onConnect: refreshChain,
+                onDisconnect: refreshChain,
             });
             await refreshChain();
         }
