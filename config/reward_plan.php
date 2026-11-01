@@ -140,7 +140,7 @@ return [
         | Royalty Achievement (Rank 11 monthly — official graphic):
         | - Qualify: you Rank 11 + at least ONE DIRECT also Rank 11
         | - Then Community Leadership daily Rank 11 reward STOPS
-        | - Monthly up to $5,000 if BOTH maintain $10M (1 crore) team volume full month
+        | - Monthly up to $5,000 if BOTH maintain $10,000,000 team volume full month
         | - Paid by income:pay-community-leadership-rank11-monthly (previous month)
         */
         'rank_11_monthly_bonus' => [

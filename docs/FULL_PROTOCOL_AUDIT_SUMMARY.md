@@ -52,7 +52,7 @@ Full per-contract notes: `docs/FULL_PROTOCOL_AUDIT.md` §3.
 | Decimals | 18 (`RaceCoin.sol`) |
 | MAX_SUPPLY | 150_000_000 ether — matches locked tokenomics rule |
 | ICO cap (on-chain) | 600_000 RACE via `RaceICO.TOTAL_ALLOCATION` |
-| Initial deploy mint | **1_000_000 RACE to owner** at constructor (separate from ICO bucket — document vs “6 lakh ICO only” marketing) |
+| Initial deploy mint | **1_000_000 RACE to owner** at constructor (separate from ICO bucket — document vs “600,000 ICO only” marketing) |
 | Mint paths | `mint()` **onlyMinter**; `governanceMint()` **onlyGovernance** + 1%/month cap |
 | MAX_SUPPLY enforcement | `require(totalSupply + amount <= MAX_SUPPLY)` on mint paths |
 | Unauthorized mint | **No** — reverts `RaceCoin: not minter` / `not governance` |

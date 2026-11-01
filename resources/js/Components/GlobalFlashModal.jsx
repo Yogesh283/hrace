@@ -147,9 +147,11 @@ export default function GlobalFlashModal() {
                 <h3 id="global-flash-title" className={`font-poppins text-lg font-semibold ${titleClass}`}>
                     {title}
                 </h3>
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-200">
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-200">
                     {messages.map((m, i) => (
-                        <li key={i}>{m}</li>
+                        <li key={i} className="break-words whitespace-normal">
+                            {m}
+                        </li>
                     ))}
                 </ul>
                 <button

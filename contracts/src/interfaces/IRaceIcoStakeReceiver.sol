@@ -20,4 +20,7 @@ interface IRaceIcoStakeReceiver {
         uint256 lockPeriod,
         uint256 icoPurchaseId
     ) external returns (uint256 stakeIndex);
+
+    /// @notice Live PancakeSwap RACE/USDT price (18-decimal USDT per 1 RACE). Used at createStake.
+    function liveRacePriceUsdt() external view returns (uint256);
 }

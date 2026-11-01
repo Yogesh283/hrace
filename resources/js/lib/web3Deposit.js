@@ -1,11 +1,19 @@
 /** Official Tether USD (USDT) on BSC mainnet — never use on Testnet. */
 import { hideWalletPending, showWalletPending } from '@/lib/appNotify';
+import { csrfHeaders } from '@/lib/csrf';
 import {
+    describeWalletProvider,
+    discoverTrustProvider,
     getWalletProvider,
+    hasWalletSession,
+    isTrustWalletEnvironment,
     NO_WALLET_MESSAGE,
     OPENED_WALLET_APP_MESSAGE,
     pickInjectedWallet,
+    readWalletSession,
+    rememberWalletChoice,
     requireWalletProvider,
+    selectWalletProvider,
     WALLET_PICK_CANCELLED,
     walletRequest,
 } from '@/lib/web3Wallet';
@@ -45,9 +53,17 @@ let activeChainId = BSC_MAINNET_CHAIN_ID;
 let configuredUsdtContract = OFFICIAL_USDT_BEP20;
 let configuredRpcUrl = '';
 
+function resolveSafeBscChainId(chainId) {
+    const value = Number(chainId ?? activeChainId);
+    if (value === BSC_TESTNET_CHAIN_ID) {
+        return BSC_TESTNET_CHAIN_ID;
+    }
+    return BSC_MAINNET_CHAIN_ID;
+}
+
 export function configureWeb3Network({ chainId, usdtContract, rpcUrl } = {}) {
     if (chainId !== undefined && chainId !== null && chainId !== '') {
-        activeChainId = Number(chainId);
+        activeChainId = resolveSafeBscChainId(chainId);
     }
     if (usdtContract) {
         configuredUsdtContract = String(usdtContract).trim();
@@ -69,25 +85,57 @@ export function isTestnetMode() {
     return activeChainId === BSC_TESTNET_CHAIN_ID;
 }
 
+function decimalToHex(chainId) {
+    const value = Number(chainId);
+    if (!Number.isFinite(value) || value <= 0) {
+        return '';
+    }
+    return `0x${Math.trunc(value).toString(16)}`;
+}
+
 export function chainIdToHex(chainId) {
-    return `0x${Number(chainId).toString(16)}`;
+    return decimalToHex(resolveSafeBscChainId(chainId));
+}
+
+/**
+ * TokenPocket / MetaMask iOS often return 56, "56", or 0x38.
+ * Treat bare decimals as decimal — "56" is BSC, not hex chain 86.
+ */
+export function parseChainIdDecimal(value) {
+    if (value === null || value === undefined || value === '') {
+        return 0;
+    }
+    if (typeof value === 'bigint') {
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value > 0 ? Math.trunc(value) : 0;
+    }
+    const raw = String(value).trim();
+    if (!raw) {
+        return 0;
+    }
+    if (/^0x[0-9a-fA-F]+$/i.test(raw)) {
+        const n = Number.parseInt(raw, 16);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+    if (/^[0-9]+$/.test(raw)) {
+        const n = Number.parseInt(raw, 10);
+        return Number.isFinite(n) && n > 0 ? n : 0;
+    }
+    return 0;
 }
 
 export function normalizeChainHex(chainHex) {
-    if (!chainHex || typeof chainHex !== 'string') {
-        return '';
-    }
-    const raw = chainHex.startsWith('0x') ? chainHex.slice(2) : chainHex;
-    if (!/^[0-9a-fA-F]+$/.test(raw)) {
-        return '';
-    }
-    return `0x${raw.toLowerCase()}`;
+    const dec = parseChainIdDecimal(chainHex);
+    return dec > 0 ? decimalToHex(dec) : '';
 }
 
 export function isChainIdMatch(chainHex, targetChainId = activeChainId) {
-    const normalized = normalizeChainHex(chainHex);
-    const expected = chainIdToHex(targetChainId).toLowerCase();
-    return normalized === expected;
+    const got = parseChainIdDecimal(chainHex);
+    const expected = Number(targetChainId);
+    return got > 0 && Number.isFinite(expected) && got === expected;
 }
 
 export function getWrongNetworkMessage(targetChainId = activeChainId) {
@@ -165,11 +213,25 @@ export function isLikelyWrongNetworkError(message) {
     return false;
 }
 
+function isWalletDebugEnabled() {
+    if (typeof window === 'undefined') {
+        return import.meta.env.DEV;
+    }
+    try {
+        if (new URLSearchParams(window.location.search).get('wallet_debug') === '1') {
+            return true;
+        }
+    } catch {
+        // ignore
+    }
+    return import.meta.env.DEV || isTrustWalletEnvironment();
+}
+
 function debugLog(payload) {
-    if (!import.meta.env.DEV) {
+    if (!isWalletDebugEnabled()) {
         return;
     }
-    console.debug('[web3:network]', payload);
+    console.info('[web3:network]', payload);
 }
 
 function requireEthereum() {
@@ -177,8 +239,67 @@ function requireEthereum() {
 }
 
 function resolveChainId(chainId) {
-    const value = chainId ?? activeChainId;
-    return Number(value);
+    return resolveSafeBscChainId(chainId);
+}
+
+function walletErrorCode(error) {
+    return Number(error?.code ?? error?.data?.originalError?.code ?? error?.error?.code);
+}
+
+function isUserRejectedNetwork(error) {
+    const code = walletErrorCode(error);
+    if (code === 4001 || code === 5001) {
+        return true;
+    }
+    const message = String(error?.message || '').toLowerCase();
+    return message.includes('user rejected')
+        || message.includes('user denied')
+        || message.includes('cancelled')
+        || message.includes('canceled');
+}
+
+export function isTrustWalletBrowser() {
+    return isTrustWalletEnvironment();
+}
+
+export function currentWalletDebug() {
+    const info = describeWalletProvider();
+    return info;
+}
+
+export function isInAppWalletBrowser() {
+    if (typeof navigator === 'undefined') {
+        return false;
+    }
+    if (isTrustWalletBrowser()) {
+        return true;
+    }
+    const provider = getWalletProvider();
+    if (
+        provider?.isTokenPocket
+        || provider?.isSafePal
+        || provider?.isBitKeep
+        || provider?.isBitgetWallet
+        || provider?.isOkxWallet
+        || provider?.isOKExWallet
+        || provider?.isCoinbaseWallet
+    ) {
+        return true;
+    }
+    return /TokenPocket|SafePal|BitKeep|Bitget|OKApp|CoinbaseWallet|MetaMaskMobile|imToken/i.test(
+        navigator.userAgent || '',
+    );
+}
+
+function isUnrecognizedChain(error) {
+    const code = walletErrorCode(error);
+    if (code === 4902) {
+        return true;
+    }
+    const message = String(error?.message || '').toLowerCase();
+    return message.includes('unrecognized chain')
+        || message.includes('4902')
+        || message.includes('not added');
 }
 
 function networkParamsForChainId(chainId) {
@@ -194,50 +315,203 @@ function networkParamsForChainId(chainId) {
 
 export async function readWalletChainIdHex() {
     requireEthereum();
-    const chainId = await walletRequest({ method: 'eth_chainId' });
-    return normalizeChainHex(chainId);
+    try {
+        const chainId = await walletRequest({ method: 'eth_chainId' });
+        const hex = normalizeChainHex(chainId);
+        if (hex) {
+            return hex;
+        }
+    } catch {
+        // iOS TokenPocket sometimes only answers net_version (decimal string).
+    }
+    try {
+        const net = await walletRequest({ method: 'net_version' });
+        return normalizeChainHex(net);
+    } catch {
+        return '';
+    }
+}
+
+export async function waitUntilChainConfirmed(expectedChainId, { timeoutMs = 12000, intervalMs = 400 } = {}) {
+    const expected = Number(expectedChainId);
+    let chainHex = '';
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        if (isTrustWalletEnvironment()) {
+            const trust = discoverTrustProvider();
+            if (trust) {
+                selectWalletProvider(trust, {
+                    id: 'trust-injected',
+                    name: 'Trust Wallet',
+                    rdns: 'com.trustwallet.app',
+                });
+            }
+        }
+        chainHex = await readWalletChainIdHex().catch(() => '');
+        if (isChainIdMatch(chainHex, expected)) {
+            return { confirmed: true, chainHex };
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, intervalMs));
+    }
+    return { confirmed: false, chainHex };
+}
+
+let autoNetworkSwitchTried = false;
+
+export function resetAutoNetworkSwitch() {
+    autoNetworkSwitchTried = false;
+}
+
+/**
+ * After login, switch to BNB at most once per session. Do not keep opening wallet popups.
+ */
+export async function ensureBscNetworkQuietOnce(chainIdOverride) {
+    if (autoNetworkSwitchTried) {
+        const hex = await readWalletChainIdHex().catch(() => '');
+        return { chainIdHex: hex, skipped: true };
+    }
+    autoNetworkSwitchTried = true;
+    return ensureBscNetwork(chainIdOverride);
+}
+
+/**
+ * When the site opens inside a wallet browser, move to BNB once.
+ * Trust Wallet: switch only. Never add-chain — that kicks the user out of the dApp.
+ */
+export async function autoSelectBnbNetwork(chainIdOverride) {
+    if (typeof window === 'undefined') {
+        return { skipped: true };
+    }
+    for (let i = 0; i < 8 && !getWalletProvider(); i += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+    }
+    if (!getWalletProvider()) {
+        return { skipped: true };
+    }
+    if (autoNetworkSwitchTried) {
+        const hex = await readWalletChainIdHex().catch(() => '');
+        return { chainIdHex: hex, skipped: true };
+    }
+
+    autoNetworkSwitchTried = true;
+    const target = resolveSafeBscChainId(chainIdOverride);
+    const current = await readWalletChainIdHex().catch(() => '');
+    if (isChainIdMatch(current, target)) {
+        return { chainIdHex: current };
+    }
+
+    try {
+        if (isTrustWalletBrowser()) {
+            await walletRequest({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: chainIdToHex(target) }],
+            });
+        } else {
+            await ensureBscNetwork(target);
+        }
+    } catch (error) {
+        const after = await readWalletChainIdHex().catch(() => '');
+        if (isChainIdMatch(after, target)) {
+            return { chainIdHex: after };
+        }
+        debugLog({
+            phase: 'auto-bnb-failed',
+            trust: isTrustWalletBrowser(),
+            message: error?.message,
+        });
+        return { chainIdHex: after, failed: true };
+    }
+
+    return { chainIdHex: await readWalletChainIdHex().catch(() => '') };
+}
+
+async function readPreferredAccount(preferredAddress = '') {
+    const preferred = String(preferredAddress || '').toLowerCase();
+    let accounts = [];
+    try {
+        accounts = await walletRequest({ method: 'eth_accounts' });
+    } catch {
+        accounts = [];
+    }
+    if (preferred) {
+        const match = (accounts || []).find((item) => String(item).toLowerCase() === preferred);
+        if (match) {
+            return match;
+        }
+    }
+    if (accounts?.[0]) {
+        return accounts[0];
+    }
+    const requested = await walletRequest({ method: 'eth_requestAccounts' });
+    return requested?.[0] || '';
 }
 
 async function switchOrAddNetwork(targetChainId) {
     requireEthereum();
-    const chainHex = chainIdToHex(targetChainId);
-    const network = networkParamsForChainId(targetChainId);
+    const safeChainId = resolveSafeBscChainId(targetChainId);
+    const chainHex = chainIdToHex(safeChainId);
+    const network = networkParamsForChainId(safeChainId);
 
-    debugLog({
-        phase: 'switch-attempt',
-        currentChainId: await readWalletChainIdHex().catch(() => null),
-        targetChainId: chainHex,
-    });
+    let currentHex = await readWalletChainIdHex().catch(() => '');
+    if (isChainIdMatch(currentHex, safeChainId)) {
+        return;
+    }
 
-    try {
+    const tryAdd = async () => {
+        debugLog({ phase: 'add-network-attempt', targetChainId: chainHex });
+        await walletRequest({
+            method: 'wallet_addEthereumChain',
+            params: [network],
+        });
+        debugLog({ phase: 'add-network-success', targetChainId: chainHex });
+    };
+
+    const trySwitch = async () => {
+        debugLog({
+            phase: 'switch-attempt',
+            currentChainId: currentHex,
+            targetChainId: chainHex,
+        });
         await walletRequest({
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: chainHex }],
         });
         debugLog({ phase: 'switch-success', targetChainId: chainHex });
-    } catch (switchError) {
-        debugLog({
-            phase: 'switch-failure',
-            code: switchError?.code,
-            message: switchError?.message,
-            targetChainId: chainHex,
-        });
+    };
 
-        if (switchError?.code === 4902) {
-            debugLog({ phase: 'add-network-attempt', targetChainId: chainHex });
-            await walletRequest({
-                method: 'wallet_addEthereumChain',
-                params: [network],
-            });
-            debugLog({ phase: 'add-network-success', targetChainId: chainHex });
+    try {
+        await trySwitch();
+    } catch (error) {
+        currentHex = await readWalletChainIdHex().catch(() => '');
+        if (isChainIdMatch(currentHex, safeChainId)) {
             return;
         }
-
-        if (switchError?.code === 4001) {
+        debugLog({
+            phase: 'switch-failure',
+            code: walletErrorCode(error),
+            message: error?.message,
+            targetChainId: chainHex,
+        });
+        if (isUserRejectedNetwork(error)) {
             throw new Error('Network switch cancelled.');
         }
-
-        throw switchError;
+        if (!isUnrecognizedChain(error)) {
+            throw error;
+        }
+        // 4902: chain not in wallet. Trust Wallet can close the dApp on add —
+        // only add when the wallet itself says the chain is missing.
+        try {
+            await tryAdd();
+        } catch (addError) {
+            currentHex = await readWalletChainIdHex().catch(() => '');
+            if (isChainIdMatch(currentHex, safeChainId)) {
+                return;
+            }
+            if (isUserRejectedNetwork(addError)) {
+                throw new Error('Network switch cancelled.');
+            }
+            throw addError;
+        }
     }
 }
 
@@ -257,17 +531,30 @@ export async function ensureBscNetwork(chainIdOverride) {
         return { chainIdHex: currentHex };
     }
 
-    await switchOrAddNetwork(targetChainId);
-
-    currentHex = await readWalletChainIdHex();
-    debugLog({ phase: 'ensure-post-switch', currentChainId: currentHex, targetChainId: targetHex });
-
-    if (!isChainIdMatch(currentHex, targetChainId)) {
+    try {
+        await switchOrAddNetwork(targetChainId);
+    } catch (switchError) {
+        // iOS TokenPocket often errors on wallet_switchEthereumChain even when already on BSC.
+        const recovered = await waitUntilChainConfirmed(targetChainId, { timeoutMs: 2500 });
+        if (recovered.confirmed) {
+            debugLog({ phase: 'ensure-switch-error-but-already-correct', targetChainId: targetHex });
+            return { chainIdHex: recovered.chainHex };
+        }
+        if (isUserRejectedNetwork(switchError) || /cancel|reject|denied/i.test(String(switchError?.message || ''))) {
+            throw new Error('Network switch cancelled.');
+        }
         throw new Error(getWrongNetworkMessage(targetChainId));
     }
 
-    debugLog({ phase: 'ensure-success', currentChainId: currentHex, targetChainId: targetHex });
-    return { chainIdHex: currentHex };
+    const waited = await waitUntilChainConfirmed(targetChainId);
+    debugLog({ phase: 'ensure-post-switch', currentChainId: waited.chainHex, targetChainId: targetHex });
+
+    if (!waited.confirmed) {
+        throw new Error(getWrongNetworkMessage(targetChainId));
+    }
+
+    debugLog({ phase: 'ensure-success', currentChainId: waited.chainHex, targetChainId: targetHex });
+    return { chainIdHex: waited.chainHex };
 }
 
 /**
@@ -448,11 +735,26 @@ export async function switchToConfiguredNetwork(chainIdOverride) {
 }
 
 /**
- * Login / register only: connect wallet accounts — do NOT force network switch popup.
- * Tx pages still use connectWalletWithNetwork / ensureBscNetwork.
+ * Login / register: bind the real injected provider, confirm BSC, then return the account.
+ * personal_sign happens only after chain ID 56/97 is confirmed.
  */
 export async function connectWalletForAuth() {
-    const picked = await pickInjectedWallet();
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            selectWalletProvider(trust, {
+                id: 'trust-injected',
+                name: 'Trust Wallet',
+                rdns: 'com.trustwallet.app',
+            });
+        }
+    }
+
+    const inTrust = isTrustWalletEnvironment();
+    const picked = await pickInjectedWallet({
+        allowPicker: !inTrust && !hasWalletSession(),
+        boundAddress: readWalletSession()?.address || '',
+    });
     if (picked?.openedApp) {
         throw new Error(OPENED_WALLET_APP_MESSAGE);
     }
@@ -464,43 +766,64 @@ export async function connectWalletForAuth() {
     }
     requireEthereum();
 
-    showWalletPending('Connect / unlock your wallet…');
-    try {
-        const accounts = await walletRequest({ method: 'eth_requestAccounts' });
-        const address = accounts?.[0];
-        if (!address) {
-            throw new Error('No account returned from the wallet.');
-        }
-
-        let chainIdHex = '';
-        try {
-            chainIdHex = await readWalletChainIdHex();
-        } catch {
-            chainIdHex = '';
-        }
-
-        debugLog({
-            phase: 'auth-connect',
-            walletAddress: address,
-            currentChainId: chainIdHex,
-        });
-
-        return { address, chainIdHex };
-    } finally {
-        hideWalletPending();
+    const address = await readPreferredAccount(readWalletSession()?.address || '');
+    if (!address) {
+        throw new Error('No account returned from the wallet.');
     }
+    rememberWalletChoice(picked, address);
+
+    const target = getActiveChainId();
+    let chainIdHex = await readWalletChainIdHex().catch(() => '');
+    debugLog({
+        phase: 'auth-connect-before-switch',
+        wallet: describeWalletProvider(picked.provider),
+        walletAddress: address,
+        currentChainId: chainIdHex,
+        targetChainId: target,
+    });
+
+    if (!isChainIdMatch(chainIdHex, target)) {
+        await ensureBscNetwork(target);
+        const waited = await waitUntilChainConfirmed(target);
+        chainIdHex = waited.chainHex;
+        if (!waited.confirmed) {
+            throw new Error(
+                'BNB Smart Chain is not connected. In Trust Wallet open the network list, choose BNB Smart Chain, then tap Retry.',
+            );
+        }
+    }
+
+    debugLog({
+        phase: 'auth-connect-ready',
+        walletAddress: address,
+        currentChainId: chainIdHex,
+    });
+
+    return { address, chainIdHex };
 }
 
 /**
  * Connect wallet accounts, then enforce configured network (accounts → chainId → switch → verify).
  */
-export async function connectWalletWithNetwork(chainIdOverride) {
-    const picked = await pickInjectedWallet();
+export async function connectWalletWithNetwork(chainIdOverride, options = {}) {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            selectWalletProvider(trust, {
+                id: 'trust-injected',
+                name: 'Trust Wallet',
+                rdns: 'com.trustwallet.app',
+            });
+        }
+    }
+    const boundAddress = options.boundAddress || readWalletSession()?.address || '';
+    const allowPicker = Boolean(options.allowPicker) && !boundAddress && !hasWalletSession() && !isTrustWalletEnvironment();
+    const picked = await pickInjectedWallet({ boundAddress, allowPicker });
     if (picked?.openedApp) {
         throw new Error(OPENED_WALLET_APP_MESSAGE);
     }
     if (!picked) {
-        throw new Error(WALLET_PICK_CANCELLED);
+        throw new Error(boundAddress ? NO_WALLET_MESSAGE : WALLET_PICK_CANCELLED);
     }
     if (!picked.provider) {
         throw new Error(NO_WALLET_MESSAGE);
@@ -508,66 +831,158 @@ export async function connectWalletWithNetwork(chainIdOverride) {
     requireEthereum();
     const targetChainId = resolveChainId(chainIdOverride);
 
-    showWalletPending('Connect / unlock your wallet…');
-    try {
-        const accounts = await walletRequest({ method: 'eth_requestAccounts' });
-        const address = accounts?.[0];
-        if (!address) {
-            throw new Error('No account returned from the wallet.');
-        }
-
-        debugLog({
-            phase: 'connect-accounts',
-            walletAddress: address,
-            targetChainId: chainIdToHex(targetChainId),
-        });
-
-        showWalletPending('Switch network in your wallet if asked…');
-        const { chainIdHex } = await ensureBscNetwork(targetChainId);
-
-        debugLog({
-            phase: 'connect-success',
-            walletAddress: address,
-            currentChainId: chainIdHex,
-            targetChainId: chainIdToHex(targetChainId),
-        });
-
-        return { address, chainIdHex };
-    } finally {
-        hideWalletPending();
+    const address = await readPreferredAccount(boundAddress);
+    if (!address) {
+        throw new Error('No account returned from the wallet.');
     }
+    rememberWalletChoice(picked, address);
+
+    debugLog({
+        phase: 'connect-accounts',
+        walletAddress: address,
+        targetChainId: chainIdToHex(targetChainId),
+    });
+
+    let chainIdHex = '';
+    try {
+        chainIdHex = await readWalletChainIdHex();
+    } catch {
+        chainIdHex = '';
+    }
+
+    if (options.enforceNetwork !== false && !isChainIdMatch(chainIdHex, targetChainId)) {
+        ({ chainIdHex } = await ensureBscNetwork(targetChainId));
+        const waited = await waitUntilChainConfirmed(targetChainId);
+        chainIdHex = waited.chainHex;
+        if (!waited.confirmed) {
+            throw new Error(
+                'BNB Smart Chain is not connected. In Trust Wallet choose BNB Smart Chain, then tap Retry.',
+            );
+        }
+    }
+
+    debugLog({
+        phase: 'connect-success',
+        walletAddress: address,
+        currentChainId: chainIdHex,
+        targetChainId: chainIdToHex(targetChainId),
+    });
+
+    return { address, chainIdHex };
 }
 
-/**
- * Subscribe to wallet chain/account changes. Returns cleanup function.
- */
-export function subscribeWalletEvents({ onChainChanged, onAccountsChanged } = {}) {
+const walletEventSubscribers = {
+    chain: new Set(),
+    accounts: new Set(),
+    connect: new Set(),
+    disconnect: new Set(),
+};
+let boundWalletProvider = null;
+let boundWalletHandlers = null;
+
+function notifyWalletEvent(kind, payload) {
+    walletEventSubscribers[kind].forEach((fn) => {
+        try {
+            fn(payload);
+        } catch {
+            // Subscriber errors must not break other listeners.
+        }
+    });
+}
+
+function detachWalletProviderListeners() {
+    if (!boundWalletProvider || !boundWalletHandlers) {
+        return;
+    }
+    boundWalletProvider.removeListener?.(boundWalletHandlers.chainEvent, boundWalletHandlers.chain);
+    boundWalletProvider.removeListener?.(boundWalletHandlers.accountsEvent, boundWalletHandlers.accounts);
+    boundWalletProvider.removeListener?.('connect', boundWalletHandlers.connect);
+    boundWalletProvider.removeListener?.('disconnect', boundWalletHandlers.disconnect);
+    boundWalletProvider = null;
+    boundWalletHandlers = null;
+}
+
+export function bindWalletProviderListeners() {
     const provider = getWalletProvider();
     if (!provider) {
-        return () => {};
+        return false;
     }
+    if (provider === boundWalletProvider) {
+        return true;
+    }
+    detachWalletProviderListeners();
 
-    const handleChain = () => {
-        debugLog({ phase: 'chainChanged' });
-        onChainChanged?.();
+    const handleChain = (hex) => {
+        debugLog({ phase: 'chainChanged', chainId: hex });
+        notifyWalletEvent('chain', hex);
     };
-    const handleAccounts = () => {
+    const handleAccounts = (accounts) => {
         debugLog({ phase: 'accountsChanged' });
-        onAccountsChanged?.();
+        notifyWalletEvent('accounts', accounts);
+    };
+    const handleConnect = (info) => {
+        debugLog({ phase: 'connect', info });
+        notifyWalletEvent('connect', info);
+    };
+    const handleDisconnect = (error) => {
+        debugLog({ phase: 'disconnect', error });
+        notifyWalletEvent('disconnect', error);
     };
 
     provider.on?.('chainChanged', handleChain);
     provider.on?.('accountsChanged', handleAccounts);
+    provider.on?.('connect', handleConnect);
+    provider.on?.('disconnect', handleDisconnect);
 
-    return () => {
-        provider.removeListener?.('chainChanged', handleChain);
-        provider.removeListener?.('accountsChanged', handleAccounts);
+    boundWalletProvider = provider;
+    boundWalletHandlers = {
+        chain: handleChain,
+        accounts: handleAccounts,
+        connect: handleConnect,
+        disconnect: handleDisconnect,
+        chainEvent: 'chainChanged',
+        accountsEvent: 'accountsChanged',
     };
+    return true;
 }
 
-function getCsrfToken() {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
+/**
+ * Subscribe to wallet events. Listeners attach once per provider.
+ */
+export function subscribeWalletEvents({
+    onChainChanged,
+    onAccountsChanged,
+    onConnect,
+    onDisconnect,
+} = {}) {
+    bindWalletProviderListeners();
+    if (onChainChanged) {
+        walletEventSubscribers.chain.add(onChainChanged);
+    }
+    if (onAccountsChanged) {
+        walletEventSubscribers.accounts.add(onAccountsChanged);
+    }
+    if (onConnect) {
+        walletEventSubscribers.connect.add(onConnect);
+    }
+    if (onDisconnect) {
+        walletEventSubscribers.disconnect.add(onDisconnect);
+    }
+
+    return () => {
+        if (onChainChanged) {
+            walletEventSubscribers.chain.delete(onChainChanged);
+        }
+        if (onAccountsChanged) {
+            walletEventSubscribers.accounts.delete(onAccountsChanged);
+        }
+        if (onConnect) {
+            walletEventSubscribers.connect.delete(onConnect);
+        }
+        if (onDisconnect) {
+            walletEventSubscribers.disconnect.delete(onDisconnect);
+        }
+    };
 }
 
 function normalizeAddress(address) {
@@ -650,19 +1065,68 @@ export async function sendUsdtTransfer({ from, to, usdtContract, amountUsd }) {
     }
 }
 
+function defaultPublicRpc() {
+    if (configuredRpcUrl) {
+        return configuredRpcUrl;
+    }
+    return activeChainId === BSC_TESTNET_CHAIN_ID
+        ? 'https://bsc-testnet-rpc.publicnode.com'
+        : 'https://bsc-dataseed.binance.org/';
+}
+
+async function publicRpcCall(method, params, rpcUrl) {
+    const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    });
+    const payload = await response.json();
+    if (payload?.error) {
+        throw new Error(payload.error.message || 'RPC error');
+    }
+    return payload.result;
+}
+
+async function readTxReceipt(txHash, rpcUrl) {
+    try {
+        const receipt = await walletRequest({
+            method: 'eth_getTransactionReceipt',
+            params: [txHash],
+        });
+        if (receipt) {
+            return receipt;
+        }
+    } catch {
+        // TokenPocket / iOS often fail receipt reads after a successful send.
+    }
+    if (rpcUrl) {
+        return await publicRpcCall('eth_getTransactionReceipt', [txHash], rpcUrl);
+    }
+    return null;
+}
+
+async function readBlockNumberHex(rpcUrl) {
+    try {
+        return await walletRequest({ method: 'eth_blockNumber', params: [] });
+    } catch {
+        if (rpcUrl) {
+            return await publicRpcCall('eth_blockNumber', [], rpcUrl);
+        }
+        throw new Error('Could not read block number.');
+    }
+}
+
 export async function waitForConfirmations(
     txHash,
-    { minConfirmations = 12, maxAttempts = 80, intervalMs = 3000 } = {},
+    { minConfirmations = 12, maxAttempts = 80, intervalMs = 3000, rpcUrl = '' } = {},
 ) {
+    const confirmRpc = rpcUrl || defaultPublicRpc();
     showWalletPending('Waiting for blockchain confirmation…');
     try {
         let receipt = null;
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            receipt = await walletRequest({
-                method: 'eth_getTransactionReceipt',
-                params: [txHash],
-            });
+            receipt = await readTxReceipt(txHash, confirmRpc);
 
             if (receipt) {
                 if (receipt.status !== '0x1') {
@@ -716,10 +1180,7 @@ export async function waitForConfirmations(
         }
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const currentBlockHex = await walletRequest({
-                method: 'eth_blockNumber',
-                params: [],
-            });
+            const currentBlockHex = await readBlockNumberHex(confirmRpc);
             const currentBlock = parseInt(currentBlockHex, 16);
             const confirmations = currentBlock - txBlock + 1;
 
@@ -776,7 +1237,7 @@ export async function verifyOnChainDeposit({ txHash, amountUsd, verifyUrl, extra
             Accept: 'application/json',
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': getCsrfToken(),
+            ...csrfHeaders(),
         },
         body: JSON.stringify({
             tx_hash: txHash,
@@ -798,23 +1259,39 @@ export async function verifyOnChainDeposit({ txHash, amountUsd, verifyUrl, extra
  * Instant DB index for Engine/ICO/Vault logs from one confirmed tx.
  * Writes blockchain_events (+ ico_purchases / stakes when present).
  */
-export async function syncBlockchainTx({ txHash, syncUrl = '/blockchain/sync-tx' }) {
-    const response = await fetch(syncUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-XSRF-TOKEN': getCsrfToken(),
-        },
-        body: JSON.stringify({ tx_hash: txHash }),
-    });
+export async function syncBlockchainTx({ txHash, syncUrl = '/blockchain/sync-tx', attempts = 4 }) {
+    let lastError = new Error('Could not sync transaction to database.');
+    const tries = Math.max(1, Number(attempts) || 4);
 
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-        throw new Error(payload.error || 'Could not sync transaction to database.');
+    for (let i = 0; i < tries; i += 1) {
+        try {
+            const response = await fetch(syncUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...csrfHeaders(),
+                },
+                body: JSON.stringify({ tx_hash: txHash }),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(payload.error || 'Could not sync transaction to database.');
+            }
+
+            return payload;
+        } catch (err) {
+            lastError = err instanceof Error ? err : new Error(String(err));
+            if (i < tries - 1) {
+                await new Promise((resolve) => {
+                    setTimeout(resolve, 1200 * (i + 1));
+                });
+            }
+        }
     }
 
-    return payload;
+    throw lastError;
 }

@@ -255,11 +255,11 @@ async function main() {
         ethers.formatEther(adminBal),
         'RACE; ICO Contract',
         ethers.formatEther(icoBal),
-        'RACE. Deposit 6 lakh from the 10 lakh admin bag; keep 4 lakh for LP.',
+        'RACE. Deposit 600,000 from the 1,000,000 admin bag; keep 400,000 for LP.',
     );
     if (adminBal + icoBal < icoReserveTarget) {
         console.warn(
-            'WARN: admin+ICO Contract below 6 lakh. Use the 10 lakh admin bag (6L ICO + 4L LP) — do not mint extra ICO coins.',
+            'WARN: admin+ICO Contract below 600,000. Use the 1,000,000 admin bag (600k ICO + 400k LP) — do not mint extra ICO coins.',
         );
     }
 

@@ -123,6 +123,11 @@ class IncomeCatalog
 
     public static function summarizeForUser(int $userId): array
     {
+        static $memo = [];
+        if (isset($memo[$userId])) {
+            return $memo[$userId];
+        }
+
         /** @var Collection<string, object{entry_type: string, total: string|float, cnt: int}> $totals */
         $totals = LedgerEntry::query()
             ->production()
@@ -134,14 +139,17 @@ class IncomeCatalog
             ->get()
             ->keyBy('entry_type');
 
+        $levelSplit = self::communityReferralLevelSplit($userId);
         $summary = [];
 
         foreach (self::items() as $item) {
             $key = (string) ($item['key'] ?? '');
-            if (in_array($key, ['affiliate_referral', 'affiliate_sponsor'], true)) {
-                $scoped = self::totalsForIncomeKey($userId, $key);
-                $sum = $scoped['sum'];
-                $count = $scoped['count'];
+            if ($key === 'affiliate_referral') {
+                $sum = $levelSplit['l1_sum'];
+                $count = $levelSplit['l1_count'];
+            } elseif ($key === 'affiliate_sponsor') {
+                $sum = $levelSplit['l2_sum'];
+                $count = $levelSplit['l2_count'];
             } else {
                 $sum = 0.0;
                 $count = 0;
@@ -168,11 +176,45 @@ class IncomeCatalog
             ];
         }
 
-        return $summary;
+        return $memo[$userId] = $summary;
+    }
+
+    /**
+     * @return array{l1_sum: float, l1_count: int, l2_sum: float, l2_count: int}
+     */
+    private static function communityReferralLevelSplit(int $userId): array
+    {
+        $split = ['l1_sum' => 0.0, 'l1_count' => 0, 'l2_sum' => 0.0, 'l2_count' => 0];
+        $rows = LedgerEntry::query()
+            ->production()
+            ->where('user_id', $userId)
+            ->where('amount_usd', '>', 0)
+            ->where('entry_type', LedgerEntry::TYPE_COMMUNITY_REFERRAL)
+            ->get(['amount_usd', 'meta']);
+
+        foreach ($rows as $row) {
+            $meta = is_array($row->meta) ? $row->meta : [];
+            $level = (int) ($meta['level'] ?? 0);
+            $amount = (float) $row->amount_usd;
+            if ($level === 1) {
+                $split['l1_sum'] += $amount;
+                $split['l1_count']++;
+            } elseif ($level >= 2) {
+                $split['l2_sum'] += $amount;
+                $split['l2_count']++;
+            }
+        }
+
+        return $split;
     }
 
     public static function totalIncomeUsd(int $userId): string
     {
+        static $memo = [];
+        if (isset($memo[$userId])) {
+            return $memo[$userId];
+        }
+
         $sum = (float) (LedgerEntry::query()
             ->production()
             ->where('user_id', $userId)
@@ -180,7 +222,7 @@ class IncomeCatalog
             ->where('entry_type', '!=', LedgerEntry::TYPE_WALLET_DEPOSIT)
             ->sum('amount_usd') ?? 0);
 
-        return number_format($sum, 2, '.', '');
+        return $memo[$userId] = number_format($sum, 2, '.', '');
     }
 
     /**
@@ -196,6 +238,11 @@ class IncomeCatalog
      */
     public static function hubForUser(int $userId): array
     {
+        static $memo = [];
+        if (isset($memo[$userId])) {
+            return $memo[$userId];
+        }
+
         $programs = self::summarizeForUser($userId);
         $earnedCount = collect($programs)->where('has_earned', true)->count();
 
@@ -214,7 +261,7 @@ class IncomeCatalog
             return $enriched;
         }, $programs);
 
-        return [
+        return $memo[$userId] = [
             'total_income_usd' => self::totalIncomeUsd($userId),
             'earned_count' => $earnedCount,
             'program_count' => count($programs),

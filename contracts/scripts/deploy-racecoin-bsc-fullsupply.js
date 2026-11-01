@@ -1,5 +1,5 @@
 /**
- * Deploy RaceCoinBsc — totalSupply = MAX_SUPPLY (150M) so BscScan Max Total Supply = 15 Crore.
+ * Deploy RaceCoinBsc — totalSupply = MAX_SUPPLY (150M) so BscScan Max Total Supply = 150,000,000.
  * Transfers 1,000,000 to ICO_ADMIN; remainder → Multisig; ownership → Multisig.
  *
  *   npx hardhat run scripts/deploy-racecoin-bsc-fullsupply.js --network bsc
@@ -61,7 +61,7 @@ async function main() {
 
     if (total !== max) throw new Error('ASSERT: totalSupply must equal MAX_SUPPLY');
 
-    // 10 Lakh → admin (ICO+LP bag)
+    // 1,000,000 → admin (ICO+LP bag)
     await (await race.transfer(icoAdmin, circulating)).wait();
     console.log('Transferred', hre.ethers.formatEther(circulating), '→ ICO admin', icoAdmin);
 

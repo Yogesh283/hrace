@@ -4,7 +4,15 @@ import './bootstrap';
 import NavigationLoader from '@/Components/NavigationLoader';
 import WalletPendingOverlay from '@/Components/WalletPendingOverlay';
 import WalletPickerHost from '@/Components/WalletPickerHost';
-import { configureWeb3Network, resolvePageChainId } from '@/lib/web3Deposit';
+import WalletNetworkGate from '@/Components/WalletNetworkGate';
+import {
+    configureWeb3Network,
+    isInAppWalletBrowser,
+    isTrustWalletBrowser,
+    resetAutoNetworkSwitch,
+    resolvePageChainId,
+} from '@/lib/web3Deposit';
+import { clearWalletSession, rememberBoundAddress, restorePersistedProvider } from '@/lib/web3Wallet';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
@@ -46,15 +54,47 @@ router.on('invalid', (event) => {
     }
 });
 
+let hadAuthenticatedUser = false;
+
+function onAuthenticatedSessionEnded() {
+    clearWalletSession();
+    resetAutoNetworkSwitch();
+    hadAuthenticatedUser = false;
+}
+
+router.on('before', (event) => {
+    const visit = event.detail?.visit;
+    const url = String(visit?.url || '');
+    if (visit?.method === 'post' && /\/logout(?:\?|$)/.test(url)) {
+        onAuthenticatedSessionEnded();
+    }
+});
+
 router.on('success', (event) => {
     syncWeb3NetworkFromPage(event.detail.page);
+    const user = event.detail.page?.props?.auth?.user;
+    if (hadAuthenticatedUser && !user) {
+        onAuthenticatedSessionEnded();
+    }
+    hadAuthenticatedUser = Boolean(user);
+    if (user?.wallet_address) {
+        rememberBoundAddress(user.wallet_address);
+        restorePersistedProvider();
+    }
 });
 
 // Mobile browsers restore inactive tabs from cache; reload to rehydrate Inertia.
+// Trust Wallet / in-app browsers restore the page when the user changes network.
+// Reloading there kicks the dApp out and cancels the BNB switch.
 window.addEventListener('pageshow', (event) => {
-    if (event.persisted) {
-        window.location.reload();
+    restorePersistedProvider();
+    if (!event.persisted) {
+        return;
     }
+    if (isTrustWalletBrowser() || isInAppWalletBrowser()) {
+        return;
+    }
+    window.location.reload();
 });
 
 createInertiaApp({
@@ -66,6 +106,10 @@ createInertiaApp({
         ),
     setup({ el, App, props }) {
         syncWeb3NetworkFromPage(props.initialPage);
+        hadAuthenticatedUser = Boolean(props.initialPage?.props?.auth?.user);
+        if (hadAuthenticatedUser) {
+            restorePersistedProvider();
+        }
         const root = createRoot(el);
 
         root.render(
@@ -73,7 +117,9 @@ createInertiaApp({
                 <NavigationLoader />
                 <WalletPendingOverlay />
                 <WalletPickerHost />
-                <App {...props} />
+                <WalletNetworkGate>
+                    <App {...props} />
+                </WalletNetworkGate>
             </Fragment>,
         );
     },

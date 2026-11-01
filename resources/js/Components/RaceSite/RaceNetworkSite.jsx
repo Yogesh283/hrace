@@ -32,8 +32,9 @@ import {
     WHY,
 } from '@/data/raceSiteContent';
 import { RACE_LOGO_SRC, RACE_NETWORK_HERO_BANNER, RACE_SECTION_BANNERS } from '@/lib/brandAssets';
+import { usePage } from '@inertiajs/react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 function SectionWrap({ id, children, className = '' }) {
     return (
@@ -161,6 +162,75 @@ function PdfDownloadCards({ pdfs }) {
                 );
             })}
         </div>
+    );
+}
+
+function LiveContractsStrip() {
+    const { blockchain } = usePage().props;
+    const contracts = blockchain?.contracts || {};
+    const chainId = Number(blockchain?.chain_id || 56);
+    const explorer = chainId === 97 ? 'https://testnet.bscscan.com' : 'https://bscscan.com';
+    const [copied, setCopied] = useState('');
+
+    const rows = useMemo(
+        () =>
+            [
+                { id: 'token', label: 'Token', address: contracts.race_token },
+                { id: 'multisig', label: 'Multisig', address: contracts.multisig },
+                { id: 'ico', label: 'ICO', address: contracts.ico },
+                { id: 'income', label: 'Income wallet', address: contracts.income_hold },
+                { id: 'mint', label: 'Mint', address: contracts.reward_vault },
+            ].filter((row) => /^0x[a-fA-F0-9]{40}$/.test(String(row.address || ''))),
+        [contracts],
+    );
+
+    if (rows.length === 0) {
+        return null;
+    }
+
+    const copyAddress = async (address) => {
+        try {
+            await navigator.clipboard.writeText(address);
+            setCopied(address);
+            window.setTimeout(() => setCopied(''), 1600);
+        } catch {
+            setCopied('');
+        }
+    };
+
+    return (
+        <SectionWrap id="contracts" className="!py-8 sm:!py-12">
+            <RaceSectionHead label="On-chain" title="Live" highlight="contracts" />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {rows.map((row, i) => (
+                    <motion.div key={row.id} custom={i} variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+                        <RaceGlassCard className="h-full p-4">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#D4AF37]">{row.label}</p>
+                            <p className="mt-3 break-all font-mono text-[11px] leading-relaxed text-white sm:text-xs">
+                                {row.address}
+                            </p>
+                            <div className="mt-3 flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => copyAddress(row.address)}
+                                    className="rounded-lg border border-white/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-200 hover:border-[#D4AF37]/50 hover:text-[#D4AF37]"
+                                >
+                                    {copied === row.address ? 'Copied' : 'Copy'}
+                                </button>
+                                <a
+                                    href={`${explorer}/address/${row.address}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="rounded-lg border border-white/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-200 hover:border-[#D4AF37]/50 hover:text-[#D4AF37]"
+                                >
+                                    BscScan
+                                </a>
+                            </div>
+                        </RaceGlassCard>
+                    </motion.div>
+                ))}
+            </div>
+        </SectionWrap>
     );
 }
 
@@ -313,6 +383,8 @@ export default function RaceNetworkSite() {
                             <BulletGrid items={ECOSYSTEM.items} />
                         </div>
                     </SectionWrap>
+
+                    <LiveContractsStrip />
 
                     {/* PAGE 6 — RACE COIN */}
                     <SectionWrap id="token">
