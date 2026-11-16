@@ -239,7 +239,7 @@ final class ContractWatchService
             ],
             'ico_admin_wallet' => [
                 'label' => 'ICO admin wallet',
-                'role' => 'Receives all ICO USDT. Also holds leftover RACE for LP (≈4 lakh).',
+                'role' => 'Receives all ICO USDT. Also holds leftover RACE for LP (≈400,000).',
                 'status' => $tokenAdmin !== '—' && $tokenAdmin !== ''
                     ? 'RACE '.$tokenAdmin
                     : ($addresses['ico_admin_wallet'] !== '' ? 'Address set' : 'Not set'),

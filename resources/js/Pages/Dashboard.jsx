@@ -31,6 +31,17 @@ function formatRaceCoins(value) {
     return `${new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 4 }).format(n)} RC`;
 }
 
+function formatRacePriceUsd(value) {
+    const n = Number(value);
+    if (Number.isNaN(n)) return '—';
+    return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 4,
+    }).format(n);
+}
+
 const defaultSummary = {
     balance_usd: '0.00',
     race_coin_balance: '0.0000',
@@ -51,6 +62,7 @@ const defaultSummary = {
     recent_ledger: [],
     direct_referrals: 0,
     team_size: 0,
+    total_team_business_usd: '0.00',
     income_pct: {
         total: '+0.00%',
         direct: '+0.00%',
@@ -633,7 +645,7 @@ export default function Dashboard({ summary: summaryProp = {}, memberActivation:
         {
             title: 'Race Coin',
             value: formatRaceCoins(summary.race_coin_balance),
-            sub: `@ ${formatUsd(summary.race_coin_price_usd)} per coin`,
+            sub: `@ ${formatRacePriceUsd(summary.race_coin_price_usd)} per coin`,
             tintClass: 'bg-violet-400/30',
             icon: (
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -679,7 +691,7 @@ export default function Dashboard({ summary: summaryProp = {}, memberActivation:
         {
             title: 'Total team',
             value: String(summary.team_size),
-            sub: `${summary.direct_referrals} direct referral(s)`,
+            sub: `${summary.direct_referrals} direct · all levels`,
             tintClass: 'bg-violet-400/25',
             icon: (
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
@@ -687,6 +699,21 @@ export default function Dashboard({ summary: summaryProp = {}, memberActivation:
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         d="M18 18.72a9.09 9.09 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666M18 18.72a9.09 9.09 0 005.06-2.687m0 0a9.01 9.01 0 00-.94-3.197m0 0A9 9 0 005.64 5.64m9.367 9.367a9 9 0 00-9.367 9.367m9.367-9.367c.11-.408.17-.84.17-1.284m0 0a3 3 0 01-6 0m6 0a3 3 0 00-6 0"
+                    />
+                </svg>
+            ),
+        },
+        {
+            title: 'Total team business',
+            value: formatUsd(summary.total_team_business_usd),
+            sub: 'Unlimited team investment volume',
+            tintClass: 'bg-fuchsia-400/25',
+            icon: (
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                    <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375A1.125 1.125 0 012.25 19.5v-.75"
                     />
                 </svg>
             ),
@@ -705,6 +732,7 @@ export default function Dashboard({ summary: summaryProp = {}, memberActivation:
         summary.active_investments,
         summary.team_size,
         summary.direct_referrals,
+        summary.total_team_business_usd,
     ]);
 
     return (

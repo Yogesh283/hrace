@@ -112,7 +112,8 @@ class WithdrawalService
 
         if (! $user->canRequestWithdrawal()) {
             throw ValidationException::withMessages([
-                'amount_usd' => __('Withdrawals are disabled for your account. Contact support.'),
+                'amount_usd' => __($user->withdrawalLockMessage()
+                    ?? 'Withdrawals are disabled for your account. Contact support.'),
             ]);
         }
 
@@ -165,7 +166,8 @@ class WithdrawalService
 
             if (! $locked->canRequestWithdrawal()) {
                 throw ValidationException::withMessages([
-                    'amount_usd' => __('Withdrawals are disabled for your account. Contact support.'),
+                    'amount_usd' => __($locked->withdrawalLockMessage()
+                        ?? 'Withdrawals are disabled for your account. Contact support.'),
                 ]);
             }
 

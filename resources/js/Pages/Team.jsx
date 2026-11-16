@@ -124,9 +124,7 @@ function LevelToggle({ level, count, members, isOpen, onToggle }) {
 export default function Team({ stats: statsProp = {}, levels: levelsProp = [] }) {
     const { user } = usePage().props.auth;
     const stats = { ...defaultStats, ...statsProp };
-    const levels = levelsProp?.length
-        ? levelsProp
-        : Array.from({ length: 10 }, (_, i) => ({ level: i + 1, count: 0, members: [] }));
+    const levels = levelsProp?.length ? levelsProp : [];
 
     const [openLevels, setOpenLevels] = useState(() => new Set());
 
@@ -161,7 +159,7 @@ export default function Team({ stats: statsProp = {}, levels: levelsProp = [] })
                     icon="team"
                     actions={<MemberHeroLink href={route('direct-team')}>Direct Team only →</MemberHeroLink>}
                 >
-                    Your full referral tree by network level (L1–L10). Tap a level to see every member at that depth.
+                    Your full referral tree — all network levels (unlimited depth). Tap a level to see every member at that depth.
                 </MemberPageHero>
 
                 <div className="rounded-xl border border-white/90 bg-white/75 px-3 py-2.5 text-sm text-fintech-muted shadow-[0_8px_32px_-12px_rgba(37,99,235,0.12)] backdrop-blur-sm sm:px-4 sm:py-3">
@@ -174,7 +172,7 @@ export default function Team({ stats: statsProp = {}, levels: levelsProp = [] })
                     <MemberStatCard
                         label="Total team"
                         value={stats.total_downline || totalFromLevels}
-                        hint="L1–L10 combined"
+                        hint="All levels combined"
                         icon="users"
                     />
                     <MemberStatCard
@@ -190,14 +188,14 @@ export default function Team({ stats: statsProp = {}, levels: levelsProp = [] })
                         label="Downline only"
                         value={formatUsd(stats.downline_volume_usd)}
                         valueClassName="text-xl"
-                        hint="Full team (L1–L10) investments"
+                        hint="Full team (all levels) investments"
                         icon="network"
                     />
                 </div>
 
-                <PanelCard title="Team by level (L1 – L10)" icon="team" className="!p-3 sm:!p-4">
+                <PanelCard title="Team by level (all depths)" icon="team" className="!p-3 sm:!p-4">
                     <p className="mb-4 text-xs text-fintech-muted sm:text-sm">
-                        Each row shows how many users are at that network level. Click to expand and view members.
+                        Each row is one network depth under you (L1, L2, … as deep as your tree goes). Click to expand members.
                     </p>
                     <div className="space-y-2 sm:space-y-2.5">
                         {levels.map((row) => (

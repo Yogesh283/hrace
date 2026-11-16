@@ -56,7 +56,7 @@ function formatRowDate(createdAt) {
 export default function Swap({
     depositAddress = { address: '', network: '', usdt_contract: '', chain_id: 56, min_confirmations: 12 },
     raceCoin = {
-        price_usd: '0.10',
+        price_usd: '0.25',
         min_swap_usd: '1.00',
         balance: '0.0000',
         id_activation_coins: '500.0000',
@@ -91,7 +91,7 @@ export default function Swap({
     const treasuryNetwork = (depositAddress?.network ?? '').trim();
     const usdtContract = (depositAddress?.usdt_contract ?? '').trim();
     const minConfirmations = Number(depositAddress?.min_confirmations ?? 12);
-    const priceUsd = Number(raceCoin.price_usd ?? 0.1);
+    const priceUsd = Number(raceCoin.price_usd ?? 0.25);
     const minSwapUsd = Number(raceCoin.min_swap_usd ?? 1);
 
     let officialUsdtConfigured = false;
@@ -236,7 +236,7 @@ export default function Swap({
                             {formatCoins(raceCoin.balance)} RC
                         </p>
                         <p className="mt-1 text-xs text-fintech-muted">
-                            1 Race Coin = {formatUsd(raceCoin.price_usd)}
+                            1 Race Coin = ${raceCoin.price_usd}
                         </p>
                     </div>
 
@@ -363,7 +363,7 @@ export default function Swap({
                                 <div className="mt-1 flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-3 py-2 text-xs">
                                     <span className="text-slate-400">Rate</span>
                                     <span className="font-medium text-slate-200">
-                                        1 RC = {formatUsd(raceCoin.price_usd)}
+                                        1 RC = ${raceCoin.price_usd}
                                     </span>
                                 </div>
 

@@ -34,6 +34,7 @@ class User extends OrchidUser
         'referred_by',
         'is_blocked',
         'withdrawals_disabled',
+        'withdrawals_locked_until',
         'lending_user_status',
         'lending_blocked_at',
         'lending_blocked_by',
@@ -69,6 +70,7 @@ class User extends OrchidUser
         'password' => 'hashed',
         'is_blocked' => 'boolean',
         'withdrawals_disabled' => 'boolean',
+        'withdrawals_locked_until' => 'datetime',
         'id_activated_at' => 'datetime',
         'bonza_rank_at' => 'datetime',
         'bonza_direct_bonus_at' => 'datetime',
@@ -186,9 +188,71 @@ class User extends OrchidUser
         return $code;
     }
 
+    public static function idByWallet(?string $wallet): ?int
+    {
+        $wallet = strtolower(trim((string) $wallet));
+        if (! preg_match('/^0x[a-f0-9]{40}$/', $wallet)) {
+            return null;
+        }
+
+        return static::query()->where('wallet_address', $wallet)->value('id');
+    }
+
     public function canRequestWithdrawal(): bool
     {
-        return ! (bool) $this->withdrawals_disabled;
+        if ((bool) $this->withdrawals_disabled) {
+            return false;
+        }
+
+        if ($this->withdrawals_locked_until !== null && $this->withdrawals_locked_until->isFuture()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Human-readable reason when withdrawals are blocked (admin flag or 24h stake lock).
+     */
+    public function withdrawalLockMessage(): ?string
+    {
+        if ((bool) $this->withdrawals_disabled) {
+            return 'Withdrawals are temporarily disabled for your account. Please contact support.';
+        }
+
+        if ($this->withdrawals_locked_until !== null && $this->withdrawals_locked_until->isFuture()) {
+            $when = $this->withdrawals_locked_until
+                ->timezone(config('app.timezone'))
+                ->format('d M Y, h:i A');
+
+            return 'Withdrawals are locked for 24 hours after your stake was created. You can withdraw after '.$when.'.';
+        }
+
+        return null;
+    }
+
+    /**
+     * After ICO createStake / Engine ICO stake: activate Member ID and lock withdrawals 24h.
+     */
+    public function activateIdAndLockWithdrawalsAfterStake(): void
+    {
+        $patch = [];
+
+        if ($this->id_activated_at === null) {
+            $patch['id_activated_at'] = now();
+        }
+        if ($this->participation_activated_at === null) {
+            $patch['participation_activated_at'] = now();
+        }
+
+        $until = now()->addHours(24);
+        if ($this->withdrawals_locked_until === null || $this->withdrawals_locked_until->lt($until)) {
+            $patch['withdrawals_locked_until'] = $until;
+        }
+
+        if ($patch !== []) {
+            $this->forceFill($patch)->save();
+        }
     }
 
     public function isLendingAccessActive(): bool

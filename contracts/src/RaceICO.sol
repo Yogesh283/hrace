@@ -16,7 +16,7 @@ import {IRaceIcoStakeReceiver} from "./interfaces/IRaceIcoStakeReceiver.sol";
  * @dev Fixed on-chain prices. Hard ICO limit: totalSoldRace <= 600_000.
  *      Admin deposits 600k into ICO Contract. Income mint stays on RaceRewardVault.
  *      purchase() holds RACE here (no auto-stake, no level income). After icoCompleted, buyer
- *      calls createStake() which pays level income then opens Engine stake at icoEndPriceUsdt.
+ *      calls createStake() which pays level income then opens Engine stake at live Pancake price.
  *
  * Phases (immutable):
  *   Phase 1: $0.25 / RACE — 200,000 RACE — max $50,000 USDT
@@ -389,9 +389,21 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     }
 
     /// @notice Stake principal at ICO-end price for a held race amount.
+    /// @notice Live Pancake RACE/USDT from Engine (0 if pool missing or engine unset).
+    function liveStakePriceUsdt() public view returns (uint256) {
+        if (stakingEngine == address(0)) return 0;
+        try IRaceIcoStakeReceiver(stakingEngine).liveRacePriceUsdt() returns (uint256 price) {
+            return price;
+        } catch {
+            return 0;
+        }
+    }
+
     function quoteStakePrincipal(uint256 raceAmount) public view returns (uint256 principalUsdt) {
-        if (raceAmount == 0 || icoEndPriceUsdt == 0) return 0;
-        principalUsdt = (raceAmount * icoEndPriceUsdt) / (10 ** uint256(raceDecimals));
+        if (raceAmount == 0) return 0;
+        uint256 price = liveStakePriceUsdt();
+        if (price == 0) return 0;
+        principalUsdt = (raceAmount * price) / (10 ** uint256(raceDecimals));
     }
 
     function setAdminWallet(address adminWallet_) external onlyOwner {
@@ -600,7 +612,7 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
-     * @notice After ICO completes: move held RACE into Engine stake at icoEndPriceUsdt principal.
+     * @notice After ICO completes: move held RACE into Engine stake at live Pancake principal.
      */
     function createStake(uint256 purchaseId) external nonReentrant whenNotPaused returns (uint256 stakeIndex) {
         stakeIndex = _createStake(purchaseId, msg.sender);
@@ -639,7 +651,6 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
 
     function _createStake(uint256 purchaseId, address caller) internal returns (uint256 stakeIndex) {
         require(icoCompleted, "RaceICO: ico active");
-        require(icoEndPriceUsdt > 0, "RaceICO: no end price");
         require(stakingEngine != address(0), "RaceICO: no engine");
         require(purchaseId < _purchases.length, "RaceICO: bad id");
 
@@ -650,7 +661,7 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
 
         uint256 raceAmount = buy.raceAmount;
         uint256 principalUsdt = quoteStakePrincipal(raceAmount);
-        require(principalUsdt > 0, "RaceICO: dust principal");
+        require(principalUsdt > 0, "RaceICO: no pancake price");
         require(userHeldRace[caller] >= raceAmount, "RaceICO: hold mismatch");
         require(totalHeldRace >= raceAmount, "RaceICO: total hold");
 
@@ -671,7 +682,7 @@ contract RaceICO is Ownable, ReentrancyGuard, Pausable {
         buy.unlockAt = uint64(block.timestamp) + uint64(buy.lockPeriod);
 
         emit RaceMintedToStaking(stakingEngine, caller, purchaseId, raceAmount, buy.lockPeriod, stakeIndex);
-        emit ICOHoldStakeCreated(caller, purchaseId, principalUsdt, raceAmount, icoEndPriceUsdt, stakeIndex);
+        emit ICOHoldStakeCreated(caller, purchaseId, principalUsdt, raceAmount, liveStakePriceUsdt(), stakeIndex);
     }
 
     function _completePhase(uint8 phaseId) internal {

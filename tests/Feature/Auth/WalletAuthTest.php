@@ -33,6 +33,23 @@ class WalletAuthTest extends TestCase
             ->assertJsonValidationErrors(['join_code']);
     }
 
+    public function test_wallet_register_nonce_rejects_blocked_sponsor(): void
+    {
+        User::factory()->create([
+            'referral_code' => 'BLOCKED1',
+            'is_blocked' => true,
+        ]);
+
+        $response = $this->postJson(route('wallet-auth.nonce'), [
+            'address' => '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0',
+            'action' => 'register',
+            'join_code' => 'BLOCKED1',
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['join_code']);
+    }
+
     public function test_wallet_register_nonce_returns_message_for_valid_sponsor(): void
     {
         $sponsor = User::factory()->create([

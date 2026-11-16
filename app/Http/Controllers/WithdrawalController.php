@@ -51,6 +51,8 @@ class WithdrawalController extends Controller
                 'network' => SiteSetting::treasuryNetworkLabel(),
             ],
             'withdrawals_disabled' => ! $user->canRequestWithdrawal(),
+            'withdrawal_lock_message' => $user->withdrawalLockMessage(),
+            'withdrawals_locked_until' => $user->withdrawals_locked_until?->toIso8601String(),
             'rate_limit' => $withdrawalService->rateLimitStatus($user),
             'withdrawals' => $withdrawals,
         ]);

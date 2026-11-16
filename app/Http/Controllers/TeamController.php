@@ -13,13 +13,14 @@ class TeamController extends Controller
     {
         $user = $request->user();
 
-        $levels = $tree->referralLevelsForLeader($user->id);
+        // Total Team UI: full unlimited tree. Community referral income still L1–L10 on-chain.
+        $levels = $tree->referralLevelsForLeader($user->id, null);
         $totalDownline = array_sum(array_map(
             static fn (array $row): int => (int) ($row['count'] ?? 0),
             $levels,
         ));
         $directVolume = $tree->downlineInvestmentVolumeUsdAtLevel($user->id, 1);
-        $teamVolume = $tree->downlineInvestmentVolumeUsd($user->id);
+        $teamVolume = $tree->downlineInvestmentVolumeUsd($user->id, true);
 
         return Inertia::render('Team', [
             'stats' => [

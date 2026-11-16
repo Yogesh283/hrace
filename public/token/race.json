@@ -1,0 +1,10 @@
+{
+    "name": "Race Coin",
+    "symbol": "RACE",
+    "decimals": 18,
+    "chainId": 56,
+    "address": "0xa29683442d9221Df0Eb7AFF3932c1E165FFa93EB",
+    "logoURI": "https://racenetwork.live/images/token/race-256.png",
+    "logoURI32": "https://racenetwork.live/images/token/race-32.png",
+    "logoURI64": "https://racenetwork.live/images/token/race-64.png"
+}

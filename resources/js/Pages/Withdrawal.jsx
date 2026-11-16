@@ -127,6 +127,8 @@ export default function Withdrawal({
     },
     admin_wallet = { address: '', network: 'BEP20 (BNB Smart Chain)' },
     withdrawals_disabled = false,
+    withdrawal_lock_message = null,
+    withdrawals_locked_until = null,
     rate_limit = {
         enabled: true,
         max_per_window: 2,
@@ -219,9 +221,15 @@ export default function Withdrawal({
                         </MemberAlert>
                     ) : null}
 
-                    {withdrawals_disabled ? (
+                    {withdrawals_disabled || withdrawal_lock_message ? (
                         <MemberAlert variant="warning" className="mb-3">
-                            Withdrawals are temporarily disabled for your account. Please contact support.
+                            {withdrawal_lock_message
+                                || 'Withdrawals are temporarily disabled for your account. Please contact support.'}
+                            {withdrawals_locked_until && !withdrawal_lock_message?.includes('24 hours') ? (
+                                <span className="mt-1 block text-xs opacity-90">
+                                    Locked until {new Date(withdrawals_locked_until).toLocaleString()}
+                                </span>
+                            ) : null}
                         </MemberAlert>
                     ) : null}
 

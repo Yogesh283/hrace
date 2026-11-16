@@ -4,15 +4,40 @@ namespace App\Services\Income;
 
 use App\Models\RaceCoinSwap;
 use App\Models\User;
+use App\Models\UserFundTransaction;
 use App\Models\UserWallet;
+use App\Services\Blockchain\RacePancakePriceService;
+use App\Services\Ledger\UserFundTransactionRecorder;
 use App\Support\RewardPlan;
 use Illuminate\Support\Facades\DB;
 
 class RaceCoinService
 {
+    /**
+     * Display + Internal Swap quote: live Pancake RACE/USDT when available.
+     * Falls back to ICO phase price only if RPC/pool fails.
+     */
     public function priceUsd(): float
     {
-        return (float) config('race_coin.price_usd', 0.10);
+        $live = app(RacePancakePriceService::class)->priceUsd();
+        if ($live !== null && $live > 0) {
+            return $live;
+        }
+
+        return $this->icoPhasePriceUsd();
+    }
+
+    public function icoPhasePriceUsd(): float
+    {
+        $phase = (int) config('ico.current_phase_id', 1);
+        $price = (float) config("ico.phases.{$phase}.price_usd", 0.25);
+
+        return $price > 0 ? $price : 0.25;
+    }
+
+    public function formattedPriceUsd(int $decimals = 4): string
+    {
+        return number_format($this->priceUsd(), $decimals, '.', '');
     }
 
     public function coinsForUsdt(float $usdtAmount): string
@@ -60,7 +85,7 @@ class RaceCoinService
 
             $wallet->forceFill(['race_coin_balance' => $newBalance])->save();
 
-            return RaceCoinSwap::query()->create([
+            $row = RaceCoinSwap::query()->create([
                 'user_id' => $user->id,
                 'swap_type' => RaceCoinSwap::TYPE_SWAP_CREDIT,
                 'usdt_amount' => $usdtStr,
@@ -72,6 +97,22 @@ class RaceCoinService
                     'method' => 'web3_usdt',
                 ],
             ]);
+
+            app(UserFundTransactionRecorder::class)->record(
+                $user,
+                UserFundTransaction::TYPE_RACE_COIN_SWAP,
+                UserFundTransaction::DIR_IN,
+                $usdtStr,
+                $coins,
+                $txHash,
+                null,
+                RaceCoinSwap::class,
+                $row->id,
+                'Internal swap USDT → Race Coin',
+                ['price_usd' => $this->priceUsd()],
+            );
+
+            return $row;
         });
     }
 

@@ -5,6 +5,7 @@ namespace App\Services\Blockchain;
 use App\Models\BlockchainEvent;
 use App\Models\IcoPurchase;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -69,6 +70,8 @@ class BlockchainEventIngestService
             }
         }
 
+        $this->ensureIcoPurchaseFromReceipt($receipt, $txHash);
+
         return [
             'ok' => true,
             'events_indexed' => $indexed,
@@ -81,9 +84,17 @@ class BlockchainEventIngestService
      */
     public function allowedContracts(): array
     {
+        $raceIco = '';
+        try {
+            $raceIco = \App\Models\SiteSetting::raceIcoContractAddress();
+        } catch (\Throwable) {
+            $raceIco = (string) config('blockchain.contracts.ico', '');
+        }
+
         $list = array_filter([
             config('blockchain.contracts.community_engine'),
             config('blockchain.contracts.ico'),
+            $raceIco,
             config('income_vault.contract_address'),
             \App\Support\LegacyParticipationGuard::applicationEnabled()
                 ? config('blockchain.contracts.participation')
@@ -110,12 +121,31 @@ class BlockchainEventIngestService
         $logIndex = hexdec((string) ($log['logIndex'] ?? '0x0'));
         $blockNumber = hexdec((string) ($log['blockNumber'] ?? '0x0'));
 
-        if ($txHash === '' || BlockchainEvent::query()->where('tx_hash', $txHash)->where('log_index', $logIndex)->exists()) {
+        if ($txHash === '') {
             return;
         }
 
         $topics = $log['topics'] ?? [];
         $eventName = $this->resolveEventName($topics[0] ?? null);
+        $alreadyStored = BlockchainEvent::query()
+            ->where('tx_hash', $txHash)
+            ->where('log_index', $logIndex)
+            ->exists();
+
+        if ($alreadyStored) {
+            if ($eventName === 'ICOPurchased' || $eventName === 'ICOPurchase') {
+                $walletTopicIndex = $eventName === 'ICOPurchased' ? 2 : 1;
+                $wallet = isset($topics[$walletTopicIndex])
+                    ? '0x'.substr((string) $topics[$walletTopicIndex], 26)
+                    : '';
+                $userId = $wallet !== ''
+                    ? User::idByWallet($wallet)
+                    : null;
+                $this->storeIcoPurchaseFromEvent($eventName, $topics, (string) ($log['data'] ?? ''), $txHash, $blockNumber, $userId);
+            }
+
+            return;
+        }
 
         $walletTopicIndex = match ($eventName) {
             'ICOPurchased', 'RaceMintedToStaking' => 2,
@@ -127,7 +157,7 @@ class BlockchainEventIngestService
             : '';
 
         $userId = $wallet !== ''
-            ? User::query()->whereRaw('LOWER(wallet_address) = ?', [strtolower($wallet)])->value('id')
+            ? User::idByWallet($wallet)
             : null;
 
         BlockchainEvent::query()->create([
@@ -145,15 +175,23 @@ class BlockchainEventIngestService
             'block_time' => null,
         ]);
 
-        if ($eventName === 'ICOPurchased') {
-            $this->storeIcoPurchase($topics, (string) ($log['data'] ?? ''), $txHash, $blockNumber, $userId);
-        }
-
-        if ($eventName === 'ICOHoldStakeCreated' || $eventName === 'RaceMintedToStaking') {
-            $this->markIcoPurchaseStaked($topics, $eventName);
+        if ($eventName === 'ICOPurchased' || $eventName === 'ICOPurchase') {
+            $this->storeIcoPurchaseFromEvent($eventName, $topics, (string) ($log['data'] ?? ''), $txHash, $blockNumber, $userId);
         }
 
         $stakeIndexer = app(BlockchainEngineStakeIndexer::class);
+        if ($eventName === 'ICOHoldStakeCreated' || $eventName === 'RaceMintedToStaking') {
+            $this->markIcoPurchaseStaked($topics, $eventName);
+            // createStake() must also write blockchain_engine_stakes (not only mark ico_purchases).
+            $stakeIndexer->storeFromIcoHoldOrMint(
+                $eventName,
+                $topics,
+                (string) ($log['data'] ?? ''),
+                $txHash,
+                $blockNumber,
+                $userId,
+            );
+        }
         if ($eventName === 'ICOStakeCreated') {
             $stakeIndexer->storeIcoStakeCreated(
                 $topics,
@@ -163,6 +201,22 @@ class BlockchainEventIngestService
                 $contract,
                 $userId,
             );
+        }
+        // Engine ParticipationPurchased (ICO openIcoStake / participate): mirror into investments
+        // via UI-less path when the wallet is already linked to a user.
+        if ($eventName === 'ParticipationPurchased' && $userId) {
+            $user = User::query()->find((int) $userId);
+            if ($user) {
+                try {
+                    app(ParticipationOnChainSyncService::class)->syncFromTransaction($user, $txHash);
+                } catch (\Throwable $e) {
+                    Log::warning('ParticipationPurchased auto-sync failed', [
+                        'tx' => $txHash,
+                        'user_id' => $userId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
         if ($eventName === 'StakeWithdrawn' || $eventName === 'StakeCompleted') {
             $stakeIndexer->markStakeWithdrawn($topics, (string) ($log['data'] ?? ''), $contract);
@@ -200,12 +254,80 @@ class BlockchainEventIngestService
     }
 
     /**
+     * Always write ico_purchases from RaceICO buy logs, even if blockchain_events already exist.
+     *
+     * @param  array<string, mixed>  $receipt
+     */
+    private function ensureIcoPurchaseFromReceipt(array $receipt, string $txHash): void
+    {
+        $blockNumber = hexdec((string) ($receipt['blockNumber'] ?? '0x0'));
+        foreach ($receipt['logs'] ?? [] as $log) {
+            if (! is_array($log)) {
+                continue;
+            }
+            $topics = $log['topics'] ?? [];
+            $eventName = $this->resolveEventName($topics[0] ?? null);
+            if ($eventName !== 'ICOPurchased' && $eventName !== 'ICOPurchase') {
+                continue;
+            }
+            $walletTopicIndex = $eventName === 'ICOPurchased' ? 2 : 1;
+            $wallet = isset($topics[$walletTopicIndex])
+                ? '0x'.substr((string) $topics[$walletTopicIndex], 26)
+                : '';
+            $userId = $wallet !== ''
+                ? User::idByWallet($wallet)
+                : null;
+            $this->storeIcoPurchaseFromEvent(
+                $eventName,
+                $topics,
+                (string) ($log['data'] ?? ''),
+                $txHash,
+                $blockNumber,
+                $userId,
+            );
+        }
+    }
+
+    /**
+     * @param  list<string>  $topics
+     */
+    private function storeIcoPurchaseFromEvent(
+        string $eventName,
+        array $topics,
+        string $data,
+        string $txHash,
+        int $blockNumber,
+        mixed $userId,
+    ): void {
+        if ($eventName === 'ICOPurchase') {
+            $wallet = isset($topics[1]) ? '0x'.substr((string) $topics[1], 26) : '';
+            $purchaseId = isset($topics[2]) ? hexdec((string) $topics[2]) : -1;
+            $this->storeIcoPurchaseRow($purchaseId, $wallet, $data, $txHash, $blockNumber, $userId);
+
+            return;
+        }
+
+        $this->storeIcoPurchase($topics, $data, $txHash, $blockNumber, $userId);
+    }
+
+    /**
      * @param  list<string>  $topics
      */
     private function storeIcoPurchase(array $topics, string $data, string $txHash, int $blockNumber, mixed $userId): void
     {
         $purchaseId = isset($topics[1]) ? hexdec((string) $topics[1]) : 0;
         $wallet = isset($topics[2]) ? '0x'.substr((string) $topics[2], 26) : '';
+        $this->storeIcoPurchaseRow($purchaseId, $wallet, $data, $txHash, $blockNumber, $userId);
+    }
+
+    private function storeIcoPurchaseRow(
+        int $purchaseId,
+        string $wallet,
+        string $data,
+        string $txHash,
+        int $blockNumber,
+        mixed $userId,
+    ): void {
         if ($purchaseId < 0 || $wallet === '' || $txHash === '') {
             return;
         }
@@ -268,7 +390,7 @@ class BlockchainEventIngestService
 
         IcoPurchase::query()
             ->where('purchase_id', $purchaseId)
-            ->whereRaw('LOWER(wallet_address) = ?', [strtolower($wallet)])
+            ->where('wallet_address', strtolower($wallet))
             ->whereIn('status', ['held', 'confirmed'])
             ->update(['status' => 'staked']);
     }

@@ -347,7 +347,7 @@ class InvestmentController extends Controller
             'wallet_balance_usd' => $walletBalance,
             'income_policy' => $incomePolicy,
             'race_coin_balance' => $raceCoin->currentBalance($user),
-            'race_coin_price_usd' => number_format($raceCoin->priceUsd(), 2, '.', ''),
+            'race_coin_price_usd' => $raceCoin->formattedPriceUsd(4),
             'on_chain_sponsor_wallet' => OnChainReferrer::sponsorWalletFor($user),
         ];
     }

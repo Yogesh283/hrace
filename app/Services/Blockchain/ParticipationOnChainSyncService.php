@@ -5,8 +5,10 @@ namespace App\Services\Blockchain;
 use App\Models\BlockchainParticipation;
 use App\Models\Investment;
 use App\Models\User;
+use App\Models\UserFundTransaction;
 use App\Services\Income\IncomeDispatcher;
 use App\Services\Income\InvestmentRecorder;
+use App\Services\Ledger\UserFundTransactionRecorder;
 use App\Services\Member\MemberActivationService;
 use App\Support\RewardPlan;
 use Illuminate\Support\Facades\DB;
@@ -16,16 +18,27 @@ use Illuminate\Support\Facades\Log;
 /**
  * Index on-chain ParticipationPurchased events — no reward calculation.
  * Triggers off-chain community referral ledger only (L1–L10).
+ *
+ * createAllStakes() emits multiple ParticipationPurchased logs in one tx —
+ * each stake_index gets its own investment + participation + fund ledger row.
  */
 class ParticipationOnChainSyncService
 {
     public function __construct(
         protected MemberActivationService $activation,
         protected IncomeDispatcher $dispatcher,
+        protected UserFundTransactionRecorder $fundLedger,
     ) {}
 
     /**
-     * @return array{ok: bool, reason?: string, participation?: BlockchainParticipation}
+     * @return array{
+     *     ok: bool,
+     *     reason?: string,
+     *     participation?: BlockchainParticipation,
+     *     count?: int,
+     *     created?: int,
+     *     skipped?: int
+     * }
      */
     public function syncFromTransaction(User $user, string $txHash): array
     {
@@ -52,9 +65,6 @@ class ParticipationOnChainSyncService
         }
 
         $txHash = strtolower($txHash);
-        if (BlockchainParticipation::query()->where('tx_hash', $txHash)->exists()) {
-            return ['ok' => false, 'reason' => __('This transaction is already indexed.')];
-        }
 
         // If profile has no wallet yet, resolve buyer from the tx and bind once.
         if ($wallet === '') {
@@ -80,30 +90,107 @@ class ParticipationOnChainSyncService
             $wallet = $from;
         }
 
-        $parsed = $this->parseParticipationTx($txHash, $wallet, $contract);
-        if (! $parsed['ok']) {
-            return $parsed;
+        $parsedAll = $this->parseAllParticipationEvents($txHash, $wallet, $contract);
+        if (! ($parsedAll['ok'] ?? false)) {
+            return $parsedAll;
+        }
+
+        /** @var list<array{stake_index: int, principal_usdt: float, lock_seconds: int, daily_rate_bps: int}> $events */
+        $events = $parsedAll['events'] ?? [];
+        if ($events === []) {
+            return ['ok' => false, 'reason' => __('ParticipationPurchased event not found in transaction.')];
         }
 
         $this->activation->assertCanPurchaseParticipation($user);
 
-        $principal = number_format((float) $parsed['principal_usdt'], 2, '.', '');
         $min = number_format((float) config('participation_contract.on_chain.min_usdt', 1), 2, '.', '');
-        if (bccomp($principal, $min, 2) < 0) {
-            return ['ok' => false, 'reason' => __('Staking below minimum $:min.', ['min' => $min])];
+        $created = [];
+        $skipped = 0;
+        $last = null;
+
+        foreach ($events as $parsed) {
+            $exists = BlockchainParticipation::query()
+                ->where('tx_hash', $txHash)
+                ->where('stake_index', (int) $parsed['stake_index'])
+                ->exists();
+            if ($exists) {
+                $skipped++;
+
+                continue;
+            }
+
+            $principal = number_format((float) $parsed['principal_usdt'], 2, '.', '');
+            if (bccomp($principal, $min, 2) < 0) {
+                $skipped++;
+
+                continue;
+            }
+
+            // ICO locks are authoritative on-chain — never drop a stake from Active package
+            // just because days rounding differs from RewardPlan tier list.
+            $lockDays = $this->lockDaysFromSeconds((int) $parsed['lock_seconds']);
+            $lockDays = max(0, $lockDays);
+
+            $record = $this->persistStake(
+                $user,
+                $txHash,
+                $wallet,
+                $contract,
+                $parsed,
+                $principal,
+                $lockDays,
+            );
+            $created[] = $record;
+            $last = $record;
         }
 
-        $lockDays = $this->lockDaysFromSeconds((int) $parsed['lock_seconds']);
-        if (! RewardPlan::growthDurationIsAllowed($lockDays)) {
-            return ['ok' => false, 'reason' => __('Invalid on-chain lock tier.')];
+        if ($last === null && $skipped > 0) {
+            $existing = BlockchainParticipation::query()
+                ->where('tx_hash', $txHash)
+                ->orderBy('stake_index')
+                ->first();
+
+            return [
+                'ok' => true,
+                'already_indexed' => true,
+                'participation' => $existing,
+                'count' => count($events),
+                'created' => 0,
+                'skipped' => $skipped,
+            ];
         }
 
-        $qualifying = RewardPlan::isQualifyingParticipationAmount($principal);
+        if ($last === null) {
+            return ['ok' => false, 'reason' => __('No qualifying stakes found in transaction.')];
+        }
+
+        return [
+            'ok' => true,
+            'participation' => $last,
+            'count' => count($events),
+            'created' => count($created),
+            'skipped' => $skipped,
+        ];
+    }
+
+    /**
+     * @param  array{stake_index: int, principal_usdt: float, lock_seconds: int, daily_rate_bps: int}  $parsed
+     */
+    private function persistStake(
+        User $user,
+        string $txHash,
+        string $wallet,
+        string $contract,
+        array $parsed,
+        string $principal,
+        int $lockDays,
+    ): BlockchainParticipation {
         $dailyPct = RewardPlan::growthDailyPercentForDuration($lockDays) ?? 0.0;
 
-        return DB::transaction(function () use ($user, $txHash, $wallet, $contract, $parsed, $principal, $lockDays, $dailyPct, $qualifying) {
-            // Display + income eligibility flags (not reward math). $50+ qualifies Member ID.
-            $this->markParticipationActiveIfNeeded($user, $qualifying);
+        return DB::transaction(function () use ($user, $txHash, $wallet, $contract, $parsed, $principal, $lockDays, $dailyPct) {
+            // Any ICO/Engine stake: activate ID + 24h withdrawal lock.
+            $user->activateIdAndLockWithdrawalsAfterStake();
+            $this->markParticipationActiveIfNeeded($user, true);
 
             if (\App\Support\BlockchainMode::blockchainOnly()) {
                 $record = BlockchainParticipation::query()->create([
@@ -119,7 +206,21 @@ class ParticipationOnChainSyncService
                     'synced_at' => now(),
                 ]);
 
-                return ['ok' => true, 'participation' => $record->fresh()];
+                $this->fundLedger->record(
+                    $user,
+                    UserFundTransaction::TYPE_ICO_STAKE,
+                    UserFundTransaction::DIR_IN,
+                    $principal,
+                    null,
+                    $txHash,
+                    (int) $parsed['stake_index'],
+                    BlockchainParticipation::class,
+                    $record->id,
+                    'ICO / Engine stake indexed',
+                    ['lock_seconds' => (int) $parsed['lock_seconds']],
+                );
+
+                return $record->fresh();
             }
 
             $investment = Investment::query()->create([
@@ -150,7 +251,25 @@ class ParticipationOnChainSyncService
 
             $this->dispatcher->onNewInvestment($investment, InvestmentRecorder::PAYMENT_USDT_WALLET);
 
-            return ['ok' => true, 'participation' => $record->fresh()];
+            $this->fundLedger->record(
+                $user,
+                UserFundTransaction::TYPE_ICO_STAKE,
+                UserFundTransaction::DIR_IN,
+                $principal,
+                null,
+                $txHash,
+                (int) $parsed['stake_index'],
+                Investment::class,
+                $investment->id,
+                'ICO / Engine stake → Active package',
+                [
+                    'stake_index' => (int) $parsed['stake_index'],
+                    'lock_seconds' => (int) $parsed['lock_seconds'],
+                    'participation_id' => $record->id,
+                ],
+            );
+
+            return $record->fresh();
         });
     }
 
@@ -179,6 +298,23 @@ class ParticipationOnChainSyncService
      * @return array{ok: bool, reason?: string, principal_usdt?: float, stake_index?: int, lock_seconds?: int, daily_rate_bps?: int}
      */
     public function parseParticipationTx(string $txHash, string $fromWallet, string $contract): array
+    {
+        $all = $this->parseAllParticipationEvents($txHash, $fromWallet, $contract);
+        if (! ($all['ok'] ?? false)) {
+            return $all;
+        }
+        $first = $all['events'][0] ?? null;
+        if ($first === null) {
+            return ['ok' => false, 'reason' => __('ParticipationPurchased event not found in transaction.')];
+        }
+
+        return ['ok' => true, ...$first];
+    }
+
+    /**
+     * @return array{ok: bool, reason?: string, events?: list<array{stake_index: int, principal_usdt: float, lock_seconds: int, daily_rate_bps: int}>}
+     */
+    public function parseAllParticipationEvents(string $txHash, string $fromWallet, string $contract): array
     {
         $rpc = (string) config('participation_contract.on_chain.rpc_url');
         $eventTopic = strtolower((string) config('participation_contract.events.participation_purchased'));
@@ -216,6 +352,7 @@ class ParticipationOnChainSyncService
                 '0x3cef2b6f76a0f4f96feb02de766f08fcafd52c0677585fad3627da2aa9f2e0d2',
             ])));
 
+            $events = [];
             foreach ($receipt['logs'] ?? [] as $log) {
                 if (strtolower((string) ($log['address'] ?? '')) !== $contract) {
                     continue;
@@ -236,16 +373,14 @@ class ParticipationOnChainSyncService
                     return ['ok' => false, 'reason' => __('Staking event wallet mismatch.')];
                 }
 
-                return [
-                    'ok' => true,
-                    'stake_index' => $decoded['stake_index'],
-                    'principal_usdt' => $decoded['principal_usdt'],
-                    'lock_seconds' => $decoded['lock_seconds'],
-                    'daily_rate_bps' => $decoded['daily_rate_bps'],
-                ];
+                $events[] = $decoded;
             }
 
-            return ['ok' => false, 'reason' => __('ParticipationPurchased event not found in transaction.')];
+            if ($events === []) {
+                return ['ok' => false, 'reason' => __('ParticipationPurchased event not found in transaction.')];
+            }
+
+            return ['ok' => true, 'events' => $events];
         } catch (\Throwable $e) {
             Log::warning('On-chain participation parse failed', ['tx' => $txHash, 'error' => $e->getMessage()]);
 
@@ -290,7 +425,7 @@ class ParticipationOnChainSyncService
         return $seconds === 0 ? 0 : (int) round($seconds / 86400);
     }
 
-  /**
+    /**
      * @return mixed
      */
     private function rpc(string $rpcUrl, string $method, array $params)

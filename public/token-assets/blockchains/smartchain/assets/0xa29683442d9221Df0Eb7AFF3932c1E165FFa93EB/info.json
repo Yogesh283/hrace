@@ -1,0 +1,11 @@
+{
+    "name": "Race Coin",
+    "website": "https://racenetwork.live",
+    "description": "RACE Network utility token on BNB Smart Chain.",
+    "explorer": "https://bscscan.com/token/0xa29683442d9221Df0Eb7AFF3932c1E165FFa93EB",
+    "type": "BEP20",
+    "symbol": "RACE",
+    "decimals": 18,
+    "status": "active",
+    "id": "0xa29683442d9221Df0Eb7AFF3932c1E165FFa93EB"
+}

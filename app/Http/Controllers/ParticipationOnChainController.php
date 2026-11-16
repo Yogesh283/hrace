@@ -39,17 +39,24 @@ class ParticipationOnChainController extends Controller
             return response()->json(['error' => $result['reason'] ?? __('Sync failed.')], 422);
         }
 
-        /** @var BlockchainParticipation $record */
-        $record = $result['participation'];
+        /** @var BlockchainParticipation|null $record */
+        $record = $result['participation'] ?? null;
+        $created = (int) ($result['created'] ?? ($record ? 1 : 0));
+        $count = (int) ($result['count'] ?? $created);
 
         return response()->json([
             'success' => true,
-            'message' => __('On-chain staking indexed. Daily RACE rewards are paid by the smart contract.'),
-            'participation' => [
+            'message' => $created > 1
+                ? __(':n stakes indexed from this transaction. Daily RACE rewards are paid by the smart contract.', ['n' => $created])
+                : __('On-chain staking indexed. Daily RACE rewards are paid by the smart contract.'),
+            'created' => $created,
+            'event_count' => $count,
+            'skipped' => (int) ($result['skipped'] ?? 0),
+            'participation' => $record ? [
                 'tx_hash' => $record->tx_hash,
                 'stake_index' => $record->stake_index,
                 'principal_usdt' => $record->principal_usdt,
-            ],
+            ] : null,
         ]);
     }
 }

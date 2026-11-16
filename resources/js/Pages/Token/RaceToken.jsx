@@ -5,8 +5,9 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import Web3NetworkBanner from '@/Components/Web3NetworkBanner';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { useWalletNetwork } from '@/hooks/useWalletNetwork';
-import { RACE_BANNER_TOKEN, RACE_LOGO_SRC } from '@/lib/brandAssets';
+import { RACE_BANNER_TOKEN, RACE_TOKEN_LOGO_SRC } from '@/lib/brandAssets';
 import { linkWalletToAccount } from '@/lib/walletAccountLink';
+import { watchRaceToken } from '@/lib/web3Wallet';
 import { formatTokenWei, readErc20Balance } from '@/lib/web3PancakeSwap';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
@@ -68,6 +69,7 @@ export default function RaceToken({ raceTokenConfig = {} }) {
     } = useWalletNetwork({ expectedChainId: config.chain_id });
 
     const [connecting, setConnecting] = useState(false);
+    const [addingToken, setAddingToken] = useState(false);
     const [walletError, setWalletError] = useState('');
     const [raceBalance, setRaceBalance] = useState(0n);
     const [usdtBalance, setUsdtBalance] = useState(0n);
@@ -125,14 +127,14 @@ export default function RaceToken({ raceTokenConfig = {} }) {
                 <MemberPageHero
                     title="RACE Coin"
                     subtitle="Official BEP20 token on BNB Smart Chain. Swap, ICO, and staking use their own pages."
-                    logoSrc={RACE_LOGO_SRC}
+                    logoSrc={RACE_TOKEN_LOGO_SRC}
                     bannerSrc={RACE_BANNER_TOKEN}
                 />
 
                 <PanelCard className="mt-6">
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
                         <div className="flex items-center gap-4">
-                            <img src={RACE_LOGO_SRC} alt="RACE" className="h-16 w-16 rounded-2xl object-contain" />
+                            <img src={RACE_TOKEN_LOGO_SRC} alt="RACE" className="h-16 w-16 rounded-full object-cover" />
                             <div>
                                 <h2 className="text-xl font-bold text-white">RACE</h2>
                                 <p className="text-sm text-slate-400">{config.network_name ?? 'BNB Smart Chain'}</p>
@@ -187,6 +189,29 @@ export default function RaceToken({ raceTokenConfig = {} }) {
                                 {connecting || networkSwitching ? 'Connecting…' : 'Connect Wallet'}
                             </PrimaryButton>
                         )}
+                        {walletAddress && raceToken ? (
+                            <PrimaryButton
+                                type="button"
+                                className="mt-4"
+                                disabled={addingToken || connecting || networkSwitching}
+                                onClick={async () => {
+                                    setWalletError('');
+                                    setAddingToken(true);
+                                    try {
+                                        await watchRaceToken({
+                                            address: raceToken,
+                                            image: `${window.location.origin}${RACE_TOKEN_LOGO_SRC}`,
+                                        });
+                                    } catch (error) {
+                                        setWalletError(error?.message || 'Could not add RACE to the wallet.');
+                                    } finally {
+                                        setAddingToken(false);
+                                    }
+                                }}
+                            >
+                                {addingToken ? 'Adding RACE…' : 'Add RACE + logo to wallet'}
+                            </PrimaryButton>
+                        ) : null}
                         {walletError ? <p className="mt-3 text-sm text-rose-300">{walletError}</p> : null}
                     </PanelCard>
 

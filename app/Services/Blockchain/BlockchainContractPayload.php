@@ -35,6 +35,7 @@ final class BlockchainContractPayload
             'engine_contract' => $engine,
             'participation_contract' => $participation,
             'contract' => $contract,
+            'race_token' => (string) config('blockchain.contracts.race_token', ''),
             'usdt_contract' => (string) config('blockchain.contracts.usdt', config('participation_contract.on_chain.usdt_contract', '')),
             'income_hold' => \App\Models\SiteSetting::incomeHoldAddress(),
             'min_usdt' => number_format((float) RewardPlan::builtForGrowth()['min_amount_usd'], 2, '.', ''),

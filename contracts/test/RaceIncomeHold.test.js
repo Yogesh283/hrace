@@ -232,7 +232,7 @@ describe('RaceIncomeHold', function () {
     });
 
     describe('withdraw accounting', function () {
-        it('withdraws 90% RACE after $1 USDT admin fee; 10% leftover to admin RACE wallet', async function () {
+        it('cuts USDT admin fee first, then 10% team RACE, then 90% to user', async function () {
             const { hold, race, usdt, admin, user } = await deployHoldFixture();
             const raceAmt = ethers.parseEther('50');
             const teamRace = ethers.parseEther('5');

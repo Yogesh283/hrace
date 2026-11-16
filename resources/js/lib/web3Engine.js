@@ -12,6 +12,7 @@ const SELECTORS = {
     approve: '0x095ea7b3',
     register: '0x4420e486',
     participate: '0x129874aa',
+    stakeRace: '0x3a9f20c2',
     claimReward: '0xae169a50',
     compoundReward: '0x4060e257',
     withdrawStake: '0x25d5971f',
@@ -57,6 +58,10 @@ function encodeRegister(referrer) {
 
 function encodeParticipate(usdtWei, lockSeconds) {
     return SELECTORS.participate + padUint256(usdtWei) + padUint256(lockSeconds);
+}
+
+function encodeStakeRace(raceWei, lockSeconds) {
+    return SELECTORS.stakeRace + padUint256(raceWei) + padUint256(lockSeconds);
 }
 
 function encodeClaimReward(stakeIndex) {
@@ -164,7 +169,10 @@ function isZeroAddress(address) {
 }
 
 /**
- * $50+ stake: sponsor must be participationActive on Engine or same-tx level income will not pay.
+ * Soft check only — never blocks stake/buy.
+ * Engine.register() allows unregistered referrer; level income still needs upline active later.
+ *
+ * @returns {{ ok: boolean, skipped?: boolean, noSponsor?: boolean, sponsorActive?: boolean, reason?: string, message?: string }}
  */
 export async function ensureSponsorActiveForLevelIncome({
     sponsorWallet,
@@ -185,16 +193,22 @@ export async function ensureSponsorActiveForLevelIncome({
 
     const registered = await readIsRegistered({ walletAddress: sponsor, engineContract, rpcUrl });
     if (!registered) {
-        throw new Error(
-            'Your sponsor has not registered on-chain yet. Ask them to connect wallet on racenetwork.live first, then retry Buy & Stake.',
-        );
+        return {
+            ok: false,
+            reason: 'sponsor_not_registered',
+            message:
+                'Sponsor is not on-chain yet. Stake can still proceed; L1–L10 income pays after sponsor registers and activates ($50+).',
+        };
     }
 
     const active = await readParticipationActive({ walletAddress: sponsor, engineContract, rpcUrl });
     if (!active) {
-        throw new Error(
-            'Your sponsor must complete $50+ Buy & Stake (active on-chain) before you stake — only then instant L1–L10 level income is paid in the same transaction.',
-        );
+        return {
+            ok: false,
+            reason: 'sponsor_not_active',
+            message:
+                'Sponsor is registered but not $50+ active yet. Stake can still proceed; level income pays once they activate.',
+        };
     }
 
     return { ok: true, sponsorActive: true };
@@ -221,13 +235,7 @@ export async function ensureEngineReferralBeforeStake({
 
     const registered = await readIsRegistered({ walletAddress: self, engineContract, rpcUrl });
     if (registered) {
-        const onChainReferrer = await readReferrerOf({ walletAddress: self, engineContract, rpcUrl });
-        const sponsor = normalizeWalletAddress(sponsorWallet);
-        if (sponsor && isZeroAddress(onChainReferrer)) {
-            throw new Error(
-                'This wallet is already registered on-chain without a sponsor, so instant level income cannot apply. Use a fresh wallet linked under your sponsor, or complete registration before any stake.',
-            );
-        }
+        // Already on Engine — do not block stake (ICO createStake uses frozen purchase referrer).
         return { ok: true, alreadyRegistered: true };
     }
 
@@ -236,6 +244,7 @@ export async function ensureEngineReferralBeforeStake({
         throw new Error('Invalid sponsor: cannot refer yourself.');
     }
 
+    // Soft info only — never block registration / stake.
     if (sponsor) {
         await ensureSponsorActiveForLevelIncome({
             sponsorWallet: sponsor,
@@ -245,7 +254,8 @@ export async function ensureEngineReferralBeforeStake({
         });
     }
 
-    let referrer = ZERO_ADDRESS;
+    // Engine.register allows unregistered referrer (late upline onboard).
+    let referrer = sponsor || ZERO_ADDRESS;
     let sponsorPendingOnboarding = false;
     if (sponsor) {
         const sponsorRegistered = await readIsRegistered({
@@ -253,14 +263,7 @@ export async function ensureEngineReferralBeforeStake({
             engineContract,
             rpcUrl,
         });
-        if (sponsorRegistered) {
-            referrer = sponsor;
-        } else {
-            // New Engine may allow unregistered referrer; older bytecode requires registered upline.
-            // Try binding sponsor first; fall back to zero so Buy & Stake is never blocked.
-            referrer = sponsor;
-            sponsorPendingOnboarding = true;
-        }
+        sponsorPendingOnboarding = !sponsorRegistered;
     }
 
     try {
@@ -283,14 +286,29 @@ export async function ensureEngineReferralBeforeStake({
         };
     } catch (err) {
         const msg = String(err?.message || err || '');
+        // Older Engine bytecode: fall back to zero referrer so stake is never blocked.
         if (
             sponsor &&
-            sponsorPendingOnboarding &&
             /referrer not registered|engine: referrer/i.test(msg)
         ) {
-            throw new Error(
-                'Your sponsor must complete on-chain registration before you can stake — otherwise instant level income (L1–L10) will not be paid. Ask your sponsor to connect wallet once, then try Buy & Stake again.',
-            );
+            const txHash = await registerOnChain({
+                walletAddress: self,
+                engineContract,
+                referrer: ZERO_ADDRESS,
+                chainId,
+            });
+            if (confirmCount > 0) {
+                await waitForConfirmations(txHash, confirmCount);
+            }
+            memberStateCache = { key: '', value: null, at: 0 };
+            return {
+                ok: true,
+                registered: true,
+                txHash,
+                sponsorBound: false,
+                sponsorPendingOnboarding: true,
+                registeredWithZeroReferrer: true,
+            };
         }
         throw err;
     }
@@ -335,6 +353,50 @@ export async function purchaseOnChainParticipation({
         from: walletAddress,
         to: engineContract,
         data: encodeParticipate(amountWei, lockSeconds),
+    });
+}
+
+/**
+ * Stake BEP-20 RACE already in the wallet (Pancake buy, transfer, etc.).
+ * Requires Engine deployment that includes stakeRace() — live Engine must be upgraded/redeployed.
+ */
+export async function stakeRaceFromWallet({
+    walletAddress,
+    engineContract,
+    raceToken,
+    raceAmount,
+    lockSeconds,
+    sponsorWallet,
+    rpcUrl,
+}) {
+    if (!raceToken || !/^0x[a-fA-F0-9]{40}$/.test(raceToken)) {
+        throw new Error('RACE token address is not configured.');
+    }
+    await ensureBscNetwork();
+
+    await ensureEngineReferralBeforeStake({
+        walletAddress,
+        engineContract,
+        rpcUrl,
+        sponsorWallet,
+        waitConfirmations: 1,
+    });
+
+    const amountWei = parseTokenAmount(String(raceAmount), 18);
+    if (amountWei <= 0n) {
+        throw new Error('Enter a RACE amount greater than zero.');
+    }
+
+    await sendContractTx({
+        from: walletAddress,
+        to: raceToken,
+        data: encodeApprove(engineContract, amountWei),
+    });
+
+    return sendContractTx({
+        from: walletAddress,
+        to: engineContract,
+        data: encodeStakeRace(amountWei, lockSeconds),
     });
 }
 
@@ -527,10 +589,15 @@ export async function readChainIdHex() {
 }
 
 export function chainIdMatches(chainIdHex, expectedDecimal) {
-    if (!chainIdHex) return false;
-    const got = Number.parseInt(String(chainIdHex), 16);
+    if (chainIdHex === null || chainIdHex === undefined || chainIdHex === '') {
+        return false;
+    }
+    const raw = String(chainIdHex).trim();
+    const got = /^0x[0-9a-fA-F]+$/i.test(raw)
+        ? Number.parseInt(raw, 16)
+        : Number.parseInt(raw, 10);
     const expected = Number(expectedDecimal || 56);
-    return Number.isFinite(got) && got === expected;
+    return Number.isFinite(got) && got > 0 && got === expected;
 }
 
 export async function readIsRegistered({ walletAddress, engineContract, rpcUrl }) {
@@ -596,7 +663,7 @@ export async function readMemberRank({ walletAddress, engineContract, rpcUrl }) 
 function decodeStakeAt(hex) {
     const raw = (hex || '0x').replace(/^0x/, '');
     const words = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
         const slice = raw.slice(i * 64, (i + 1) * 64);
         words.push(BigInt(`0x${slice || '0'}`));
     }
@@ -609,6 +676,7 @@ function decodeStakeAt(hex) {
         lastRewardAt: Number(words[5]),
         dailyRateBps: Number(words[6]),
         withdrawn: words[7] === 1n,
+        rewardPriceUsdt: words[8] || 0n,
     };
 }
 
@@ -750,6 +818,21 @@ export function friendlyEngineError(error) {
         }
         if (/claim cooldown/i.test(message)) {
             return '24-hour claim cooldown active. Try again later.';
+        }
+        if (/use matureStake/i.test(message)) {
+            return 'Fixed plan: use Mature first. Flexible withdraw is not allowed.';
+        }
+        if (/flexible no emi/i.test(message)) {
+            return 'Flexible has no EMI. Use Withdraw / Exit.';
+        }
+        if (/emi early/i.test(message)) {
+            return 'This EMI is not due yet.';
+        }
+        if (/emi claimed/i.test(message)) {
+            return 'This EMI is already claimed.';
+        }
+        if (/no treasury/i.test(message)) {
+            return 'Treasury is not set on this engine yet.';
         }
         return 'Contract call reverted. Check amount, lock tier, or activation rules.';
     }
