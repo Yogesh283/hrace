@@ -462,7 +462,7 @@ export default function AuthenticatedLayout({
 
     const sidebar = (
         <div
-            className="relative flex h-full flex-col overflow-hidden border-r border-white/[0.06] px-2.5 py-3 shadow-[6px_0_32px_rgba(2,11,45,0.3)]"
+            className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-r border-white/[0.06] px-2.5 pb-2 pt-3 shadow-[6px_0_32px_rgba(2,11,45,0.3)]"
             style={{ backgroundColor: NAVY }}
         >
             <div
@@ -476,7 +476,7 @@ export default function AuthenticatedLayout({
                 aria-hidden
             />
 
-            <div className="relative mb-2.5 flex items-center justify-between gap-1.5 px-0.5">
+            <div className="relative mb-2.5 flex shrink-0 items-center justify-between gap-1.5 px-0.5">
                 <Link href={routeHref('dashboard')} className="flex min-w-0 items-center gap-2" onClick={() => setOpen(false)}>
                     <span className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/[0.08] ring-1 ring-white/10">
                         <img src={RACE_LOGO_SRC} alt="" className="h-6 w-6 object-contain" />
@@ -534,7 +534,10 @@ export default function AuthenticatedLayout({
                 })}
             </nav>
 
-            <div className="relative mt-auto shrink-0 space-y-2 border-t border-white/[0.08] pt-2.5">
+            <div
+                className="relative z-10 mt-auto shrink-0 border-t border-white/[0.08] pt-2.5"
+                style={{ backgroundColor: NAVY }}
+            >
                 <Link
                     href={routeHref('logout')}
                     method="post"
@@ -626,10 +629,10 @@ export default function AuthenticatedLayout({
             ) : null}
 
             <aside
-                className={`fixed bottom-0 left-0 z-[100] max-w-[min(100vw-1rem,${SIDEBAR_W}px)] transition-transform duration-300 ease-out lg:inset-y-0 lg:top-0 lg:max-w-none lg:translate-x-0 ${
+                className={`fixed left-0 z-[100] flex min-h-0 flex-col overflow-hidden max-w-[min(100vw-1rem,${SIDEBAR_W}px)] transition-transform duration-300 ease-out lg:inset-y-0 lg:top-0 lg:h-screen lg:max-w-none lg:translate-x-0 ${
                     showMobileFintechNav
-                        ? 'top-[calc(4.1rem+env(safe-area-inset-top,0px))]'
-                        : 'top-0'
+                        ? 'top-[calc(4.1rem+env(safe-area-inset-top,0px))] bottom-[calc(var(--rx-ds-bottomnav-h,5.65rem)+env(safe-area-inset-bottom,0px))]'
+                        : 'inset-y-0'
                 } ${
                     open
                         ? 'translate-x-0 shadow-[8px_0_40px_rgba(2,11,45,0.35)]'
@@ -678,6 +681,25 @@ export default function AuthenticatedLayout({
                         bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
                     }
                     @media (max-width: 1023px) {
+                        #member-sidebar {
+                            display: flex;
+                            flex-direction: column;
+                            min-height: 0;
+                            overflow: hidden;
+                        }
+                        #member-sidebar > div {
+                            flex: 1 1 0%;
+                            min-height: 0;
+                            display: flex;
+                            flex-direction: column;
+                            overflow: hidden;
+                        }
+                        #member-sidebar nav[aria-label="Member menu"] {
+                            flex: 1 1 0%;
+                            min-height: 0;
+                            overflow-y: auto;
+                            -webkit-overflow-scrolling: touch;
+                        }
                         #referral-fab {
                             left: 0.75rem;
                             right: 0.75rem;

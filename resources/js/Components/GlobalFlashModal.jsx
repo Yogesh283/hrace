@@ -40,17 +40,31 @@ export default function GlobalFlashModal() {
     const [title, setTitle] = useState('Notice');
     const [messages, setMessages] = useState([]);
     const dismissedKey = useRef('');
+    const autoCloseTimer = useRef(null);
+
+    const clearAutoClose = useCallback(() => {
+        if (autoCloseTimer.current != null) {
+            clearTimeout(autoCloseTimer.current);
+            autoCloseTimer.current = null;
+        }
+    }, []);
 
     const showPopup = useCallback((nextVariant, nextTitle, nextMessages) => {
         const key = `${nextVariant}:${JSON.stringify(nextMessages)}`;
         if (nextMessages.length === 0 || key === dismissedKey.current) {
             return;
         }
+        clearAutoClose();
         setVariant(nextVariant);
         setTitle(nextTitle);
         setMessages(nextMessages);
         setOpen(true);
-    }, []);
+        autoCloseTimer.current = setTimeout(() => {
+            dismissedKey.current = key;
+            setOpen(false);
+            autoCloseTimer.current = null;
+        }, 5000);
+    }, [clearAutoClose]);
 
     useEffect(() => {
         const onInertiaFinish = () => {
@@ -124,7 +138,10 @@ export default function GlobalFlashModal() {
         };
     }, [showPopup]);
 
+    useEffect(() => () => clearAutoClose(), [clearAutoClose]);
+
     const close = () => {
+        clearAutoClose();
         dismissedKey.current = `${variant}:${JSON.stringify(messages)}`;
         setOpen(false);
     };
@@ -147,9 +164,11 @@ export default function GlobalFlashModal() {
                 <h3 id="global-flash-title" className={`font-poppins text-lg font-semibold ${titleClass}`}>
                     {title}
                 </h3>
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-200">
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-200">
                     {messages.map((m, i) => (
-                        <li key={i}>{m}</li>
+                        <li key={i} className="break-words whitespace-normal">
+                            {m}
+                        </li>
                     ))}
                 </ul>
                 <button

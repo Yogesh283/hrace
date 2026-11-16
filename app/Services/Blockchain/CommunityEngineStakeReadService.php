@@ -23,7 +23,7 @@ class CommunityEngineStakeReadService
     /**
      * @return list<array<string, mixed>>
      */
-    public function stakesForUser(User $user, bool $enrichLiveState = true): array
+    public function stakesForUser(User $user, bool $enrichLiveState = false): array
     {
         if (! Schema::hasTable('blockchain_engine_stakes')) {
             return [];
@@ -39,7 +39,7 @@ class CommunityEngineStakeReadService
         $rows = BlockchainEngineStake::query()
             ->where(function (Builder $q) use ($user, $wallet) {
                 $q->where('user_id', $user->id)
-                    ->orWhereRaw('LOWER(wallet_address) = ?', [$wallet]);
+                    ->orWhere('wallet_address', $wallet);
             })
             ->orderBy('stake_index')
             ->limit(50)

@@ -37,7 +37,7 @@ export default function DirectTeam({ direct_count: directCount = 0, directTeam: 
                     variant="pdf"
                     icon="user-plus"
                     actions={
-                        <MemberHeroLink href={route('team')}>Total Team (L1–L10) →</MemberHeroLink>
+                        <MemberHeroLink href={route('team')}>Total Team (all levels) →</MemberHeroLink>
                     }
                 >
                     Members who joined directly under your referral code — no deeper levels on this page.
@@ -104,7 +104,7 @@ export default function DirectTeam({ direct_count: directCount = 0, directTeam: 
                     <Link href={route('team')} className="font-semibold text-[#2563EB] hover:underline">
                         View Total Team
                     </Link>
-                    {' '}for all levels 1–10 with counts per level.
+                    {' '}for the full unlimited team tree with counts per level.
                 </p>
             </MemberPageShell>
         </AuthenticatedLayout>

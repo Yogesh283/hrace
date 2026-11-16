@@ -1,7 +1,6 @@
 import MemberPageHero, { MemberHeroLink } from '@/Components/Member/MemberPageHero';
 import MemberPageShell from '@/Components/Member/MemberPageShell';
 import MemberTableScroll from '@/Components/Member/MemberTableScroll';
-import IncomeHoldWithdrawCard from '@/Components/IncomeHoldWithdrawCard';
 import PanelCard from '@/Components/PanelCard';
 import PrimaryButton from '@/Components/PrimaryButton';
 import Web3NetworkBanner from '@/Components/Web3NetworkBanner';
@@ -12,12 +11,16 @@ import { useWalletNetwork } from '@/hooks/useWalletNetwork';
 import {
     claimOnChainReward,
     purchaseOnChainParticipation,
+    stakeRaceFromWallet,
     withdrawOnChainStake,
 } from '@/lib/web3Engine';
+import { notifyError, notifySuccess } from '@/lib/appNotify';
 import { syncBlockchainTx } from '@/lib/web3Deposit';
 import { syncParticipationTx } from '@/lib/web3Participation';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { durationTiersForDays } from '@/lib/durationTiers';
+import { readErc20Balance, formatTokenWei, readRaceUsdtPrice } from '@/lib/web3PancakeSwap';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
 
 const fieldClass =
     'w-full rounded-xl border border-sky-500/30 bg-slate-900/60 px-4 py-3 text-sm font-medium text-slate-100 shadow-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/25';
@@ -30,6 +33,17 @@ function formatUsd(n) {
         currency: 'USD',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
+    }).format(v);
+}
+
+function formatRacePriceUsd(n) {
+    const v = Number(n);
+    if (Number.isNaN(v)) return '—';
+    return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 4,
     }).format(v);
 }
 
@@ -106,9 +120,23 @@ export default function Investment({
     } = useWalletNetwork({ expectedChainId: engineConfig?.chain_id ?? blockchain?.chain_id });
     const engineContract =
         engineConfig?.engine_contract || engineConfig?.contract || '';
+    const raceToken = engineConfig?.race_token || blockchain?.contracts?.race_token || '';
+    const pancakeRouter =
+        blockchain?.contracts?.pancake_router || engineConfig?.pancake_router || '';
+    const usdtContract =
+        engineConfig?.usdt_contract || blockchain?.contracts?.usdt || '';
     const [onChainBusy, setOnChainBusy] = useState(false);
-    const [onChainError, setOnChainError] = useState('');
-    const [onChainStatus, setOnChainStatus] = useState('');
+    /** usdt = Engine.participate; wallet_race = RaceWalletRaceStake.stakeRace */
+    const [stakeSource, setStakeSource] = useState('usdt');
+    const walletRaceStakeContract =
+        engineConfig?.wallet_race_stake_contract ||
+        blockchain?.contracts?.wallet_race_stake ||
+        '';
+    const [walletRaceBalance, setWalletRaceBalance] = useState(0n);
+    const [amountRace, setAmountRace] = useState('50');
+    const [livePancakePriceUsd, setLivePancakePriceUsd] = useState(() =>
+        Number(race_coin_price_usd) > 0 ? Number(race_coin_price_usd) : 0,
+    );
     const [unlockBusyId, setUnlockBusyId] = useState(null);
     const [compoundBusyId, setCompoundBusyId] = useState(null);
     const [claimBusy, setClaimBusy] = useState(false);
@@ -186,8 +214,22 @@ export default function Investment({
     const walletBal = Number(wallet_balance_usd ?? 0);
     const raceBal = Number(race_coin_balance ?? 0);
     const payWithRaceCoin = data.payment_method === 'race_coin';
-    const amountValid =
-        Number.isFinite(amountNum) && amountNum >= Number(builtForGrowth.min_amount_usd ?? 50);
+    const stakeWithWalletRace = onChain && stakeSource === 'wallet_race';
+    const raceAmountNum = Number(amountRace);
+    const pancakePrice =
+        livePancakePriceUsd > 0
+            ? livePancakePriceUsd
+            : Number(race_coin_price_usd) > 0
+              ? Number(race_coin_price_usd)
+              : 0;
+    /** Engine receives ~96% after 4% RACE transfer tax (unless fee-exempt). */
+    const raceReceivedEst = Number.isFinite(raceAmountNum) && raceAmountNum > 0 ? raceAmountNum * 0.96 : 0;
+    const racePrincipalUsdEst = pancakePrice > 0 ? raceReceivedEst * pancakePrice : 0;
+    const minRaceForOneUsd =
+        pancakePrice > 0 ? Math.ceil(((1 / pancakePrice) / 0.96) * 10000) / 10000 : null;
+    const amountValid = stakeWithWalletRace
+        ? Number.isFinite(raceAmountNum) && raceAmountNum > 0
+        : Number.isFinite(amountNum) && amountNum >= Number(builtForGrowth.min_amount_usd ?? 50);
     const hasFunds = payWithRaceCoin
         ? raceBal >= coinsRequired
         : wallet_balance_usd == null || walletBal >= amountNum;
@@ -196,41 +238,129 @@ export default function Investment({
             ? amountValid && durationDays >= 0 && selectedDuration && !onChainBusy
             : amountValid && durationDays >= 0 && selectedDuration && hasFunds && !processing;
 
+    useEffect(() => {
+        let cancelled = false;
+        async function loadWalletRaceAndPrice() {
+            const rpcUrl = engineConfig.rpc_url || blockchain?.rpc_url || '';
+            if (!onChain || !walletAddress || !raceToken) {
+                setWalletRaceBalance(0n);
+            } else {
+                try {
+                    const bal = await readErc20Balance({
+                        token: raceToken,
+                        wallet: walletAddress,
+                        rpcUrl,
+                    });
+                    if (!cancelled) {
+                        setWalletRaceBalance(bal ?? 0n);
+                    }
+                } catch {
+                    if (!cancelled) {
+                        setWalletRaceBalance(0n);
+                    }
+                }
+            }
+
+            if (!onChain || !pancakeRouter || !raceToken || !usdtContract) {
+                return;
+            }
+            try {
+                const usdtWei = await readRaceUsdtPrice({
+                    router: pancakeRouter,
+                    raceToken,
+                    usdtContract,
+                    rpcUrl,
+                });
+                if (!cancelled && usdtWei > 0n) {
+                    setLivePancakePriceUsd(Number(usdtWei) / 1e18);
+                }
+            } catch {
+                // keep server race_coin_price_usd fallback already in state
+            }
+        }
+        loadWalletRaceAndPrice();
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        onChain,
+        walletAddress,
+        raceToken,
+        pancakeRouter,
+        usdtContract,
+        engineConfig.rpc_url,
+        blockchain?.rpc_url,
+    ]);
+
     const submitOnChain = async (e) => {
         e.preventDefault();
-        setOnChainError('');
-        setOnChainStatus('');
 
         if (!walletAddress) {
-            setOnChainError('Connect your crypto wallet first.');
+            notifyError('Connect your crypto wallet first.', 'Stake');
             return;
         }
         if (!chainOk) {
             try {
                 await switchNetwork();
             } catch (err) {
-                setOnChainError(err?.message || 'Please switch your wallet to BNB Smart Chain (Chain ID 56).');
+                notifyError(
+                    err?.message || 'Please switch your wallet to BNB Smart Chain (Chain ID 56).',
+                    'Network',
+                );
                 return;
             }
         }
 
-        const tier = durationTierForDays(data.duration_days, durationTiers);
+        const tier = durationTiersForDays(data.duration_days, durationTiers);
         if (!tier) {
-            setOnChainError('Select a valid lock tier.');
+            notifyError('Select a valid lock tier.', 'Stake');
             return;
+        }
+
+        if (stakeSource === 'wallet_race') {
+            if (!walletRaceStakeContract) {
+                notifyError('Wallet RACE stake contract is not configured.', 'Stake');
+                return;
+            }
+            const needWei = (() => {
+                try {
+                    return BigInt(Math.floor(Number(amountRace) * 1e18));
+                } catch {
+                    return 0n;
+                }
+            })();
+            if (needWei > walletRaceBalance) {
+                notifyError(
+                    `Insufficient RACE. Wallet has ${formatTokenWei(walletRaceBalance, 18, 4)} RACE — enter that or less (not more).`,
+                    'Stake',
+                );
+                return;
+            }
         }
 
         setOnChainBusy(true);
         try {
-            const txHash = await purchaseOnChainParticipation({
-                walletAddress,
-                engineContract,
-                usdtContract: engineConfig.usdt_contract,
-                amountUsd: data.amount_usd,
-                lockSeconds: tier.seconds ?? 0,
-                sponsorWallet: on_chain_sponsor_wallet,
-                rpcUrl: engineConfig.rpc_url || blockchain?.rpc_url || '',
-            });
+            const txHash =
+                stakeSource === 'wallet_race'
+                    ? await stakeRaceFromWallet({
+                          walletAddress,
+                          stakeContract: walletRaceStakeContract,
+                          engineContract,
+                          raceToken,
+                          raceAmount: amountRace,
+                          lockSeconds: tier.seconds ?? 0,
+                          sponsorWallet: on_chain_sponsor_wallet,
+                          rpcUrl: engineConfig.rpc_url || blockchain?.rpc_url || '',
+                      })
+                    : await purchaseOnChainParticipation({
+                          walletAddress,
+                          engineContract,
+                          usdtContract: engineConfig.usdt_contract,
+                          amountUsd: data.amount_usd,
+                          lockSeconds: tier.seconds ?? 0,
+                          sponsorWallet: on_chain_sponsor_wallet,
+                          rpcUrl: engineConfig.rpc_url || blockchain?.rpc_url || '',
+                      });
             try {
                 await syncBlockchainTx({ txHash });
                 await syncParticipationTx({
@@ -240,10 +370,25 @@ export default function Investment({
             } catch (syncErr) {
                 console.warn('participate sync:', syncErr?.message || syncErr);
             }
-            setOnChainStatus('Stake opened. Claimed income stays in your income wallet — bring it to your wallet anytime.');
+            notifySuccess(
+                stakeSource === 'wallet_race'
+                    ? 'Wallet RACE staked. Claimed income stays in your income wallet — bring it to your wallet anytime.'
+                    : 'Stake opened. Claimed income stays in your income wallet — bring it to your wallet anytime.',
+                'Stake',
+            );
             router.reload({ only: ['investments', 'blockchainParticipations', 'communityEngineStakes', 'memberActivation', 'web3Engine'] });
         } catch (err) {
-            setOnChainError(err?.message || 'On-chain participation failed.');
+            const msg = err?.message || 'On-chain participation failed.';
+            if (/stakeRace|function selector|execution reverted/i.test(msg)) {
+                notifyError(
+                    walletRaceStakeContract
+                        ? `${msg} — Check Multisig setPayer + wallet RACE balance/allowance.`
+                        : `${msg} — Set RACE_WALLET_STAKE_CONTRACT in .env.`,
+                    'Stake',
+                );
+            } else {
+                notifyError(msg, 'Stake');
+            }
         } finally {
             setOnChainBusy(false);
         }
@@ -284,173 +429,132 @@ export default function Investment({
             <MemberPageShell contentClassName="space-y-5 sm:space-y-6">
                 <MemberPageHero
                     kicker="RACE Community Rewards"
-                    title="Staking Reward Rates"
+                    title="Staking"
                     variant="pdf"
                     icon="investment"
                     actions={
-                        <>
-                            <MemberHeroLink href={route('transactions', { income: 'community_referrals' })}>
-                                Community Referrals →
-                            </MemberHeroLink>
-                            <MemberHeroLink href={route('leadership')}>Leadership →</MemberHeroLink>
-                            <MemberHeroLink href={route('transactions', { income: 'participation_rewards' })}>
-                                ROI ledger →
-                            </MemberHeroLink>
-                        </>
+                        onChain ? null : (
+                            <>
+                                <MemberHeroLink href={route('transactions', { income: 'community_referrals' })}>
+                                    Community Referrals →
+                                </MemberHeroLink>
+                                <MemberHeroLink href={route('leadership')}>Leadership →</MemberHeroLink>
+                                <MemberHeroLink href={route('transactions', { income: 'participation_rewards' })}>
+                                    ROI ledger →
+                                </MemberHeroLink>
+                            </>
+                        )
                     }
                 >
-                    Stake from <strong className="text-white">$1</strong>. Amounts{' '}
-                    <strong className="text-white">$1–$49</strong> earn personal ROI and count in leadership team volume,
-                    but pay no upline referral reward. <strong className="text-white">$50+</strong> also activates full
-                    participation and referral eligibility.
+                    <>
+                        Stake from <strong className="text-white">$1</strong> — jitna marzi (temporary).
+                        {onChain ? ' Live PancakeSwap price.' : ''}
+                    </>
                 </MemberPageHero>
 
-                {!idActive ? (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                        Your full participation is not active yet. A $1–$49 stake earns its own ROI and leadership
-                        volume only. First <strong>$50+</strong> participation activates referral and full-program
-                        eligibility.
-                    </div>
-                ) : null}
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {!onChain ? (
-                        <>
-                            <PanelCard title="Accrued reward" icon="investment" className="border-fintech-line !p-4">
-                                <p className="mt-1 text-2xl font-bold text-fintech-ink">
-                                    {formatUsd(income_policy?.accrued_reward_usd ?? 0)}
-                                </p>
-                                <p className="mt-1 text-[11px] text-fintech-muted">
-                                    Earned on schedule — claim to virtual balance (no Admin Fee)
-                                </p>
-                            </PanelCard>
-                            <PanelCard title="Virtual Income Wallet" icon="wallet" className="border-fintech-line !p-4">
-                                <p className="mt-1 text-2xl font-bold text-fintech-ink">
-                                    {formatUsd(income_policy?.virtual_income_usd ?? wallet_balance_usd ?? 0)}
-                                </p>
-                                <p className="mt-1 text-[11px] text-fintech-muted">
-                                    Combined earned income — not on-chain RACE until compound/mint
-                                </p>
-                            </PanelCard>
-                            <PanelCard title="Claim income" icon="payout" className="border-fintech-line !p-4 sm:col-span-2 lg:col-span-1">
-                                <p className="mt-1 text-xs text-fintech-muted">
-                                    Separate from withdrawal. Claim does not send USDT outside the platform.
-                                </p>
-                                {income_policy?.next_claim_at ? (
-                                    <p className="mt-2 text-[11px] text-amber-800">
-                                        Next claim after{' '}
-                                        {new Date(income_policy.next_claim_at).toLocaleString(undefined, {
-                                            month: 'short',
-                                            day: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                        })}
-                                    </p>
-                                ) : null}
-                                <PrimaryButton
-                                    type="button"
-                                    className="mt-3 w-full justify-center"
-                                    disabled={!income_policy?.can_claim || claimBusy}
-                                    onClick={requestIncomeClaim}
-                                >
-                                    {claimBusy ? 'Claiming…' : 'Claim to virtual income'}
-                                </PrimaryButton>
-                            </PanelCard>
-                        </>
-                    ) : (
-                        <>
-                            {wallet_balance_usd != null ? (
-                                <PanelCard title="Wallet USDT" icon="wallet" className="border-fintech-line !p-4">
-                                    <p className="mt-1 text-2xl font-bold text-fintech-ink">
-                                        {formatUsd(wallet_balance_usd)}
-                                    </p>
-                                    <p className="mt-1 text-[11px] text-fintech-muted">On-chain / deposits</p>
-                                </PanelCard>
-                            ) : null}
-                            <PanelCard title="Race Coin" icon="swap" className="border-fintech-line !p-4">
-                                <p className="mt-1 text-2xl font-bold text-fintech-ink">
-                                    {formatRaceCoins(race_coin_balance)} RC
-                                </p>
-                                <p className="mt-1 text-[11px] text-fintech-muted">
-                                    @ {formatUsd(race_coin_price_usd)} per coin
-                                </p>
-                            </PanelCard>
-                        </>
-                    )}
-                </div>
-
                 {onChain ? (
-                    <div className="mx-auto w-full min-w-0 max-w-lg">
-                        <IncomeHoldWithdrawCard compact />
-                    </div>
-                ) : null}
-
-                {!onChain ? (
-                    <PanelCard title="Race Coin" icon="swap" className="border-fintech-line !p-4">
+                    <PanelCard title="Live Pancake price" icon="swap" className="border-fintech-line !p-4">
                         <p className="mt-1 text-2xl font-bold text-fintech-ink">
-                            {formatRaceCoins(race_coin_balance)} RC
+                            {pancakePrice > 0 ? formatRacePriceUsd(pancakePrice) : '—'}{' '}
+                            <span className="text-sm font-semibold text-fintech-muted">USDT / RACE</span>
                         </p>
                         <p className="mt-1 text-[11px] text-fintech-muted">
-                            @ {formatUsd(race_coin_price_usd)} per coin
+                            PancakeSwap RACE→USDT · Min stake ≈{' '}
+                            {minRaceForOneUsd != null ? `${minRaceForOneUsd} RACE` : '—'} (after 4% fee ≥ $1)
                         </p>
                     </PanelCard>
+                ) : (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <PanelCard title="Accrued reward" icon="investment" className="border-fintech-line !p-4">
+                            <p className="mt-1 text-2xl font-bold text-fintech-ink">
+                                {formatUsd(income_policy?.accrued_reward_usd ?? 0)}
+                            </p>
+                            <p className="mt-1 text-[11px] text-fintech-muted">
+                                Earned on schedule — claim to virtual balance (no Admin Fee)
+                            </p>
+                        </PanelCard>
+                        <PanelCard title="Virtual Income Wallet" icon="wallet" className="border-fintech-line !p-4">
+                            <p className="mt-1 text-2xl font-bold text-fintech-ink">
+                                {formatUsd(income_policy?.virtual_income_usd ?? wallet_balance_usd ?? 0)}
+                            </p>
+                            <p className="mt-1 text-[11px] text-fintech-muted">
+                                Combined earned income — not on-chain RACE until compound/mint
+                            </p>
+                        </PanelCard>
+                        <PanelCard title="Claim income" icon="payout" className="border-fintech-line !p-4 sm:col-span-2 lg:col-span-1">
+                            <p className="mt-1 text-xs text-fintech-muted">
+                                Separate from withdrawal. Claim does not send USDT outside the platform.
+                            </p>
+                            {income_policy?.next_claim_at ? (
+                                <p className="mt-2 text-[11px] text-amber-800">
+                                    Next claim after{' '}
+                                    {new Date(income_policy.next_claim_at).toLocaleString(undefined, {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                    })}
+                                </p>
+                            ) : null}
+                            <PrimaryButton
+                                type="button"
+                                className="mt-3 w-full justify-center"
+                                disabled={!income_policy?.can_claim || claimBusy}
+                                onClick={requestIncomeClaim}
+                            >
+                                {claimBusy ? 'Claiming…' : 'Claim to virtual income'}
+                            </PrimaryButton>
+                        </PanelCard>
+                        <PanelCard title="Race Coin" icon="swap" className="border-fintech-line !p-4 sm:col-span-2 lg:col-span-3">
+                            <p className="mt-1 text-2xl font-bold text-fintech-ink">
+                                {formatRaceCoins(race_coin_balance)} RC
+                            </p>
+                            <p className="mt-1 text-[11px] text-fintech-muted">
+                                @ {formatRacePriceUsd(race_coin_price_usd)} per coin
+                            </p>
+                        </PanelCard>
+                    </div>
+                )}
+
+                {!onChain ? (
+                    <RacePdfPanel>
+                        <RacePdfSectionHeader title="Daily reward by lock duration" />
+                        <MemberTableScroll>
+                            <table className="w-full min-w-[20rem] text-left text-xs sm:min-w-0 sm:text-sm">
+                                <thead>
+                                    <tr className="border-b border-slate-200 bg-slate-100/90 text-fintech-muted">
+                                        <th className="px-3 py-2.5 font-semibold sm:px-4">Lock duration</th>
+                                        <th className="px-3 py-2.5 font-semibold sm:px-4">Daily reward</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {durationTiers.map((row, i) => (
+                                        <tr
+                                            key={row.days}
+                                            className={`border-b border-slate-100/80 ${
+                                                i % 2 === 0 ? 'bg-sky-50/40' : 'bg-white'
+                                            }`}
+                                        >
+                                            <td className="px-3 py-3 font-semibold text-fintech-ink sm:px-4">
+                                                {row.label ?? `${row.days} days`}
+                                            </td>
+                                            <td className="px-3 py-3 font-semibold text-[#2563EB] sm:px-4">
+                                                {Number(row.daily_roi_percent).toFixed(2)}% daily
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </MemberTableScroll>
+                    </RacePdfPanel>
                 ) : null}
 
-                <RacePdfPanel>
-                    <RacePdfSectionHeader title="Daily reward by lock duration" />
-                    <MemberTableScroll>
-                        <table className="w-full min-w-[20rem] text-left text-xs sm:min-w-0 sm:text-sm">
-                            <thead>
-                                <tr className="border-b border-slate-200 bg-slate-100/90 text-fintech-muted">
-                                    <th className="px-3 py-2.5 font-semibold sm:px-4">Lock duration</th>
-                                    <th className="px-3 py-2.5 font-semibold sm:px-4">Daily reward</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {durationTiers.map((row, i) => (
-                                    <tr
-                                        key={row.days}
-                                        className={`border-b border-slate-100/80 ${
-                                            i % 2 === 0 ? 'bg-sky-50/40' : 'bg-white'
-                                        }`}
-                                    >
-                                        <td className="px-3 py-3 font-semibold text-fintech-ink sm:px-4">
-                                            {row.label ?? `${row.days} days`}
-                                        </td>
-                                        <td className="px-3 py-3 font-semibold text-[#2563EB] sm:px-4">
-                                            {Number(row.daily_roi_percent).toFixed(2)}% daily
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </MemberTableScroll>
-                </RacePdfPanel>
-
-                <PanelCard title={onChain ? 'On-chain participation' : 'Open participation'} icon="investment" className="border-fintech-line">
+                <PanelCard title={onChain ? 'Stake' : 'Open participation'} icon="investment" className="border-fintech-line">
+                    {!onChain ? (
                     <p className="mb-5 text-sm text-fintech-muted">
-                        {onChain ? (
-                            <>
-                                Pay <strong>USDT from any crypto wallet</strong>.{' '}
-                                <span className="font-mono text-sky-700">RaceCommunityEngine</span> stakes on-chain.
-                                Flexible is <strong>0.35% daily</strong>, available after on-chain{' '}
-                                <span className="font-mono">RaceICO.icoCompleted</span>.
-                                Claimed income stays in hold. Open{' '}
-                                <Link href={route('withdrawal')} className="font-semibold text-sky-700 underline">
-                                    Income wallet
-                                </Link>{' '}
-                                and tap Bring to my wallet.
-                            </>
-                        ) : (
-                            <>
-                                Enter {formatUsd(builtForGrowth.min_amount_usd)} or more. Below{' '}
-                                {formatUsd(builtForGrowth.qualifying_amount_usd ?? '50')} earns personal ROI and counts
-                                toward leadership rank/team volume, but pays no referral reward.{' '}
-                                {formatUsd(builtForGrowth.qualifying_amount_usd ?? '50')}+ also activates participation
-                                and referral eligibility.
-                            </>
-                        )}
+                            Enter {formatUsd(builtForGrowth.min_amount_usd)} or more — amount open (temporary).
                     </p>
+                    ) : null}
 
                     {onChain ? (
                         <div className="mb-4 space-y-3">
@@ -464,9 +568,63 @@ export default function Investment({
                                 showWhenConnected={Boolean(walletAddress)}
                             />
                             <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-950">
-                                Contract: {onChainParticipation.participation_contract || onChainParticipation.engine_contract || '—'} · Min{' '}
-                                {formatUsd(onChainParticipation.min_usdt ?? '1')} USDT earns ROI · Qualify{' '}
-                                {formatUsd(onChainParticipation.qualifying_usdt ?? '50')}+ for referral and full staking.
+                                Min {formatUsd(onChainParticipation.min_usdt ?? '1')} USDT · Live Pancake{' '}
+                                {pancakePrice > 0 ? formatRacePriceUsd(pancakePrice) : '—'} / RACE · Choose USDT or
+                                wallet RACE below, then lock period.
+                            </div>
+                            <div>
+                                <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-fintech-muted">
+                                    Stake with
+                                </p>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <label
+                                        className={`cursor-pointer rounded-xl border px-4 py-3 transition ${
+                                            stakeSource === 'usdt'
+                                                ? 'border-[#2563EB] bg-sky-50 ring-2 ring-[#2563EB]/20'
+                                                : 'border-slate-200 bg-white hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="stake_source"
+                                            value="usdt"
+                                            className="sr-only"
+                                            checked={stakeSource === 'usdt'}
+                                            onChange={() => setStakeSource('usdt')}
+                                        />
+                                        <p className="text-sm font-bold text-fintech-ink">Wallet USDT</p>
+                                        <p className="mt-1 text-xs text-fintech-muted">
+                                            Swap USDT → RACE on Pancake inside Engine, then stake
+                                        </p>
+                                    </label>
+                                    <label
+                                        className={`cursor-pointer rounded-xl border px-4 py-3 transition ${
+                                            !walletRaceStakeContract
+                                                ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
+                                                : stakeSource === 'wallet_race'
+                                                  ? 'border-violet-500 bg-violet-50 ring-2 ring-violet-300/40'
+                                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <input
+                                            type="radio"
+                                            name="stake_source"
+                                            value="wallet_race"
+                                            className="sr-only"
+                                            disabled={!walletRaceStakeContract}
+                                            checked={stakeSource === 'wallet_race'}
+                                            onChange={() => {
+                                                if (walletRaceStakeContract) setStakeSource('wallet_race');
+                                            }}
+                                        />
+                                        <p className="text-sm font-bold text-fintech-ink">Wallet RACE</p>
+                                        <p className="mt-1 text-xs text-fintech-muted">
+                                            {walletRaceStakeContract
+                                                ? `Use BEP-20 RACE in your wallet · ${formatTokenWei(walletRaceBalance, 18, 4)} RACE`
+                                                : 'Contract not configured (RACE_WALLET_STAKE_CONTRACT)'}
+                                        </p>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     ) : null}
@@ -525,22 +683,60 @@ export default function Investment({
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div>
-                                <label
-                                    htmlFor="amount_usd"
-                                    className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-fintech-muted"
-                                >
-                                    Amount (USD)
-                                </label>
-                                <input
-                                    id="amount_usd"
-                                    type="number"
-                                    min={builtForGrowth.min_amount_usd}
-                                    max={builtForGrowth.max_amount_usd}
-                                    step="0.01"
-                                    value={data.amount_usd}
-                                    onChange={(e) => setData('amount_usd', e.target.value)}
-                                    className={fieldClass}
-                                />
+                                {stakeWithWalletRace ? (
+                                    <>
+                                        <label
+                                            htmlFor="amount_race"
+                                            className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-fintech-muted"
+                                        >
+                                            Amount (RACE)
+                                        </label>
+                                        <input
+                                            id="amount_race"
+                                            type="number"
+                                            min="0"
+                                            step="0.0001"
+                                            value={amountRace}
+                                            onChange={(e) => setAmountRace(e.target.value)}
+                                            className={fieldClass}
+                                        />
+                                        <p className="mt-1 text-xs text-fintech-muted">
+                                            Wallet: {formatTokenWei(walletRaceBalance, 18, 4)} RACE · Est. principal ≈{' '}
+                                            {formatUsd(racePrincipalUsdEst)} after 4% fee (min{' '}
+                                            {formatUsd(onChainParticipation.min_usdt ?? '1')}).
+                                        </p>
+                                        {walletRaceBalance > 0n ? (
+                                            <button
+                                                type="button"
+                                                className="mt-2 text-xs font-semibold text-sky-700 underline"
+                                                onClick={() =>
+                                                    setAmountRace(formatTokenWei(walletRaceBalance, 18, 4))
+                                                }
+                                            >
+                                                Use max ({formatTokenWei(walletRaceBalance, 18, 4)} RACE)
+                                            </button>
+                                        ) : null}
+                                    </>
+                                ) : (
+                                    <>
+                                        <label
+                                            htmlFor="amount_usd"
+                                            className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-fintech-muted"
+                                        >
+                                            Amount (USD)
+                                        </label>
+                                        <input
+                                            id="amount_usd"
+                                            type="number"
+                                            min={builtForGrowth.min_amount_usd}
+                                            max={builtForGrowth.max_amount_usd}
+                                            step="0.01"
+                                            value={data.amount_usd}
+                                            onChange={(e) => setData('amount_usd', e.target.value)}
+                                            className={fieldClass}
+                                        />
+                                    </>
+                                )}
                             </div>
                             <div>
                                 <label
@@ -567,8 +763,12 @@ export default function Investment({
                         {amountValid && selectedDuration ? (
                             <div className="space-y-2">
                                 <p className="rounded-xl border-2 border-emerald-400 bg-emerald-100 px-4 py-3 text-sm font-medium text-emerald-950 shadow-sm">
-                                    <strong>{formatUsd(data.amount_usd)}</strong> ·{' '}
-                                    <strong>{Number(selectedDuration.daily_roi_percent).toFixed(2)}%</strong> daily
+                                    <strong>
+                                        {stakeWithWalletRace
+                                            ? `${amountRace} RACE`
+                                            : formatUsd(data.amount_usd)}
+                                    </strong>{' '}
+                                    · <strong>{Number(selectedDuration.daily_roi_percent).toFixed(2)}%</strong> daily
                                     {durationDays === 0 ? (
                                         <>
                                             {' '}
@@ -578,13 +778,24 @@ export default function Investment({
                                         <>
                                             {' '}
                                             · <strong>{durationDays}</strong> days lock
-                                            {estTotalRoi != null ? (
+                                            {!stakeWithWalletRace && estTotalRoi != null ? (
                                                 <> (~{formatUsd(estTotalRoi)} est. total ROI)</>
                                             ) : null}
                                         </>
                                     )}
                                 </p>
-                                {payWithRaceCoin ? (
+                                {stakeWithWalletRace ? (
+                                    <p className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
+                                        Payment: <strong>{amountRace} RACE</strong> · Pancake{' '}
+                                        <strong>{pancakePrice > 0 ? formatRacePriceUsd(pancakePrice) : '—'}</strong> ·
+                                        Est. after fee ≈ <strong>{formatUsd(racePrincipalUsdEst)}</strong>
+                                        {racePrincipalUsdEst > 0 && racePrincipalUsdEst < 1 ? (
+                                            <span className="mt-1 block text-amber-800">
+                                                Below $1 minimum — add more RACE or check live price.
+                                            </span>
+                                        ) : null}
+                                    </p>
+                                ) : payWithRaceCoin ? (
                                     <p className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900">
                                         Payment: <strong>{formatRaceCoins(coinsRequired)} Race Coin</strong>
                                     </p>
@@ -596,7 +807,9 @@ export default function Investment({
                             </div>
                         ) : (
                             <p className="text-sm text-amber-800">
-                                Minimum {formatUsd(builtForGrowth.min_amount_usd)}. Choose a valid lock tier.
+                                {stakeWithWalletRace
+                                    ? 'Enter a RACE amount greater than zero and choose a valid lock tier.'
+                                    : `Minimum ${formatUsd(builtForGrowth.min_amount_usd)}. Choose a valid lock tier.`}
                             </p>
                         )}
 
@@ -616,7 +829,9 @@ export default function Investment({
                             {onChain
                                 ? onChainBusy
                                     ? 'Confirm in wallet…'
-                                    : `Stake ${formatUsd(data.amount_usd)} USDT on-chain`
+                                    : stakeWithWalletRace
+                                      ? `Stake ${amountRace} RACE on-chain`
+                                      : `Stake ${formatUsd(data.amount_usd)} USDT on-chain`
                                 : processing
                                   ? 'Saving…'
                                   : payWithRaceCoin
@@ -624,19 +839,6 @@ export default function Investment({
                                     : 'Confirm participation'}
                         </button>
 
-                        {onChainError ? (
-                            <p className="text-sm font-medium text-red-600">{onChainError}</p>
-                        ) : null}
-                        {onChainStatus ? (
-                            <p className="text-sm font-medium text-emerald-700">{onChainStatus}</p>
-                        ) : null}
-
-                        {onChain ? (
-                            <p className="text-[11px] leading-relaxed text-fintech-muted">
-                                Daily RACE rewards are calculated and transferred by RaceParticipation.sol using live
-                                PancakeSwap price. Claim or receive via distributeReward — no off-chain ROI.
-                            </p>
-                        ) : null}
                     </form>
                 </PanelCard>
 

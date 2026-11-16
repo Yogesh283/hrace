@@ -75,12 +75,63 @@ export const RECOMMENDED_WALLETS = [
 const announced = new Map();
 let selectedProvider = null;
 let listening = false;
+const WALLET_SESSION_KEY = 'race.wallet.session';
 
 function isLikelyMobile() {
     if (typeof navigator === 'undefined') {
         return false;
     }
     return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+export function discoverTrustProvider() {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+    const trustRoot = window.trustwallet;
+    if (trustRoot?.ethereum?.request) {
+        return trustRoot.ethereum;
+    }
+    if (trustRoot?.request) {
+        return trustRoot;
+    }
+    const eth = window.ethereum;
+    if (eth?.isTrust || eth?.isTrustWallet) {
+        return eth;
+    }
+    const bundled = Array.isArray(eth?.providers) ? eth.providers : [];
+    const flagged = bundled.find((provider) => provider?.isTrust || provider?.isTrustWallet);
+    if (flagged) {
+        return flagged;
+    }
+    if (eth?.request && /TrustWallet|Trust\/|trustwallet/i.test(navigator.userAgent || '')) {
+        return eth;
+    }
+    return null;
+}
+
+export function isTrustWalletEnvironment() {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+    if (discoverTrustProvider()) {
+        return true;
+    }
+    return /TrustWallet|Trust\/|trustwallet/i.test(navigator.userAgent || '');
+}
+
+export function describeWalletProvider(provider = null) {
+    const current = provider || selectedProvider || discoverTrustProvider() || (typeof window !== 'undefined' ? window.ethereum : null);
+    if (!current) {
+        return { name: 'None', hasEthereum: typeof window !== 'undefined' && Boolean(window.ethereum), hasTrustWallet: typeof window !== 'undefined' && Boolean(window.trustwallet) };
+    }
+    return {
+        name: guessWalletName(current),
+        hasEthereum: typeof window !== 'undefined' && Boolean(window.ethereum),
+        hasTrustWallet: typeof window !== 'undefined' && Boolean(window.trustwallet),
+        isTrust: Boolean(current.isTrust || current.isTrustWallet),
+        isMetaMask: Boolean(current.isMetaMask),
+    };
 }
 
 function guessWalletName(provider, index = 0) {
@@ -154,22 +205,44 @@ export function listInjectedWallets() {
     listenForInjectedWallets();
     window.dispatchEvent(new Event('eip6963:requestProvider'));
 
-    const fromAnnounce = Array.from(announced.values());
-    if (fromAnnounce.length > 0) {
-        return fromAnnounce;
+    const seen = new Set();
+    const rows = [];
+    const add = (wallet) => {
+        const provider = wallet?.provider;
+        if (!provider?.request || seen.has(provider)) {
+            return;
+        }
+        seen.add(provider);
+        rows.push(wallet);
+    };
+
+    Array.from(announced.values()).forEach(add);
+
+    const trust = discoverTrustProvider();
+    if (trust) {
+        add({
+            id: 'trust-injected',
+            name: 'Trust Wallet',
+            icon: '',
+            rdns: 'com.trustwallet.app',
+            provider: trust,
+        });
     }
 
     const eth = window.ethereum;
-    if (!eth) {
-        return [];
+    if (eth) {
+        const providers = Array.isArray(eth.providers) && eth.providers.length > 0 ? eth.providers : [eth];
+        providers.forEach((provider, index) => {
+            add({
+                id: `legacy-${index}`,
+                name: guessWalletName(provider, index),
+                icon: '',
+                provider,
+            });
+        });
     }
-    const providers = Array.isArray(eth.providers) && eth.providers.length > 0 ? eth.providers : [eth];
-    return providers.map((provider, index) => ({
-        id: `legacy-${index}`,
-        name: guessWalletName(provider, index),
-        icon: '',
-        provider,
-    }));
+
+    return rows;
 }
 
 export function matchRecommendedWallet(recommended, detected) {
@@ -232,11 +305,12 @@ export function openWalletDeepLink(wallet) {
     const href = window.location.href;
     const encoded = encodeURIComponent(href);
     const hostPath = `${window.location.host}${window.location.pathname}${window.location.search}${window.location.hash}`;
+    const chainId = 56;
     const deepLinks = {
-        metamask: `https://metamask.app.link/dapp/${hostPath}`,
+        metamask: `https://metamask.app.link/dapp/${hostPath}?chainId=${chainId}`,
         trust: `https://link.trustwallet.com/open_url?coin_id=20000714&url=${encoded}`,
-        tokenpocket: `tpdapp://open?params=${encodeURIComponent(JSON.stringify({ url: href, chain: 'BSC' }))}`,
-        okx: `okx://wallet/dapp/details?dappUrl=${encoded}`,
+        tokenpocket: `tpdapp://open?params=${encodeURIComponent(JSON.stringify({ url: href, chain: 'BSC', chainId }))}`,
+        okx: `okx://wallet/dapp/details?dappUrl=${encoded}&chainId=${chainId}`,
         coinbase: `https://go.cb-w.com/dapp?cb_url=${encoded}`,
         bitget: `https://bkcode.vip?action=dapp&url=${encoded}`,
         binance: `bnc://app.binance.com/cedefi/dapp?url=${encoded}`,
@@ -260,20 +334,176 @@ export function openWalletDeepLink(wallet) {
     window.open(target, '_blank', 'noopener,noreferrer');
 }
 
-export function selectWalletProvider(provider) {
+export function readWalletSession() {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+    try {
+        const raw = window.localStorage.getItem(WALLET_SESSION_KEY);
+        if (!raw) {
+            return null;
+        }
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+export function hasWalletSession() {
+    return Boolean(selectedProvider || readWalletSession());
+}
+
+export function rememberBoundAddress(address) {
+    const saved = readWalletSession();
+    if (!saved) {
+        return;
+    }
+    rememberWalletChoice(saved, address);
+}
+
+export function rememberWalletChoice(wallet, address = '') {
+    if (typeof window === 'undefined' || !wallet) {
+        return;
+    }
+    const prev = readWalletSession() || {};
+    const next = {
+        rdns: wallet.rdns || prev.rdns || '',
+        uuid: wallet.id || wallet.uuid || prev.uuid || '',
+        name: wallet.name || prev.name || '',
+        address: String(address || prev.address || '').toLowerCase(),
+    };
+    try {
+        window.localStorage.setItem(WALLET_SESSION_KEY, JSON.stringify(next));
+    } catch {
+        // Ignore quota / private-mode failures.
+    }
+}
+
+export function clearWalletSession() {
+    selectedProvider = null;
+    if (typeof window === 'undefined') {
+        return;
+    }
+    try {
+        window.localStorage.removeItem(WALLET_SESSION_KEY);
+    } catch {
+        // ignore
+    }
+}
+
+function matchPersistedWallet() {
+    const saved = readWalletSession();
+    if (!saved) {
+        return null;
+    }
+    const wallets = listInjectedWallets();
+    return (
+        wallets.find((wallet) => {
+            if (saved.rdns && wallet.rdns && saved.rdns === wallet.rdns) {
+                return true;
+            }
+            if (saved.uuid && wallet.id && saved.uuid === wallet.id) {
+                return true;
+            }
+            if (
+                saved.name &&
+                wallet.name &&
+                String(saved.name).toLowerCase() === String(wallet.name).toLowerCase()
+            ) {
+                return true;
+            }
+            return false;
+        }) || null
+    );
+}
+
+export function restorePersistedProvider() {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            selectedProvider = trust;
+            return selectedProvider;
+        }
+    }
+    if (selectedProvider?.request) {
+        return selectedProvider;
+    }
+    selectedProvider = null;
+    const match = matchPersistedWallet();
+    if (match?.provider) {
+        selectedProvider = match.provider;
+        return selectedProvider;
+    }
+    return null;
+}
+
+export async function findWalletByAddress(address) {
+    const target = String(address || '').toLowerCase();
+    if (!target) {
+        return null;
+    }
+    const wallets = listInjectedWallets();
+    for (const wallet of wallets) {
+        if (!wallet?.provider?.request) {
+            continue;
+        }
+        try {
+            const accounts = await Promise.race([
+                wallet.provider.request({ method: 'eth_accounts' }),
+                new Promise((_, reject) => {
+                    window.setTimeout(() => reject(new Error('wallet-accounts-timeout')), 2500);
+                }),
+            ]);
+            if ((accounts || []).some((item) => String(item).toLowerCase() === target)) {
+                return wallet;
+            }
+        } catch {
+            // Provider not ready, locked, or hung — try the next one.
+        }
+    }
+    return null;
+}
+
+export function selectWalletProvider(provider, wallet = null) {
     selectedProvider = provider || null;
+    if (provider && wallet) {
+        rememberWalletChoice(wallet);
+    }
 }
 
 export function getWalletProvider() {
     if (typeof window === 'undefined') {
         return null;
     }
-    if (selectedProvider) {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            if (selectedProvider !== trust) {
+                selectWalletProvider(trust, {
+                    id: 'trust-injected',
+                    name: 'Trust Wallet',
+                    rdns: 'com.trustwallet.app',
+                });
+            }
+            return trust;
+        }
+    }
+    if (selectedProvider?.request) {
         return selectedProvider;
     }
+    selectedProvider = null;
+    const restored = restorePersistedProvider();
+    if (restored?.request) {
+        return restored;
+    }
     const wallets = listInjectedWallets();
-    if (wallets.length === 1) {
-        return wallets[0].provider;
+    const preferred =
+        wallets.find((wallet) => wallet.provider?.isTrust || wallet.provider?.isTrustWallet || wallet.name === 'Trust Wallet')
+        || (wallets.length === 1 ? wallets[0] : null);
+    if (preferred?.provider) {
+        selectWalletProvider(preferred.provider, preferred);
+        return preferred.provider;
     }
     if (wallets.length === 0) {
         return window.ethereum || null;
@@ -297,24 +527,103 @@ export async function walletRequest(args) {
     return requireWalletProvider().request(args);
 }
 
-export function pickInjectedWallet() {
-    if (selectedProvider) {
-        return Promise.resolve({
+/** Ask the connected wallet to list RACE with the official square logo. */
+export async function watchRaceToken({
+    address,
+    symbol = 'RACE',
+    decimals = 18,
+    image,
+} = {}) {
+    const token = String(address || '').trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(token)) {
+        throw new Error('RACE token address is not configured.');
+    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const logo =
+        image ||
+        (origin ? `${origin}/images/token/race-256.png` : '/images/token/race-256.png');
+
+    const added = await walletRequest({
+        method: 'wallet_watchAsset',
+        params: {
+            type: 'ERC20',
+            options: {
+                address: token,
+                symbol,
+                decimals,
+                image: logo,
+            },
+        },
+    });
+
+    if (added === false) {
+        throw new Error('Wallet did not add RACE. Confirm the prompt in your wallet.');
+    }
+
+    return true;
+}
+
+export async function resolveSessionWallet({ boundAddress = '', allowPicker = true } = {}) {
+    if (isTrustWalletEnvironment()) {
+        const trust = discoverTrustProvider();
+        if (trust) {
+            selectWalletProvider(trust, {
+                id: 'trust-injected',
+                name: 'Trust Wallet',
+                rdns: 'com.trustwallet.app',
+            });
+            return {
+                id: 'trust-injected',
+                name: 'Trust Wallet',
+                icon: '',
+                rdns: 'com.trustwallet.app',
+                provider: trust,
+                ready: true,
+            };
+        }
+    }
+
+    if (selectedProvider?.request) {
+        return {
             id: 'selected',
             name: 'Connected wallet',
             icon: '',
             provider: selectedProvider,
             ready: true,
-        });
+        };
     }
 
-    if (typeof window === 'undefined') {
-        const wallets = listInjectedWallets();
-        if (wallets[0]) {
-            selectWalletProvider(wallets[0].provider);
-            return Promise.resolve(wallets[0]);
+    restorePersistedProvider();
+    if (selectedProvider) {
+        return {
+            id: 'persisted',
+            name: readWalletSession()?.name || 'Connected wallet',
+            icon: '',
+            provider: selectedProvider,
+            ready: true,
+        };
+    }
+
+    if (boundAddress) {
+        const byAddress = await findWalletByAddress(boundAddress);
+        if (byAddress?.provider) {
+            selectWalletProvider(byAddress.provider, byAddress);
+            rememberWalletChoice(byAddress, boundAddress);
+            return { ...byAddress, ready: true };
         }
-        return Promise.resolve(null);
+    }
+
+    const wallets = listInjectedWallets();
+    if (wallets.length === 1) {
+        selectWalletProvider(wallets[0].provider, wallets[0]);
+        if (boundAddress) {
+            rememberWalletChoice(wallets[0], boundAddress);
+        }
+        return { ...wallets[0], ready: true };
+    }
+
+    if (!allowPicker || typeof window === 'undefined') {
+        return null;
     }
 
     return new Promise((resolve) => {
@@ -324,4 +633,24 @@ export function pickInjectedWallet() {
             }),
         );
     });
+}
+
+/**
+ * First login/register may open the picker. After a wallet is bound / saved,
+ * reuse that provider — never ask the member to choose again until logout.
+ */
+export function pickInjectedWallet(options = {}) {
+    const boundAddress = options.boundAddress || readWalletSession()?.address || '';
+    const allowPicker = options.allowPicker === true || (!boundAddress && !hasWalletSession() && options.allowPicker !== false);
+
+    if (typeof window === 'undefined') {
+        const wallets = listInjectedWallets();
+        if (wallets[0]) {
+            selectWalletProvider(wallets[0].provider, wallets[0]);
+            return Promise.resolve(wallets[0]);
+        }
+        return Promise.resolve(null);
+    }
+
+    return resolveSessionWallet({ boundAddress, allowPicker });
 }

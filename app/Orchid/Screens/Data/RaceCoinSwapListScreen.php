@@ -6,6 +6,7 @@ namespace App\Orchid\Screens\Data;
 
 use App\Models\RaceCoinSwap;
 use App\Models\UserWallet;
+use App\Services\Income\RaceCoinService;
 use App\Orchid\Concerns\HasAdminListSearch;
 use App\Orchid\Concerns\RequiresPlatformDataPermission;
 use App\Orchid\Layouts\Data\AdminListSearchLayout;
@@ -46,7 +47,9 @@ class RaceCoinSwapListScreen extends Screen
 
     public function description(): ?string
     {
-        return __('USDT → Race Coin swaps and ID activations. Price: $'.number_format((float) config('race_coin.price_usd', 0.10), 2).' per coin.');
+        $price = app(RaceCoinService::class)->formattedPriceUsd(4);
+
+        return __('USDT → Race Coin swaps and ID activations. Price: $'.$price.' per coin (Pancake live when available).');
     }
 
     /**

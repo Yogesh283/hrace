@@ -23,14 +23,18 @@ contract RaceRewardVault is Ownable, ReentrancyGuard, IRaceRewardVault {
     address public incomeHold;
     bool public wiringLocked;
 
+    /// @notice Extra authorized payers (RaceWalletRaceStake, etc.) alongside `engine`.
+    mapping(address => bool) public isPayer;
+
     event EngineUpdated(address indexed engine);
     event IncomeHoldUpdated(address indexed incomeHold);
     event WiringLocked(address indexed engine, address indexed incomeHold);
+    event PayerUpdated(address indexed payer, bool allowed);
     event Funded(address indexed from, uint256 amount);
     event Paid(address indexed to, uint256 amount);
 
-    modifier onlyEngine() {
-        require(msg.sender == engine, "RaceRewardVault: not engine");
+    modifier onlyPayer() {
+        require(msg.sender == engine || isPayer[msg.sender], "RaceRewardVault: not payer");
         _;
     }
 
@@ -43,7 +47,17 @@ contract RaceRewardVault is Ownable, ReentrancyGuard, IRaceRewardVault {
         require(!wiringLocked, "RaceRewardVault: wiring locked");
         require(engine_ != address(0), "RaceRewardVault: zero engine");
         engine = engine_;
+        isPayer[engine_] = true;
         emit EngineUpdated(engine_);
+        emit PayerUpdated(engine_, true);
+    }
+
+    /// @notice Authorize/revoke an additional income payer (Wallet RACE stake contract, etc.).
+    function setPayer(address payer, bool allowed) external onlyOwner {
+        require(!wiringLocked, "RaceRewardVault: wiring locked");
+        require(payer != address(0), "RaceRewardVault: zero payer");
+        isPayer[payer] = allowed;
+        emit PayerUpdated(payer, allowed);
     }
 
     function setIncomeHold(address incomeHold_) external onlyOwner {
@@ -54,6 +68,7 @@ contract RaceRewardVault is Ownable, ReentrancyGuard, IRaceRewardVault {
     }
 
     /// @notice Permanently freeze engine + incomeHold wiring.
+    /// @dev `isPayer` can still be updated until this is called; after lock, setPayer also blocked.
     function lockWiring() external onlyOwner {
         require(engine != address(0), "RaceRewardVault: no engine");
         require(!wiringLocked, "RaceRewardVault: already locked");
@@ -73,13 +88,13 @@ contract RaceRewardVault is Ownable, ReentrancyGuard, IRaceRewardVault {
     }
 
     /**
-     * @notice Engine-only mint. User income → IncomeHold. Engine `to` (compound) still mints to Engine.
+     * @notice Authorized payer mint. User income → IncomeHold. Engine `to` (compound) still mints to Engine.
      */
-    function pay(address to, uint256 raceAmount) external onlyEngine nonReentrant {
+    function pay(address to, uint256 raceAmount) external onlyPayer nonReentrant {
         require(to != address(0), "RaceRewardVault: zero recipient");
         require(raceAmount > 0, "RaceRewardVault: zero pay");
 
-        if (incomeHold != address(0) && to != engine) {
+        if (incomeHold != address(0) && to != engine && !isPayer[to]) {
             IRaceMintable(address(raceToken)).mint(incomeHold, raceAmount);
             IRaceIncomeHold(incomeHold).credit(to, raceAmount);
         } else {

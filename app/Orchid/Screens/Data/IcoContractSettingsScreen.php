@@ -31,6 +31,32 @@ class IcoContractSettingsScreen extends Screen
 
         $status = $this->onChainStatus($raceToken, $icoContract, $adminWallet, $raceIco);
 
+        $multisig = (string) config('blockchain.contracts.multisig', '');
+        if ($multisig === '') {
+            $multisig = '0x81BffBF2C2a258E662e9df0a0f6e34150b33F3df';
+        }
+
+        $engine = strtolower(trim((string) config('blockchain.contracts.community_engine', '')));
+        $walletRaceStake = strtolower(trim((string) config('blockchain.contracts.wallet_race_stake', '')));
+        $rewardVault = strtolower(trim((string) config('blockchain.contracts.reward_vault', '')));
+        $claimEnabled = '—';
+        $walletClaimEnabled = '—';
+        if (($status['rpc_ok'] ?? false)) {
+            try {
+                $rpc = BscJsonRpcClient::fromConfig();
+                if ($engine !== '') {
+                    $claimHex = $rpc->call('eth_call', [['to' => $engine, 'data' => '0x2866ed21'], 'latest']);
+                    $claimEnabled = (is_string($claimHex) && $this->hexToDec($claimHex) !== '0') ? 'yes' : 'no';
+                }
+                if ($walletRaceStake !== '') {
+                    $wClaimHex = $rpc->call('eth_call', [['to' => $walletRaceStake, 'data' => '0x2866ed21'], 'latest']);
+                    $walletClaimEnabled = (is_string($wClaimHex) && $this->hexToDec($wClaimHex) !== '0') ? 'yes' : 'no';
+                }
+            } catch (\Throwable) {
+                // keep defaults
+            }
+        }
+
         return [
             'ico_contract' => $icoContract,
             'race_ico_contract' => $raceIco,
@@ -38,6 +64,19 @@ class IcoContractSettingsScreen extends Screen
             'income_hold' => SiteSetting::incomeHoldAddress(),
             'race_token' => $raceToken,
             'chain_id' => $chainId,
+            'multisig_contract' => $multisig,
+            'community_engine' => $engine,
+            'wallet_race_stake' => $walletRaceStake,
+            'reward_vault' => $rewardVault,
+            'claim_enabled' => $claimEnabled,
+            'wallet_claim_enabled' => $walletClaimEnabled,
+            'multisig_signers' => [
+                '0xCc2B87f8E8AABc295e1119E186c3021bA6F32339',
+                '0x8B2Ac41931d4869E7a53144BaF5C1fa052E8Df24',
+                '0xDE64cA155dEb48B459360FB8E3c4e7167Bfeb150',
+                '0xE9db9ea0fC494fB1Fc743DAfD5a0a436cA19EECA',
+                '0x71DDFC006c21756DF7b07fB4357f6F6B33CE11f9',
+            ],
             'allocation_race' => '600000',
             'admin_race' => $status['admin_race'],
             'contract_race' => $status['contract_race'],
@@ -45,6 +84,9 @@ class IcoContractSettingsScreen extends Screen
             'rpc_ok' => $status['rpc_ok'],
             'current_phase' => $status['current_phase'],
             'ico_completed' => $status['ico_completed'],
+            'next_start_phase' => $status['next_start_phase'],
+            'phase_1_completed' => $status['phase_1_completed'],
+            'phase_2_started' => $status['phase_2_started'],
             'deposit_amount_wei' => '600000000000000000000000',
         ];
     }
@@ -56,7 +98,7 @@ class IcoContractSettingsScreen extends Screen
 
     public function description(): ?string
     {
-        return __('Total 10 lakh RACE go to the admin wallet: deposit 6 lakh into ICO Contract, keep 4 lakh for LP. Admin can withdraw unsold ICO RACE. Every ICO buy sends USDT to this admin wallet.');
+        return __('Total 1,000,000 RACE go to the admin wallet: deposit 600,000 into ICO Contract, keep 400,000 for LP. Admin can withdraw unsold ICO RACE. Every ICO buy sends USDT to this admin wallet.');
     }
 
     /**
@@ -123,7 +165,17 @@ class IcoContractSettingsScreen extends Screen
     }
 
     /**
-     * @return array{admin_race: string, contract_race: string, on_chain_admin: string, rpc_ok: bool, current_phase: string, ico_completed: string}
+     * @return array{
+     *     admin_race: string,
+     *     contract_race: string,
+     *     on_chain_admin: string,
+     *     rpc_ok: bool,
+     *     current_phase: string,
+     *     ico_completed: string,
+     *     next_start_phase: int,
+     *     phase_1_completed: bool,
+     *     phase_2_started: bool
+     * }
      */
     private function onChainStatus(string $raceToken, string $icoContract, string $adminWallet, string $raceIco = ''): array
     {
@@ -134,6 +186,9 @@ class IcoContractSettingsScreen extends Screen
             'rpc_ok' => false,
             'current_phase' => '—',
             'ico_completed' => '—',
+            'next_start_phase' => 0,
+            'phase_1_completed' => false,
+            'phase_2_started' => false,
         ];
 
         if ($raceToken === '') {
@@ -154,11 +209,28 @@ class IcoContractSettingsScreen extends Screen
 
             $phase = '—';
             $completed = '—';
+            $nextStart = 0;
+            $phase1Completed = false;
+            $phase2Started = false;
             if ($raceIco !== '') {
                 $phaseRaw = $this->ethCallUint($rpc, $raceIco, '0xa3a40ea5');
-                $phase = $phaseRaw === '0' ? '0 (not started)' : $phaseRaw;
                 $doneHex = $rpc->call('eth_call', [['to' => $raceIco, 'data' => '0x204e8b17'], 'latest']);
-                $completed = $this->hexToDec(is_string($doneHex) ? $doneHex : '0x0') === '0' ? 'no' : 'yes';
+                $icoDone = $this->hexToDec(is_string($doneHex) ? $doneHex : '0x0') !== '0';
+                $completed = $icoDone ? 'yes' : 'no';
+                $p1 = $this->readPhaseFlags($rpc, $raceIco, 1);
+                $p2 = $this->readPhaseFlags($rpc, $raceIco, 2);
+                $p3 = $this->readPhaseFlags($rpc, $raceIco, 3);
+                $phase1Completed = $p1['completed'];
+                $phase2Started = $p2['started'];
+                $nextStart = $this->nextStartPhase((int) $phaseRaw, $icoDone, $p1, $p2, $p3);
+                $phase = match (true) {
+                    $icoDone => $phaseRaw.' (ICO completed)',
+                    $phaseRaw !== '0' => $phaseRaw,
+                    $p1['completed'] && ! $p2['started'] => '0 (Phase 1 complete — start Phase 2)',
+                    $p2['completed'] && ! $p3['started'] => '0 (Phase 2 complete — start Phase 3)',
+                    ! $p1['started'] => '0 (not started)',
+                    default => '0',
+                };
             }
 
             return [
@@ -168,10 +240,56 @@ class IcoContractSettingsScreen extends Screen
                 'rpc_ok' => true,
                 'current_phase' => $phase,
                 'ico_completed' => $completed,
+                'next_start_phase' => $nextStart,
+                'phase_1_completed' => $phase1Completed,
+                'phase_2_started' => $phase2Started,
             ];
         } catch (\Throwable) {
             return $empty;
         }
+    }
+
+    /**
+     * @return array{started: bool, completed: bool}
+     */
+    private function readPhaseFlags(BscJsonRpcClient $rpc, string $raceIco, int $phaseId): array
+    {
+        $data = '0xf12479ac'.str_pad(dechex($phaseId), 64, '0', STR_PAD_LEFT);
+        $hex = $rpc->call('eth_call', [['to' => $raceIco, 'data' => $data], 'latest']);
+        if (! is_string($hex) || $hex === '' || $hex === '0x') {
+            return ['started' => false, 'completed' => false];
+        }
+
+        $raw = strtolower(preg_replace('/^0x/', '', $hex) ?? '');
+        $raw = str_pad($raw, 576, '0', STR_PAD_RIGHT);
+
+        return [
+            'started' => $this->hexToDec(substr($raw, 320, 64)) !== '0',
+            'completed' => $this->hexToDec(substr($raw, 384, 64)) !== '0',
+        ];
+    }
+
+    /**
+     * @param  array{started: bool, completed: bool}  $p1
+     * @param  array{started: bool, completed: bool}  $p2
+     * @param  array{started: bool, completed: bool}  $p3
+     */
+    private function nextStartPhase(int $currentPhase, bool $icoDone, array $p1, array $p2, array $p3): int
+    {
+        if ($icoDone || $currentPhase !== 0) {
+            return 0;
+        }
+        if (! $p1['started']) {
+            return 1;
+        }
+        if ($p1['completed'] && ! $p2['started']) {
+            return 2;
+        }
+        if ($p2['completed'] && ! $p3['started']) {
+            return 3;
+        }
+
+        return 0;
     }
 
     private function balanceOfData(string $account): string

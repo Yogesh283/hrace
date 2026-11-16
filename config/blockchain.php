@@ -36,6 +36,7 @@ return [
             'RACE_COMMUNITY_ENGINE_CONTRACT',
             env('RACE_COMMUNITY_ENGINE_ADDRESS', env('RACE_COMMUNITY_ENGINE', '')),
         ),
+        'wallet_race_stake' => env('RACE_WALLET_STAKE_CONTRACT', ''),
         'participation' => env('RACE_PARTICIPATION_CONTRACT', ''),
         'reward_vault' => env('RACE_REWARD_VAULT_CONTRACT', ''),
         'reward_price_oracle' => env('RACE_REWARD_PRICE_ORACLE_CONTRACT', ''),

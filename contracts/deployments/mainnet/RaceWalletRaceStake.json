@@ -1,0 +1,15 @@
+{
+  "network": "bsc",
+  "chainId": 56,
+  "address": "0xbcb76726D87e0c794Ae34BBf692c2D204eF9B29c",
+  "deployedAt": "2026-11-16T11:43:49.229Z",
+  "deployer": "0x2a797d98E05444D84238748E23Dec4dbAc0A5C5c",
+  "owner": "0x81BffBF2C2a258E662e9df0a0f6e34150b33F3df",
+  "usdt": "0x55d398326f99059ff775485246999027b3197955",
+  "raceToken": "0xa29683442d9221Df0Eb7AFF3932c1E165FFa93EB",
+  "pancakeRouter": "0x10ED43C718714eb63d5aA57B78B54704E256024E",
+  "rewardVault": "0xa59543817202fE2967be2B6e9EE081b765aE8958",
+  "maturityTreasury": "0xDFff662C7009a4FbFe12ee97b77b4f06a79Ae155",
+  "icoContract": "0x631C12254A98cC69516859fD43c4Da494F5073CA",
+  "claimEnabled": false
+}

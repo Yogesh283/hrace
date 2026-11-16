@@ -27,7 +27,7 @@ class ContractWatchScreen extends Screen
 
     public function description(): ?string
     {
-        return __('All contract addresses with live status — ICO reserve, staking, income hold, vault, Multisig. Read-only.');
+        return __('All contract addresses with live status — ICO reserve, staking, income hold, vault, Multisig. Read-only (use ICO deposit / start to Multisig-enable daily claim).');
     }
 
     /**

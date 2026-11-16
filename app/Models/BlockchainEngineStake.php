@@ -14,6 +14,8 @@ class BlockchainEngineStake extends Model
 
     public const SOURCE_PARTICIPATION = 'participation';
 
+    public const SOURCE_WALLET_RACE = 'wallet_race';
+
     public const STATUS_ACTIVE = 'active';
 
     public const STATUS_WITHDRAWN = 'withdrawn';

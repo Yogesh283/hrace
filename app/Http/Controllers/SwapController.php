@@ -50,7 +50,7 @@ class SwapController extends Controller
         return Inertia::render('Swap', [
             'depositAddress' => SiteSetting::depositAddressPayload(),
             'raceCoin' => [
-                'price_usd' => number_format($raceCoin->priceUsd(), 2, '.', ''),
+                'price_usd' => $raceCoin->formattedPriceUsd(4),
                 'min_swap_usd' => number_format((float) config('race_coin.min_swap_usd', 1), 2, '.', ''),
                 'balance' => $raceCoin->currentBalance($user),
                 'id_activation_coins' => $raceCoin->idActivationCoinsRequired(),

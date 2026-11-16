@@ -38,17 +38,15 @@ class WalletAuthController extends Controller
                 'nullable',
                 'string',
                 'size:8',
-                Rule::exists('users', 'referral_code'),
             ],
         ]);
 
         if ($validated['action'] === 'register') {
-            $sponsorBlocked = User::query()
+            $sponsor = User::query()
                 ->where('referral_code', strtoupper($validated['join_code'] ?? ''))
-                ->where('is_blocked', true)
-                ->exists();
+                ->first(['id', 'is_blocked']);
 
-            if ($sponsorBlocked) {
+            if (! $sponsor || $sponsor->is_blocked) {
                 throw ValidationException::withMessages([
                     'join_code' => __('The selected join code is invalid.'),
                 ]);
@@ -59,9 +57,7 @@ class WalletAuthController extends Controller
         $this->hitRateLimiter('wallet-auth-nonce:'.$address, 10, 1);
 
         if ($validated['action'] === 'login') {
-            $exists = User::query()
-                ->whereRaw('LOWER(wallet_address) = ?', [$address])
-                ->exists();
+            $exists = User::idByWallet($address) !== null;
 
             if (! $exists) {
                 throw ValidationException::withMessages([
@@ -71,7 +67,7 @@ class WalletAuthController extends Controller
         }
 
         if ($validated['action'] === 'register') {
-            if (User::query()->whereRaw('LOWER(wallet_address) = ?', [$address])->exists()) {
+            if (User::idByWallet($address) !== null) {
                 throw ValidationException::withMessages([
                     'address' => __('This wallet is already registered. Please log in.'),
                 ]);
@@ -106,7 +102,7 @@ class WalletAuthController extends Controller
         }
 
         $user = User::query()
-            ->whereRaw('LOWER(wallet_address) = ?', [$address])
+            ->where('wallet_address', $address)
             ->first();
 
         if (! $user) {
@@ -125,9 +121,9 @@ class WalletAuthController extends Controller
             $user->forceFill(['email_verified_at' => now()])->save();
         }
 
-        Auth::login($user, (bool) $request->boolean('remember'));
+        Auth::login($user, true);
         $request->session()->regenerate();
-        app(BlockchainWalletIndexerSyncService::class)->syncForUser($user);
+        $this->queueWalletIndexSync($user->id);
 
         return redirect()->intended(route('dashboard', [], false));
     }
@@ -143,12 +139,7 @@ class WalletAuthController extends Controller
         $validated = $request->validate([
             'address' => ['required', 'string', 'max:66', 'regex:/^0x[a-fA-F0-9]{40}$/'],
             'signature' => ['required', 'string', 'regex:/^0x[a-fA-F0-9]{130}$/'],
-            'join_code' => [
-                'required',
-                'string',
-                'size:8',
-                Rule::exists('users', 'referral_code')->where('is_blocked', false),
-            ],
+            'join_code' => ['required', 'string', 'size:8'],
         ]);
 
         $address = $this->walletAuth->normalizeAddress($validated['address']);
@@ -165,7 +156,7 @@ class WalletAuthController extends Controller
             ]);
         }
 
-        if (User::query()->whereRaw('LOWER(wallet_address) = ?', [$address])->exists()) {
+        if (User::idByWallet($address) !== null) {
             throw ValidationException::withMessages([
                 'address' => __('This wallet is already registered. Please log in.'),
             ]);
@@ -173,7 +164,7 @@ class WalletAuthController extends Controller
 
         $email = $this->walletAuth->syntheticEmail($address);
 
-        if (User::query()->whereRaw('LOWER(email) = ?', [strtolower($email)])->exists()) {
+        if (User::query()->where('email', $email)->exists()) {
             throw ValidationException::withMessages([
                 'address' => __('This wallet is already registered. Please log in.'),
             ]);
@@ -202,11 +193,21 @@ class WalletAuthController extends Controller
             'is_blocked' => false,
         ]);
 
-        Auth::login($user);
+        Auth::login($user, true);
         $request->session()->regenerate();
-        app(BlockchainWalletIndexerSyncService::class)->syncForUser($user);
+        $this->queueWalletIndexSync($user->id);
 
         return redirect()->intended(route('dashboard', absolute: false));
+    }
+
+    private function queueWalletIndexSync(int $userId): void
+    {
+        dispatch(function () use ($userId): void {
+            $user = User::query()->find($userId);
+            if ($user) {
+                app(BlockchainWalletIndexerSyncService::class)->syncForUser($user);
+            }
+        })->afterResponse();
     }
 
     private function hitRateLimiter(string $key, int $max, int $decayMinutes): void

@@ -240,18 +240,26 @@ class ReferralTree
     }
 
     /**
-     * Referral downline grouped by network depth (level 1 = directs … level 10).
+     * Referral downline grouped by network depth (level 1 = directs …).
+     * Pass null for unlimited depth (Total Team UI). Income payouts stay L1–L10 elsewhere.
      *
      * @return list<array{level: int, count: int, members: list<array<string, mixed>>}>
      */
-    public function referralLevelsForLeader(int $leaderId, int $maxLevel = self::NETWORK_MAX_LEVEL): array
+    public function referralLevelsForLeader(int $leaderId, ?int $maxLevel = self::NETWORK_MAX_LEVEL): array
     {
-        $maxLevel = $this->normalizeNetworkMaxLevel($maxLevel);
+        $unlimited = $maxLevel === null;
+        $maxDepth = $unlimited
+            ? self::UNLIMITED_DEPTH_SAFETY_CAP
+            : $this->normalizeNetworkMaxLevel($maxLevel);
+
         $parentIds = [$leaderId];
         $out = [];
 
-        for ($depth = 1; $depth <= $maxLevel; $depth++) {
+        for ($depth = 1; $depth <= $maxDepth; $depth++) {
             if ($parentIds === []) {
+                if ($unlimited) {
+                    break;
+                }
                 $out[] = [
                     'level' => $depth,
                     'count' => 0,
@@ -289,6 +297,10 @@ class ReferralTree
                     'invested_usd' => number_format((float) ($member->invested_usd ?? 0), 2, '.', ''),
                 ];
             })->values()->all();
+
+            if ($unlimited && $members === []) {
+                break;
+            }
 
             $out[] = [
                 'level' => $depth,

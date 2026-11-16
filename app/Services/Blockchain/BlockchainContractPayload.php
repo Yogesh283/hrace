@@ -19,6 +19,7 @@ final class BlockchainContractPayload
         $onChainEnabled = BlockchainMode::onChainEnabled();
 
         $engine = (string) config('blockchain.contracts.community_engine', '');
+        $walletRaceStake = (string) config('blockchain.contracts.wallet_race_stake', '');
         $participation = \App\Support\LegacyParticipationGuard::applicationEnabled()
             ? (string) config('blockchain.contracts.participation', '')
             : '';
@@ -33,8 +34,10 @@ final class BlockchainContractPayload
             'network' => (string) config('blockchain.network', BlockchainMode::effectiveChainId() === 97 ? 'bsc_testnet' : 'bsc'),
             'is_testnet' => BlockchainMode::effectiveChainId() === 97,
             'engine_contract' => $engine,
+            'wallet_race_stake_contract' => $walletRaceStake,
             'participation_contract' => $participation,
             'contract' => $contract,
+            'race_token' => (string) config('blockchain.contracts.race_token', ''),
             'usdt_contract' => (string) config('blockchain.contracts.usdt', config('participation_contract.on_chain.usdt_contract', '')),
             'income_hold' => \App\Models\SiteSetting::incomeHoldAddress(),
             'min_usdt' => number_format((float) RewardPlan::builtForGrowth()['min_amount_usd'], 2, '.', ''),
@@ -81,6 +84,7 @@ final class BlockchainContractPayload
             'contracts' => [
                 'race_token' => $raceToken,
                 'community_engine' => $engineAddress,
+                'wallet_race_stake' => (string) config('blockchain.contracts.wallet_race_stake', ''),
                 'participation' => (string) ($engine['participation_contract'] ?? ''),
                 'reward_vault' => (string) config('blockchain.contracts.reward_vault', ''),
                 'reward_price_oracle' => (string) config('blockchain.contracts.reward_price_oracle', ''),
